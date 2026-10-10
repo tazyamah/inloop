@@ -28,6 +28,12 @@ export interface Evidence {
 
 export interface ReviewPacket {
   id: string;
+  /**
+   * 依頼が属するまとまり（ADR-0008）。1回のrequest_reviewで作った依頼が同じ値を持ち、
+   * 値はその呼び出しで最初に作った依頼のID。UIは、自分の依頼と同じまとまりの依頼だけを
+   * 受付箱に出し、回答できる。AIには返さない。
+   */
+  group: string;
   kind: ReviewKind;
   /** required の場合、依頼を生んだ信頼境界ルール */
   triggeredBy: string[];

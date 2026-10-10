@@ -27,3 +27,5 @@
 | [0004](0004-minimal-model-context.md) | Accepted | AIの文脈には参照・差分・短い列挙値だけを返す |
 | [0005](0005-typescript-first-and-self-hosting.md) | Accepted | 最初の対象をTypeScript＋SQLとし、セルフホストする |
 | [0006](0006-claude-desktop-chat-as-primary-client.md) | Accepted | 当面の主なクライアントをClaude Desktopの通常の会話にする |
+| [0007](0007-append-only-review-log.md) | Accepted | 依頼と回答を、状態ディレクトリの追記専用JSON Linesに保存する |
+| [0008](0008-group-requests-per-call.md) | Accepted | 1回の呼び出しで出された依頼を、回答のまとまりにする |

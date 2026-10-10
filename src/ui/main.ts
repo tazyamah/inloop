@@ -43,6 +43,8 @@ const app = new App({ name: "inloop-review", version: "0.0.0" }, {});
 let toolId: string | undefined;
 let shownId: string | undefined;
 let inbox: InboxItem[] = [];
+/** 別の呼び出しで出された未回答の依頼の数。この画面からは回答できない。 */
+let elsewhere = 0;
 const packets = new Map<string, ReviewPacket>();
 const drafts = new Map<string, Draft>();
 let composer: Composer | null = null;
@@ -68,9 +70,9 @@ function structured<T>(r: { structuredContent?: unknown; isError?: boolean; cont
   return r.structuredContent as T;
 }
 
-async function fetchPacket(id: string): Promise<{ packet: ReviewPacket; inbox: InboxItem[] }> {
+async function fetchPacket(id: string): Promise<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number }> {
   const r = await app.callServerTool({ name: "inloop_get_request", arguments: { id } });
-  const data = structured<{ packet: ReviewPacket; inbox: InboxItem[] }>(r);
+  const data = structured<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number }>(r);
   packets.set(id, data.packet);
   return data;
 }
@@ -79,6 +81,7 @@ async function load(id: string) {
   const data = await fetchPacket(id);
   shownId = id;
   inbox = data.inbox;
+  elsewhere = data.elsewhere ?? 0;
   // 行コメントの宛先候補を決めるため、未回答の依頼票をすべて手元に置く
   await Promise.all(inbox.filter((i) => i.status === "pending" && !packets.has(i.id)).map((i) => fetchPacket(i.id)));
   render();
@@ -89,6 +92,7 @@ async function refreshInbox() {
   try {
     const data = await fetchPacket(shownId);
     inbox = data.inbox;
+    elsewhere = data.elsewhere ?? 0;
     for (const id of drafts.keys()) if (inbox.find((i) => i.id === id)?.status !== "pending") drafts.delete(id);
     render();
   } catch { /* 表示中の依頼の再取得に失敗しても既存表示を保つ */ }
@@ -358,6 +362,11 @@ function renderAnswers() {
     }
     box.append(row);
   }
+  if (elsewhere > 0) {
+    const note = el("div", "item muted", `ほかに未回答の依頼が${elsewhere}件あります。それぞれが出された場所の画面から回答してください。`);
+    note.dataset.elsewhere = String(elsewhere);
+    box.append(note);
+  }
 }
 
 function collect(): Answer[] {
@@ -392,9 +401,10 @@ async function send() {
   if (answers.length === 0) return;
   ($("send") as HTMLButtonElement).disabled = true;
   try {
-    const r = await app.callServerTool({ name: "inloop_submit", arguments: { answers } });
-    const data = structured<{ message: string; inbox: InboxItem[] }>(r);
+    const r = await app.callServerTool({ name: "inloop_submit", arguments: { from: toolId ?? shownId, answers } });
+    const data = structured<{ message: string; inbox: InboxItem[]; elsewhere?: number }>(r);
     inbox = data.inbox;
+    elsewhere = data.elsewhere ?? 0;
     for (const a of answers) drafts.delete(a.id);
     const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: data.message }] });
     if (res.isError) setStatus("回答は記録しましたが、会話への送信をホストが拒否しました。AIにget_review_resultを使うよう伝えてください。", true);
@@ -413,9 +423,10 @@ $("full").addEventListener("click", () => {
 window.addEventListener("focus", () => { void refreshInbox(); });
 
 app.ontoolresult = (params) => {
-  const sc = params.structuredContent as { id?: string } | undefined;
+  // 1回の呼び出しで複数の依頼が作られる。最初の依頼を表示し、残りは受付箱から選べる。
+  const sc = params.structuredContent as { ids?: string[] } | undefined;
   const t = (params.content as { type: string; text?: string }[] | undefined)?.find((c) => c.type === "text")?.text;
-  const id = sc?.id ?? t?.split(" ")[0];
+  const id = sc?.ids?.[0] ?? t?.split(" ")[0];
   if (!id || toolId === id) return;
   toolId = id;
   load(id).catch((e) => setStatus(String((e as Error).message ?? e), true));

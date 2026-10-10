@@ -11,17 +11,21 @@ const enabled = process.env.INLOOP_UI_E2E === "1";
 const shot = (page, name) => process.env.INLOOP_SHOT_DIR ? page.screenshot({ path: `${process.env.INLOOP_SHOT_DIR}/${name}.png`, fullPage: true }) : undefined;
 const HEADER = "[inloop] レビュー回答。fixは修正後にrequest_reviewで差分を再依頼:";
 
-async function setup({ theme = "light", requests = 2 } = {}) {
+async function setup({ theme = "light", requests = 2, elsewhere = 0 } = {}) {
   const { chromium } = await import("playwright");
   const server = createServer();
   const [ct, st] = InMemoryTransport.createLinkedPair();
   await server.connect(st);
   const client = new Client({ name: "e2e", version: "0" });
   await client.connect(ct);
-  if (requests > 1) await client.callTool({ name: "request_review", arguments: { viewpoint: "トークンの扱いは既存APIと揃っているか" } });
-  const input = { viewpoint: "発送済みの注文をキャンセルしようとした時、409で返す方針でよいか", symbols: ["src/db/orders.ts#cancelOrder"], range: "a1b2c3..d4e5f6" };
+  // 依頼は1回の呼び出しでまとめて出す。同じ呼び出しの依頼が、1つのUIの受付箱に並ぶ。
+  const main = { viewpoint: "発送済みの注文をキャンセルしようとした時、409で返す方針でよいか", symbols: ["src/db/orders.ts#cancelOrder"] };
+  const reviews = requests > 1 ? [{ viewpoint: "トークンの扱いは既存APIと揃っているか" }, main] : [main];
+  const input = { reviews, range: "a1b2c3..d4e5f6" };
   const result = await client.callTool({ name: "request_review", arguments: input });
-  const id = result.structuredContent.id;
+  const id = result.structuredContent.ids[0];
+  // 別の呼び出しで出された依頼。このUIには出ない。
+  for (let i = 0; i < elsewhere; i++) await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: `別に出された依頼${i + 1}` }] } });
 
   const hostJs = (await build({ entryPoints: [new URL("./harness/host.mjs", import.meta.url).pathname], bundle: true, format: "esm", write: false })).outputFiles[0].text;
   const reviewHtml = await readFile(new URL("../dist/ui/review.html", import.meta.url), "utf8");
@@ -53,15 +57,15 @@ const line = (view, ref) => view.locator(`.ln[data-ref="${ref}"]`);
 test("依頼が複数あると、行クリックで宛先の依頼を選んでから行の直下にコメントを書ける", { skip: !enabled }, async () => {
   const { browser, page, view, calls, messages, errors } = await setup();
   try {
-    assert.equal(await view.locator("#title").textContent(), "inloop レビュー依頼 R2");
+    assert.equal(await view.locator("#title").textContent(), "inloop レビュー依頼 R1", "最初の依頼を表示する");
     assert.equal(await view.locator(".step").count(), 3);
     assert.equal(await view.locator("textarea").count(), 0, "最初はコメント欄を出さない");
     assert.ok(await view.locator("#send").isDisabled());
 
-    // 44行目をクリック → 宛先選択（表示中のR2が先頭）
+    // 44行目をクリック → 宛先選択（表示中のR1が先頭）
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
     const choices = view.locator(".composer [data-choose]");
-    assert.deepEqual(await choices.evaluateAll((els) => els.map((e) => e.dataset.choose)), ["R2", "R1"]);
+    assert.deepEqual(await choices.evaluateAll((els) => els.map((e) => e.dataset.choose)), ["R1", "R2"]);
     await shot(page, "review-choose");
     await view.locator('.composer [data-choose="R1"]').click();
 
@@ -97,6 +101,7 @@ test("依頼が複数あると、行クリックで宛先の依頼を選んで�
     await view.locator("#send").click();
     await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
     const submit = calls.find((c) => c.name === "inloop_submit");
+    assert.equal(submit.arguments.from, "R1");
     assert.deepEqual(submit.arguments.answers, [
       { id: "R1", verdict: "fix", comment: "SQLの組み立てを1行にまとめて", ref: "src/db/orders.ts#cancelOrder#L44-L46" },
       { id: "R1", verdict: "ask", comment: "購読先はどこ?", ref: "src/api/orders.ts#postCancel#L91" },
@@ -172,6 +177,28 @@ test("ダークテーマのホストでも描画できる", { skip: !enabled }, 
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
     await view.locator('.composer [data-choose="R1"]').click();
     await shot(page, "review-dark");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("別の呼び出しで出された依頼は受付箱に出ず、件数だけを知らせる", { skip: !enabled }, async () => {
+  const { browser, page, view, messages, errors } = await setup({ elsewhere: 2 });
+  try {
+    assert.deepEqual(await view.locator(".item[data-id]").evaluateAll((els) => els.map((e) => e.dataset.id)), ["R1", "R2"]);
+    assert.match(await view.locator("[data-elsewhere]").textContent(), /ほかに未回答の依頼が2件あります/);
+    // 行コメントの宛先候補にも、別に出された依頼は出ない。
+    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
+    assert.deepEqual(await view.locator(".composer [data-choose]").evaluateAll((els) => els.map((e) => e.dataset.choose)), ["R1", "R2"]);
+    await view.locator(".composer").getByRole("button", { name: "キャンセル", exact: true }).click();
+    await shot(page, "review-elsewhere");
+    await view.locator('.item[data-id="R1"] [data-decision="ok"]').click();
+    await view.locator('.item[data-id="R2"] [data-decision="ok"]').click();
+    await view.locator("#send").click();
+    await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
+    assert.equal(messages[0].content[0].text, `${HEADER}\nR1 ok\nR2 ok`);
+    assert.equal(await view.locator("[data-elsewhere]").getAttribute("data-elsewhere"), "2");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

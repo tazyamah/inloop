@@ -17,6 +17,14 @@ which node   # 登録で使う絶対パスを控える
 
 `dist/server/main.js`がMCPサーバーの入口です。GUIアプリからはシェルの`PATH`が見えないことがあるため、`node`は絶対パスで指定します。
 
+## 依頼と回答の保存
+
+引数`--state-dir <dir>`（または環境変数`INLOOP_STATE_DIR`）を指定すると、依頼と回答を`<dir>/reviews.jsonl`に保存し、クライアントやサーバーを再起動しても残ります。対象のrepository直下の`.inloop`を絶対パスで指定することを推奨します（[ADR-0007](../maintainer-guide/decisions/0007-append-only-review-log.md)）。
+
+指定しない場合はメモリにだけ保持し、再起動で消えます。どちらで動いているかは、起動時のログの`state=`で分かります。指定した保存先を使えない場合、サーバーは起動しません。
+
+以下の登録例は保存先を指定しています。`<state>`は状態ディレクトリの絶対パスに置き換えます。
+
 ## 登録方法
 
 以下の`<node>`は`which node`の結果、`<repo>`はrepositoryの絶対パスに置き換えます。
@@ -28,7 +36,7 @@ which node   # 登録で使う絶対パスを控える
 ```json
 {
   "mcpServers": {
-    "inloop": { "command": "<node>", "args": ["<repo>/dist/server/main.js"] }
+    "inloop": { "command": "<node>", "args": ["<repo>/dist/server/main.js", "--state-dir", "<state>"] }
   }
 }
 ```
@@ -38,7 +46,7 @@ which node   # 登録で使う絶対パスを控える
 ### Claude Code
 
 ```sh
-claude mcp add inloop -- <node> <repo>/dist/server/main.js
+claude mcp add inloop -- <node> <repo>/dist/server/main.js --state-dir <state>
 ```
 
 ### Codex
@@ -48,7 +56,7 @@ claude mcp add inloop -- <node> <repo>/dist/server/main.js
 ```toml
 [mcp_servers.inloop]
 command = "<node>"
-args = ["<repo>/dist/server/main.js"]
+args = ["<repo>/dist/server/main.js", "--state-dir", "<state>"]
 ```
 
 ### VS Code
@@ -58,7 +66,7 @@ args = ["<repo>/dist/server/main.js"]
 ```json
 {
   "servers": {
-    "inloop": { "type": "stdio", "command": "<node>", "args": ["<repo>/dist/server/main.js"] }
+    "inloop": { "type": "stdio", "command": "<node>", "args": ["<repo>/dist/server/main.js", "--state-dir", "<state>"] }
   }
 }
 ```

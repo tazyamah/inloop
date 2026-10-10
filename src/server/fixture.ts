@@ -63,12 +63,14 @@ const STEPS: ReviewStep[] = [
 
 export function buildFixturePacket(
   id: string,
+  group: string,
   viewpoint: string,
   requestedSymbols: string[],
   range: string,
 ): ReviewPacket {
   return {
     id,
+    group,
     kind: "required",
     triggeredBy: ["boundary.db-write", "boundary.auth"],
     viewpoint,

@@ -23,25 +23,29 @@ export function createServer(store = new ReviewStore()): McpServer {
   const server = new McpServer({ name: "inloop", version: VERSION });
 
   // AIが呼ぶツール。戻り値は依頼IDと状態だけにする（ADR-0004）。
+  // 1回の呼び出しで渡された依頼は、1つのUIからまとめて回答できる（ADR-0008）。
   registerAppTool(
     server,
     "request_review",
     {
       title: "Request human review",
       description:
-        "Ask the human to review a change. Pass a concrete question, symbol IDs and a commit range; never pass code. Returns only an ID. Answers arrive later as a user message.",
+        "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. Returns only IDs. Answers arrive later as a user message.",
       inputSchema: z.object({
-        viewpoint: z.string().min(1).max(500),
-        symbols: z.array(z.string().max(200)).max(50).optional(),
+        reviews: z
+          .array(z.object({ viewpoint: z.string().min(1).max(500), symbols: z.array(z.string().max(200)).max(50).optional() }))
+          .min(1)
+          .max(10),
         range: z.string().max(100).optional(),
       }),
       _meta: { ui: { resourceUri: UI_URI } },
     },
-    async ({ viewpoint, symbols, range }) => {
-      const packet = store.create(viewpoint, symbols ?? [], range ?? "HEAD");
-      const t = `${packet.id} pending`;
+    async ({ reviews, range }) => {
+      const packets = store.create(reviews.map((r) => ({ viewpoint: r.viewpoint, symbols: r.symbols ?? [] })), range ?? "HEAD");
+      const ids = packets.map((p) => p.id);
+      const t = `${ids.join(" ")} pending`;
       logModelBound("request_review", t);
-      return { ...text(t), structuredContent: { id: packet.id } };
+      return { ...text(t), structuredContent: { ids } };
     },
   );
 
@@ -51,11 +55,12 @@ export function createServer(store = new ReviewStore()): McpServer {
     "get_review_result",
     {
       title: "Get review answers",
-      description: "Get answered reviews as one line each: <id> ok|fix|ask|hold [ref] [\"comment\"]. Usually not needed.",
-      inputSchema: z.object({ ids: z.array(z.string()).max(50).optional() }),
+      description: "Get answers to your reviews by ID, one line each: <id> ok|fix|ask|hold [ref] [\"comment\"]. Usually not needed.",
+      inputSchema: z.object({ ids: z.array(z.string()).min(1).max(50) }),
       _meta: { ui: { resourceUri: UI_URI, visibility: ["model"] } },
     },
     async ({ ids }) => {
+      // IDを必須にしている。絞り込みなしでは、別の会話の回答まで返してしまう。
       const lines = store.answered(ids).map(formatAnswerLine);
       const t = lines.length > 0 ? lines.join("\n") : "none";
       logModelBound("get_review_result", t);
@@ -77,7 +82,12 @@ export function createServer(store = new ReviewStore()): McpServer {
       if (!packet) return error(`unknown review ${id}`);
       return {
         ...text(`${id}`),
-        structuredContent: { packet, status: store.statusOf(id), inbox: store.inbox() },
+        structuredContent: {
+          packet,
+          status: store.statusOf(id),
+          inbox: store.inbox(packet.group),
+          elsewhere: store.pendingElsewhere(packet.group),
+        },
       };
     },
   );
@@ -88,6 +98,7 @@ export function createServer(store = new ReviewStore()): McpServer {
     {
       description: "UI only: record answers and return the message to send.",
       inputSchema: z.object({
+        from: z.string(),
         answers: z
           .array(
             z.object({
@@ -102,12 +113,13 @@ export function createServer(store = new ReviewStore()): McpServer {
       }),
       _meta: { ui: { resourceUri: UI_URI, visibility: ["app"] } },
     },
-    async ({ answers }) => {
+    async ({ answers, from }) => {
       try {
-        const recorded = store.submit(answers as Parameters<ReviewStore["submit"]>[0]);
+        const recorded = store.submit(answers as Parameters<ReviewStore["submit"]>[0], from);
+        const group = store.get(from)!.group;
         const message = formatAnswerMessage(recorded);
         logModelBound("answer_message", message);
-        return { ...text("recorded"), structuredContent: { message, inbox: store.inbox() } };
+        return { ...text("recorded"), structuredContent: { message, inbox: store.inbox(group), elsewhere: store.pendingElsewhere(group) } };
       } catch (e) {
         return error((e as Error).message);
       }
