@@ -16,10 +16,19 @@ AIは人間がレビューしきれない量のコードを生成できます。
 
 ## 状態
 
-設計段階です。実装はまだありません。
+最小のMCPサーバーとレビューUIだけがあります。依頼票は固定データで、解析エンジンは未実装です。
+
+```sh
+npm ci
+npm run build
+npm test
+```
+
+AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
 
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)
 - 開発のイテレーション: [docs/iteration.md](docs/iteration.md)
 - レビュー依頼のプロトコル（草案）: [docs/review-protocol.md](docs/review-protocol.md)
+- クライアント検証: [docs/client-verification.md](docs/client-verification.md)
 - 開発者向け: [AGENTS.md](AGENTS.md)、[maintainer-guide/](maintainer-guide/README.md)

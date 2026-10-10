@@ -26,3 +26,4 @@
 | [0003](0003-hosted-by-ai-client-via-mcp.md) | Accepted | MCPサーバー＋MCP AppsとしてAIクライアントにホストされる |
 | [0004](0004-minimal-model-context.md) | Accepted | AIの文脈には参照・差分・短い列挙値だけを返す |
 | [0005](0005-typescript-first-and-self-hosting.md) | Accepted | 最初の対象をTypeScript＋SQLとし、セルフホストする |
+| [0006](0006-claude-desktop-chat-as-primary-client.md) | Accepted | 当面の主なクライアントをClaude Desktopの通常の会話にする |

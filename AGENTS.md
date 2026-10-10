@@ -26,5 +26,6 @@
 - [MUST] 実装または検証状態が変わった場合は、`maintainer-guide/handoff.md`の現在地、未検証事項、次の一手を更新します。
 - [MUST] 複数セッションに影響する設計判断を行った場合は、`maintainer-guide/decisions/0000-template.md`を基に新しいADRを追加し、一覧を更新します。
 - [MUST NOT] Accepted ADRの結論を遡及的に書き換えません。変更は新しいADRで`Supersedes`として記録します。誤字とリンク修正は例外です。
+- [MUST] 終了前に`npm test`を実行します。UIを変更した場合は、Playwrightが使える環境で`INLOOP_UI_E2E=1 npm test`も実行します。実行できなかった場合はその旨をhandoffに記載します。
 - [MUST] 実施していない検証は「未検証」と明記します。生成できたこと、UIが表示できたことを、正しさの証拠として扱いません。
 - [MUST NOT] 端末固有の絶対path、secret、認証情報、実行時stateをcommitしません。

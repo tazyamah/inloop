@@ -1,0 +1,29 @@
+{
+  "name": "inloop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Human-in-the-loop review for AI coding",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "inloop-mcp": "dist/server/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-ui.mjs",
+    "test": "npm run build && node --test \"test/*.test.mjs\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/server": "2.3.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
