@@ -1,0 +1,28 @@
+# 設計判断記録（ADR）
+
+複数の短い開発セッションでinloopを一貫して変更するための記録です。現在の作業状態は[../handoff.md](../handoff.md)を参照します。
+
+## 運用規則
+
+次のいずれかを変えるときにADRを追加します。
+
+- 依頼票の構造、生成方法、AIに返す情報の範囲
+- MCPのツール、公開contract、互換性
+- 信頼境界ルール、必須依頼の条件
+- 対応言語、対応クライアント、大きな依存関係
+
+小さなバグ修正やテスト結果だけならADRは不要で、handoffに記載します。
+
+ファイル名は`NNNN-kebab-case.md`とし、番号は再利用しません。状態は`Proposed`、`Accepted`、`Deprecated`、`Superseded`、`Rejected`のいずれかです。Accepted ADRの結論は書き換えず、新しいADRから`Supersedes ADR-NNNN`として更新します。誤字やリンク修正は可能です。
+
+新規作成時は[0000-template.md](0000-template.md)を複製します。
+
+## 一覧
+
+| ADR | 状態 | 判断 |
+|---|---|---|
+| [0001](0001-push-review-requests.md) | Accepted | AIが人にレビューを依頼するpush型にし、信頼境界の変更は必須依頼にする |
+| [0002](0002-deterministic-review-projection.md) | Accepted | 依頼票の構造をコードから決定的に生成し、AIの推測を混ぜない |
+| [0003](0003-hosted-by-ai-client-via-mcp.md) | Accepted | MCPサーバー＋MCP AppsとしてAIクライアントにホストされる |
+| [0004](0004-minimal-model-context.md) | Accepted | AIの文脈には参照・差分・短い列挙値だけを返す |
+| [0005](0005-typescript-first-and-self-hosting.md) | Accepted | 最初の対象をTypeScript＋SQLとし、セルフホストする |
