@@ -191,7 +191,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - `inloop server status|stop|restart|start`。引数なしは前面で動かす。画面のサーバーは`SIGTERM`で止まる。
 - 画面のサーバーは`/_inloop/health`でビルドの印（`dist/server/ui-server.js`の更新時刻）を返す。MCPサーバーは、動いているのが今のビルドより古ければ、止めて起動し直す。`inloop update`やビルドの後は、次の依頼で新しい版になる。
 - `inloop new <dir> [--name] [--db sqlite]`: `templates/server/`を写し（`__APP_NAME__`を置き換え、`gitignore`を`.gitignore`にする）、`git init`し、`inloop init`と同じ登録をする。空でないディレクトリ、使われているアプリ名は拒否する。`--db postgres`と`--desktop`（Tauri）は「まだない」として拒否する。
-- 雛形（サーバーで動くアプリ）: React 19＋Vite 8（`web/`）、Hono 4＋`@hono/node-server`（`server/`、ポート8787）、SQLiteはNode.js組み込みの`node:sqlite`（Node.js 22.13以上、実験的機能の警告が出る）。サーバーの実行とテストは`tsx`、型検査はTypeScript 7。例としてメモの一覧と追加、テスト2件。AIへの指示は`AGENTS.md`（`CLAUDE.md`から読む）に、レビュー依頼の出し方を書いた。
+- 雛形（サーバーで動くアプリ）: React 19＋Vite 8（`web/`）、Hono 4＋`@hono/node-server`（`server/`、ポート8787）、SQLiteはNode.js組み込みの`node:sqlite`（Node.js 22.13以上、起動時に実験的機能の警告が1回出る）。ネイティブのビルドが要らずTauriへの同梱（ADR-0011）が楽なので、`better-sqlite3`ではなくこれにした（利用者と確認、2026-10-11）。サーバーの実行とテストは`tsx`、型検査はTypeScript 7。例としてメモの一覧と追加、テスト2件。AIへの指示は`AGENTS.md`（`CLAUDE.md`から読む）に、レビュー依頼の出し方を書いた。
 - `.mcp.json`の作成と、inloopの設定ファイル（ルール、版）はまだない。`.mcp.json`は、Claude Desktopの設定と名前がぶつかる件（ADR-0012の影響）をどう扱うか決めてから作る。
 
 検証: `npm test`が41 pass・6 skip・fail 0（追加はstdio2件の拡張と`inloop new`1件）。`INLOOP_UI_E2E=1`で全47件pass。`inloop new demo-app`で作ったリポジトリで、`npm install`、`npm test`（2 pass）、`npm run build`（型検査と画面のビルド）が通り、`npm start`相当でサーバーを起動して`/api/health`・メモの追加と一覧・ビルドした画面の表示（ブラウザペインでReactの描画とメモの表示）を確かめた。`npm run dev`は確かめていない。
