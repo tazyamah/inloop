@@ -47,6 +47,8 @@ function button(label: string, onClick: () => void, cls?: string): HTMLButtonEle
 
 const app = new App({ name: "inloop-review", version: "0.0.0" }, {});
 let toolId: string | undefined;
+/** 依頼の対象のリポジトリ。ツールの結果の`_meta`で受け取り、UI専用のツールに渡す（ADR-0010）。 */
+let repo: string | undefined;
 let shownId: string | undefined;
 let inbox: InboxItem[] = [];
 /** 別の呼び出しで出された未回答の依頼の数。この画面からは回答できない。 */
@@ -79,7 +81,7 @@ function structured<T>(r: { structuredContent?: unknown; isError?: boolean; cont
 }
 
 async function fetchPacket(id: string): Promise<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number }> {
-  const r = await app.callServerTool({ name: "inloop_get_request", arguments: { id } });
+  const r = await app.callServerTool({ name: "inloop_get_request", arguments: { id, ...(repo ? { repo } : {}) } });
   const data = structured<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number; history?: AnswerRound[] }>(r);
   packets.set(id, data.packet);
   histories.set(id, data.history ?? []);
@@ -197,7 +199,7 @@ function commitComposer() {
 /** 保留中・回答待ちの依頼を未回答に戻す。会話には何も送らない。 */
 async function reopen(id: string) {
   try {
-    const r = await app.callServerTool({ name: "inloop_reopen", arguments: { from: toolId ?? shownId, ids: [id] } });
+    const r = await app.callServerTool({ name: "inloop_reopen", arguments: { from: toolId ?? shownId, ids: [id], ...(repo ? { repo } : {}) } });
     const data = structured<{ inbox: InboxItem[]; elsewhere?: number }>(r);
     inbox = data.inbox;
     elsewhere = data.elsewhere ?? 0;
@@ -482,7 +484,7 @@ async function send() {
   if (answers.length === 0) return;
   ($("send") as HTMLButtonElement).disabled = true;
   try {
-    const r = await app.callServerTool({ name: "inloop_submit", arguments: { from: toolId ?? shownId, answers } });
+    const r = await app.callServerTool({ name: "inloop_submit", arguments: { from: toolId ?? shownId, answers, ...(repo ? { repo } : {}) } });
     const data = structured<{ message: string; inbox: InboxItem[]; elsewhere?: number }>(r);
     inbox = data.inbox;
     elsewhere = data.elsewhere ?? 0;
@@ -512,6 +514,8 @@ app.ontoolresult = (params) => {
   const id = sc?.ids?.[0] ?? t?.split(" ")[0];
   if (!id || toolId === id) return;
   toolId = id;
+  const r = (params._meta as Record<string, unknown> | undefined)?.["inloop/repo"];
+  if (typeof r === "string") repo = r;
   load(id).catch((e) => setStatus(String((e as Error).message ?? e), true));
 };
 

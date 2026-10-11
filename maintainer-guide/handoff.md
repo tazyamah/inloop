@@ -158,6 +158,18 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 
 この問題への対処として、画面をマシン全体で1つのサーバーから`http://<アプリ名>.inloop.localhost:4656/r/<ID>`で配り、鍵の代わりにHostとOriginを確かめることにした（ADR-0013、未実装）。`appa.inloop.localhost`がhostsの設定なしに自分のMacへ向くことを、`curl`、Claudeアプリのブラウザペイン、Safari（利用者が確認）で確かめた。
 
+### 2026-10-11 対象のリポジトリごとの記録（ADR-0010、ADR-0014）
+
+- `src/server/target.ts`: `Targets`が対象を決め、リポジトリごとの`ReviewStore`を持つ。順序は`--repo`、AIの`repo`、ちょうど1つのroots。gitの作業ツリーの最上位に正規化し、rootsと`--allow`の外は拒否する。`.inloop/`を作るとき、中に`*`だけの`.gitignore`を置く。`--state-dir`があれば、対象が決まらなくてもそこに記録する（互換）。
+- `request_review`・`get_review_result`・UI専用のツールに、省略できる`repo`を足した。`request_review`の結果の`_meta`（`inloop/repo`）でUIに対象を渡す。記録と`structuredContent`には対象を入れない（ADR-0014）。
+- ブラウザで開く経路のURLは`/r/<対象の印>/<依頼ID>`になった。HTTPの呼び出しは`/api/<対象の印>/call`で、対象はURLの印で決める。
+- 起動引数に`--repo`と`--allow`（複数可）を足した。`--state-dir`がなければ、起動ログは`state=repo`になる。これまでの「指定がなければメモリにだけ保持する」動きはなくなった。
+- AIから見えるツール定義は、`repo`の分だけ増えた（1500文字未満、テスト）。
+
+検証: macOS（Node.js 22.18.0）で`npm test`が38 pass・6 skip・fail 0。追加したのは対象のテスト7件、stdio1件。`playwright@1.56.0`（`--no-save`）とChromium 149で`INLOOP_UI_E2E=1 npm test`が全44件pass。実際のクライアントでは未検証。
+
+ADR-0010との差異: ADR-0010は「依頼票に対象を記録し、UIの上部に表示する」としていたが、実装では記録に書かず、表示もしない。理由と決定はADR-0014に記録した。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -214,7 +226,7 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 - 利用者の記録（R1〜R15）が2026-10-10 23:55ごろに失われた原因。
 - Claudeデスクトップアプリの中のClaude Codeで、ブラウザの経路の`wait`が、未回答に戻して答え直した回答を待てるか（直した後の版）。`follows`での再依頼と、再依頼の画面の表示。
 - Claude Desktopの通常の会話で、`claude mcp serve`のツールにより手元のMacのファイルを読み書きできるか。VMより速いか。許可を何回求められるか。
-- Claude DesktopとClaude Codeが、rootsに対応しているか（起動ログの`initialize capabilities=`で確かめる）。
+- Claude Desktopが、ツールの結果の`_meta`をUIに渡すか（ADR-0014）。Claude Codeでrootsにより対象が決まるか（rootsへの対応は起動ログで確認済み: Claude Codeは対応、Claude Desktopは非対応）。
 - Claude Desktopの通常の会話で、AIが毎回`repo`を渡すか（ADR-0010を実装した後）。
 - Tauriにサーバーを同梱した手元のアプリの大きさとメモリ（ADR-0011）。
 
@@ -237,7 +249,7 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 
 ## 次の一手
 
-1. ADR-0010を実装する: `repo`引数と`--repo`、対象ごとのReviewStore、`.inloop/.gitignore`、UIとブラウザの経路での対象の受け渡し。あわせて、起動ログでrootsへの対応を確かめる。
+1. ADR-0010の実装を実際のクライアントで確かめる。Claude Codeは`--state-dir`なしで登録し直し、rootsで対象が決まるか。Claude Desktopは、AIが`repo`を渡すか、UIに`_meta`が届くか（`--state-dir`を外した場合）。
 2. ADR-0011の`inloop`コマンドを作る: `bin/inloop`、`inloop mcp`（今の`dist/server/main.js`）、`init`、`update`。`new`と雛形は後でよい。あわせてADR-0013の画面のサーバーとアプリの登録簿を作り、ADR-0012のプロセスごとのポートと鍵を置き換える。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. TypeScriptのシンボル解析と理解順の並べ替えを、inloop自身のコードを対象に作り始め、固定データを置き換える。シンボルIDの表記もここで決める。

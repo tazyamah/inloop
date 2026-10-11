@@ -5,6 +5,7 @@ import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@model
 import { z } from "zod";
 import { formatAnswerLine, formatAnswerMessage, logModelBound, VERDICTS } from "./format.js";
 import { ReviewStore } from "./store.js";
+import { TargetError, Targets } from "./target.js";
 
 export const UI_URI = "ui://inloop/review.html";
 export const UI_FILE = fileURLToPath(new URL("../ui/review.html", import.meta.url));
@@ -31,19 +32,39 @@ function error(t: string) {
 
 export interface ServerOptions {
   /**
-   * ブラウザで開く経路（ADR-0010）。指定すると、request_reviewが画面のURLを返す。
-   * 依頼の最初のIDを受け取り、その依頼のまとまりを開くURLを返す。
+   * ブラウザで開く経路（ADR-0012）。指定すると、request_reviewが画面のURLを返す。
+   * 依頼の最初のIDと対象のリポジトリを受け取り、その依頼のまとまりを開くURLを返す。
    */
-  browserUrl?: (id: string) => string;
+  browserUrl?: (id: string, repo: string | undefined) => string;
 }
 
-/** UI専用のツール（visibility: app）。MCP AppsのホストとブラウザのホストのHTTPが同じものを使う。 */
-export function appTools(store: ReviewStore) {
+/** 対象を決め、決まらなければAIやUIへ返すエラーにする。 */
+async function storeFor(targets: Targets, repo: string | undefined): Promise<{ repo: string | undefined; store: ReviewStore } | ToolResult> {
+  try {
+    return await targets.resolve(repo);
+  } catch (e) {
+    if (e instanceof TargetError) return error(e.message);
+    throw e;
+  }
+}
+const isError = (r: object): r is ToolResult => "content" in r;
+
+/** 結果の`_meta`で、UIに対象のリポジトリを渡す。AIには渡さない（ADR-0010）。 */
+export const REPO_META = "inloop/repo";
+
+/**
+ * UI専用のツール（visibility: app）。MCP AppsのホストとブラウザのホストのHTTPが同じものを使う。
+ * どれも省略できる`repo`で対象のリポジトリを受け取る（ADR-0010）。
+ */
+export function appTools(targets: Targets) {
   return {
     inloop_get_request: {
       description: "UI only: fetch a review packet and the inbox.",
-      inputSchema: z.object({ id: z.string() }),
-      handler: async ({ id }: { id: string }): Promise<ToolResult> => {
+      inputSchema: z.object({ id: z.string(), repo: z.string().optional() }),
+      handler: async ({ id, repo }: { id: string; repo?: string }): Promise<ToolResult> => {
+        const t = await storeFor(targets, repo);
+        if (isError(t)) return t;
+        const { store } = t;
         const packet = store.get(id);
         if (!packet) return error(`unknown review ${id}`);
         return {
@@ -62,6 +83,7 @@ export function appTools(store: ReviewStore) {
       description: "UI only: record answers and return the message to send.",
       inputSchema: z.object({
         from: z.string(),
+        repo: z.string().optional(),
         answers: z
           .array(
             z.object({
@@ -74,7 +96,10 @@ export function appTools(store: ReviewStore) {
           .min(1)
           .max(50),
       }),
-      handler: async ({ answers, from }: { from: string; answers: unknown[] }): Promise<ToolResult> => {
+      handler: async ({ answers, from, repo }: { from: string; repo?: string; answers: unknown[] }): Promise<ToolResult> => {
+        const t = await storeFor(targets, repo);
+        if (isError(t)) return t;
+        const { store } = t;
         try {
           const recorded = store.submit(answers as Parameters<ReviewStore["submit"]>[0], from);
           const group = store.get(from)!.group;
@@ -89,8 +114,11 @@ export function appTools(store: ReviewStore) {
     // 保留中・回答待ちの依頼を未回答に戻す。会話には何も送らない（ADR-0009）。
     inloop_reopen: {
       description: "UI only: return held or answering reviews to pending.",
-      inputSchema: z.object({ from: z.string(), ids: z.array(z.string()).min(1).max(50) }),
-      handler: async ({ ids, from }: { from: string; ids: string[] }): Promise<ToolResult> => {
+      inputSchema: z.object({ from: z.string(), repo: z.string().optional(), ids: z.array(z.string()).min(1).max(50) }),
+      handler: async ({ ids, from, repo }: { from: string; repo?: string; ids: string[] }): Promise<ToolResult> => {
+        const t = await storeFor(targets, repo);
+        if (isError(t)) return t;
+        const { store } = t;
         try {
           store.reopen(ids, from);
           const group = store.get(from)!.group;
@@ -112,9 +140,20 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-export function createServer(store = new ReviewStore(), options: ServerOptions = {}): McpServer {
+/**
+ * MCPサーバーを作る。ReviewStoreを渡すと、対象に関係なくその記録を使う（テストと互換のため）。
+ * Targetsを渡すと、依頼ごとに対象のリポジトリを決める（ADR-0010）。
+ */
+export function createServer(target: ReviewStore | Targets = new ReviewStore(), options: ServerOptions = {}): McpServer {
   const server = new McpServer({ name: "inloop", version: VERSION });
   const { browserUrl } = options;
+  const targets = target instanceof Targets ? target : new Targets({ store: target });
+  // クライアントが作業フォルダ（roots）を知らせられるなら、対象を決めるのに使う。
+  targets.useRoots(async () => {
+    if (!server.server.getClientCapabilities()?.roots) return undefined;
+    return (await server.server.listRoots()).roots.map((r) => r.uri);
+  });
+  const repoParam = z.string().max(500).optional();
 
   // AIが呼ぶツール。戻り値は依頼IDと状態だけにする（ADR-0004）。
   // 1回の呼び出しで渡された依頼は、1つのUIからまとめて回答できる（ADR-0008）。
@@ -126,8 +165,8 @@ export function createServer(store = new ReviewStore(), options: ServerOptions =
     {
       title: "Request human review",
       description: browserUrl
-        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns IDs and a url: open it in a browser for the human, then get_review_result with wait."
-        : "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns only IDs. Answers arrive later as a user message.",
+        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns IDs and a url: open it in a browser for the human, then get_review_result with wait."
+        : "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns only IDs. Answers arrive later as a user message.",
       inputSchema: z.object({
         reviews: z
           .array(
@@ -140,10 +179,18 @@ export function createServer(store = new ReviewStore(), options: ServerOptions =
           .min(1)
           .max(10),
         range: z.string().max(100).optional(),
+        repo: repoParam,
       }),
       _meta: { ui: { resourceUri: UI_URI } },
     },
-    async ({ reviews, range }) => {
+    async ({ reviews, range, repo }) => {
+      const t = await storeFor(targets, repo);
+      if (isError(t)) {
+        logModelBound("request_review_error", t.content[0]!.text);
+        return t;
+      }
+      const { store } = t;
+      const meta = t.repo ? { _meta: { [REPO_META]: t.repo } } : {};
       let ids: string[];
       try {
         ids = store.create(reviews, range ?? "HEAD").map((p) => p.id);
@@ -154,14 +201,14 @@ export function createServer(store = new ReviewStore(), options: ServerOptions =
         return error(t);
       }
       if (browserUrl) {
-        const url = browserUrl(ids[0]!);
-        const t = `${ids.join(" ")} pending ${url}`;
-        logModelBound("request_review", t);
-        return { ...text(t), structuredContent: { ids, url } };
+        const url = browserUrl(ids[0]!, t.repo);
+        const out = `${ids.join(" ")} pending ${url}`;
+        logModelBound("request_review", out);
+        return { ...text(out), structuredContent: { ids, url }, ...meta };
       }
-      const t = `${ids.join(" ")} pending`;
-      logModelBound("request_review", t);
-      return { ...text(t), structuredContent: { ids } };
+      const out = `${ids.join(" ")} pending`;
+      logModelBound("request_review", out);
+      return { ...text(out), structuredContent: { ids }, ...meta };
     },
   );
 
@@ -175,10 +222,13 @@ export function createServer(store = new ReviewStore(), options: ServerOptions =
       description: browserUrl
         ? "Get answers to your reviews by ID, one line each: <id> ok|fix|ask|hold [ref] [\"comment\"]. wait: seconds to block until all are answered."
         : "Get answers to your reviews by ID, one line each: <id> ok|fix|ask|hold [ref] [\"comment\"]. Usually not needed.",
-      inputSchema: z.object({ ids: z.array(z.string()).min(1).max(50), wait: z.number().int().min(0).max(MAX_WAIT_SECONDS).optional() }),
+      inputSchema: z.object({ ids: z.array(z.string()).min(1).max(50), wait: z.number().int().min(0).max(MAX_WAIT_SECONDS).optional(), repo: repoParam }),
       _meta: { ui: { resourceUri: UI_URI, visibility: ["model"] } },
     },
-    async ({ ids, wait }, extra) => {
+    async ({ ids, wait, repo }, extra) => {
+      const t = await storeFor(targets, repo);
+      if (isError(t)) return t;
+      const { store } = t;
       // IDを必須にしている。絞り込みなしでは、別の会話の回答まで返してしまう。
       const pending = () => ids.filter((id) => store.statusOf(id) === "pending");
       if (wait) {
@@ -200,14 +250,14 @@ export function createServer(store = new ReviewStore(), options: ServerOptions =
       const lines = store.answered(ids).map(formatAnswerLine);
       // 待った場合は、まだ回答のない依頼も示す。待ち直すかどうかをAIが決められるように。
       if (wait) lines.push(...pending().map((id) => `${id} pending`));
-      const t = lines.length > 0 ? lines.join("\n") : "none";
-      logModelBound("get_review_result", t);
-      return text(t);
+      const out = lines.length > 0 ? lines.join("\n") : "none";
+      logModelBound("get_review_result", out);
+      return text(out);
     },
   );
 
   // 以下はUI専用。AIからは見えない（visibility: app）。
-  const ui = appTools(store);
+  const ui = appTools(targets);
   const appOnly = { ui: { resourceUri: UI_URI, visibility: ["app" as const] } };
   const get = ui.inloop_get_request;
   registerAppTool(server, "inloop_get_request", { description: get.description, inputSchema: get.inputSchema, _meta: appOnly }, get.handler);

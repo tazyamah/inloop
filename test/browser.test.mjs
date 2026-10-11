@@ -6,11 +6,13 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { appTools, createServer } from "../dist/server/create-server.js";
 import { startBrowserUi } from "../dist/server/browser.js";
 import { ReviewStore } from "../dist/server/store.js";
+import { Targets } from "../dist/server/target.js";
 
 async function setup() {
   const store = new ReviewStore();
-  const ui = await startBrowserUi(appTools(store));
-  const server = createServer(store, { browserUrl: (id) => ui.urlFor(id) });
+  const targets = new Targets({ store });
+  const ui = await startBrowserUi(appTools(targets));
+  const server = createServer(targets, { browserUrl: (id, repo) => ui.urlFor(id, repo) });
   const [ct, st] = InMemoryTransport.createLinkedPair();
   await server.connect(st);
   const client = new Client({ name: "test", version: "0" });
@@ -35,15 +37,15 @@ function http(url, { method = "GET", headers = {}, body } = {}) {
 }
 
 const tokenOf = (url) => new URL(url).searchParams.get("t");
-const call = (ui, token, name, args, headers = { "content-type": "application/json" }) =>
-  http(`http://127.0.0.1:${ui.port}/api/call?t=${token}`, { method: "POST", headers, body: JSON.stringify({ name, arguments: args }) });
+const call = (ui, token, name, args, headers = { "content-type": "application/json" }, key = "-") =>
+  http(`http://127.0.0.1:${ui.port}/api/${key}/call?t=${token}`, { method: "POST", headers, body: JSON.stringify({ name, arguments: args }) });
 
 test("ブラウザで開く経路では、request_reviewがIDと画面のURLを返す", async () => {
   const { client, close } = await setup();
   try {
     const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1" }, { viewpoint: "q2" }] } });
     const url = r.structuredContent.url;
-    assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/r\/R1\?t=[\w-]{24}$/);
+    assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/r\/-\/R1\?t=[\w-]{24}$/);
     assert.deepEqual(r.structuredContent.ids, ["R1", "R2"]);
     assert.equal(textOf(r), `R1 R2 pending ${url}`);
     assert.ok(textOf(r).length < 80, "AIの文脈に入るのは短い参照だけ");
@@ -66,7 +68,9 @@ test("画面とUI専用ツールは鍵とHostヘッダーを確かめ、AIのツ
     assert.equal((await http(`http://127.0.0.1:${ui.port}/ui/review.html?t=${token}`)).status, 200);
 
     assert.equal((await http(url.replace(token, "x".repeat(token.length)))).status, 403, "鍵が違う");
-    assert.equal((await http(`http://127.0.0.1:${ui.port}/r/R1`)).status, 403, "鍵がない");
+    assert.equal((await http(`http://127.0.0.1:${ui.port}/r/-/R1`)).status, 403, "鍵がない");
+    assert.equal((await http(url.replace("/r/-/", "/r/0123456789/"))).status, 404, "このプロセスが作っていない対象の印");
+    assert.equal((await call(ui, token, "inloop_get_request", { id: "R1" }, undefined, "0123456789")).status, 404);
     assert.equal((await http(url, { headers: { host: `evil.example:${ui.port}` } })).status, 403, "Hostが違う");
     assert.equal((await http(url.replace("127.0.0.1", "localhost"))).status, 200);
 

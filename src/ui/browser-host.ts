@@ -4,7 +4,8 @@
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
 
 const token = new URLSearchParams(location.search).get("t") ?? "";
-const id = location.pathname.split("/").pop() ?? "";
+// URLは /r/<対象の印>/<依頼ID>（ADR-0010）。
+const [, , repoKey = "-", id = ""] = location.pathname.split("/");
 const dark = matchMedia("(prefers-color-scheme: dark)");
 
 const notice = document.getElementById("notice")!;
@@ -19,7 +20,7 @@ const bridge = new AppBridge(
 );
 
 bridge.oncalltool = async (params) => {
-  const res = await fetch(`/api/call?t=${encodeURIComponent(token)}`, {
+  const res = await fetch(`/api/${repoKey}/call?t=${encodeURIComponent(token)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: params.name, arguments: params.arguments ?? {} }),
@@ -38,7 +39,7 @@ bridge.onmessage = async () => {
 // 再依頼済みの依頼から、引き継ぎ先の依頼のページへ移る。
 bridge.onopenlink = async ({ url }) => {
   const m = /^inloop:review\/(R\d+(?:-\d+)?)$/.exec(url);
-  if (m) location.href = `/r/${m[1]}?t=${encodeURIComponent(token)}`;
+  if (m) location.href = `/r/${repoKey}/${m[1]}?t=${encodeURIComponent(token)}`;
   else window.open(url, "_blank", "noopener");
   return {};
 };

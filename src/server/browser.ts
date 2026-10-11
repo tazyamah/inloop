@@ -1,7 +1,7 @@
 // ブラウザで開く経路（ADR-0010）。MCP AppsのUIを表示できないクライアント向けに、
 // 同じUIをローカルのHTTPで配る。ブラウザ側の小さなホスト（src/ui/browser-host.ts）が
 // MCP Appsのホストの役を務め、UI専用のツールだけをHTTPで呼ぶ。
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -11,8 +11,8 @@ const HOST_FILE = fileURLToPath(new URL("../ui/browser.html", import.meta.url));
 const MAX_BODY = 256 * 1024;
 
 export interface BrowserUi {
-  /** 依頼のまとまりを開くURL。鍵を含む。 */
-  urlFor(id: string): string;
+  /** 依頼のまとまりを開くURL。対象のリポジトリを短い印で含み、鍵を含む。 */
+  urlFor(id: string, repo: string | undefined): string;
   readonly port: number;
   close(): Promise<void>;
 }
@@ -25,6 +25,14 @@ export interface BrowserUi {
 export async function startBrowserUi(tools: AppTools, options: { port?: number } = {}): Promise<BrowserUi> {
   const token = randomBytes(18).toString("base64url");
   let port = 0;
+  // URLの対象の印と、リポジトリの対応。このプロセスで作ったURLだけを受け付ける。`-`は記録先を固定した場合。
+  const repos = new Map<string, string | undefined>([["-", undefined]]);
+  const keyOf = (repo: string | undefined) => {
+    if (repo === undefined) return "-";
+    const key = createHash("sha256").update(repo).digest("hex").slice(0, 10);
+    repos.set(key, repo);
+    return key;
+  };
 
   const authorized = (req: IncomingMessage, url: URL): boolean => {
     const host = req.headers.host ?? "";
@@ -49,13 +57,14 @@ export async function startBrowserUi(tools: AppTools, options: { port?: number }
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (!authorized(req, url)) return send(res, 403, "text/plain; charset=utf-8", "forbidden");
-    if (req.method === "GET" && /^\/r\/R\d+(-\d+)?$/.test(url.pathname)) {
+    if (req.method === "GET" && /^\/r\/[\w-]+\/R\d+(-\d+)?$/.test(url.pathname) && repos.has(url.pathname.split("/")[2]!)) {
       return send(res, 200, "text/html; charset=utf-8", await readFile(HOST_FILE, "utf8"));
     }
     if (req.method === "GET" && url.pathname === "/ui/review.html") {
       return send(res, 200, "text/html; charset=utf-8", await readFile(UI_FILE, "utf8"));
     }
-    if (req.method === "POST" && url.pathname === "/api/call") {
+    const call_ = /^\/api\/([\w-]+)\/call$/.exec(url.pathname);
+    if (req.method === "POST" && call_ && repos.has(call_[1]!)) {
       // 単純なフォーム送信では送れない形式だけを受け付ける。
       if (!String(req.headers["content-type"] ?? "").startsWith("application/json")) {
         return send(res, 415, "text/plain; charset=utf-8", "json only");
@@ -73,7 +82,12 @@ export async function startBrowserUi(tools: AppTools, options: { port?: number }
       }
       const tool = typeof call.name === "string" && Object.hasOwn(tools, call.name) ? tools[call.name as keyof AppTools] : undefined;
       if (!tool) return send(res, 404, "text/plain; charset=utf-8", "unknown tool");
-      const args = tool.inputSchema.safeParse(call.arguments ?? {});
+      // 対象はURLの印で決める。画面が渡した値は使わない。
+      const given = { ...(call.arguments as object ?? {}) } as Record<string, unknown>;
+      delete given.repo;
+      const repo = repos.get(call_[1]!);
+      if (repo !== undefined) given.repo = repo;
+      const args = tool.inputSchema.safeParse(given);
       const result = args.success
         ? await (tool.handler as (a: unknown) => Promise<unknown>)(args.data)
         : { isError: true, content: [{ type: "text", text: "invalid arguments" }] };
@@ -95,7 +109,7 @@ export async function startBrowserUi(tools: AppTools, options: { port?: number }
 
   return {
     port,
-    urlFor: (id) => `http://127.0.0.1:${port}/r/${id}?t=${token}`,
+    urlFor: (id, repo) => `http://127.0.0.1:${port}/r/${keyOf(repo)}/${id}?t=${token}`,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

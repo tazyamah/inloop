@@ -19,11 +19,11 @@ which node   # 登録で使う絶対パスを控える
 
 ## 依頼と回答の保存
 
-引数`--state-dir <dir>`（または環境変数`INLOOP_STATE_DIR`）を指定すると、依頼と回答を`<dir>/reviews.jsonl`に保存し、クライアントやサーバーを再起動しても残ります。対象のrepository直下の`.inloop`を絶対パスで指定することを推奨します（[ADR-0007](../maintainer-guide/decisions/0007-append-only-review-log.md)）。
+依頼と回答は、対象のリポジトリの`.inloop/reviews.jsonl`に保存します（[ADR-0010](../maintainer-guide/decisions/0010-target-repository-per-request.md)）。対象は依頼ごとに、AIが渡す`repo`（gitの作業ツリーの絶対パス）、起動時の`--repo <dir>`、クライアントが知らせる作業フォルダ（roots、1つの場合）の順で決め、決まらなければ依頼を拒否します。`--allow <dir>`で対象を限れます。
 
-指定しない場合はメモリにだけ保持し、再起動で消えます。どちらで動いているかは、起動時のログの`state=`で分かります。指定した保存先を使えない場合、サーバーは起動しません。
+引数`--state-dir <dir>`（または環境変数`INLOOP_STATE_DIR`）を指定すると、対象に関係なく`<dir>/reviews.jsonl`に保存します（これまでの登録との互換、[ADR-0014](../maintainer-guide/decisions/0014-target-path-not-in-record.md)）。どちらで動いているかは、起動時のログの`state=`で分かります。
 
-以下の登録例は保存先を指定しています。`<state>`は状態ディレクトリの絶対パスに置き換えます。
+以下の登録例の`<state>`は状態ディレクトリの絶対パスに置き換えます。`--state-dir`を外せば、リポジトリごとの記録になります。
 
 ## 登録方法
 
@@ -52,8 +52,10 @@ claude mcp add inloop -- <node> <repo>/dist/server/main.js --state-dir <state>
 Claudeデスクトップアプリの中のClaude Codeは、レビューUIを会話に表示しない（2026-10-11）。ブラウザで開く経路（[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）を使います。Claude Desktopの設定にも`inloop`がある場合は、そちらが呼ばれるので、別の名前で登録します。
 
 ```sh
-claude mcp add inloop-code -s local -- <node> <repo>/dist/server/main.js --state-dir <state> --ui browser
+claude mcp add inloop-code -s local -- <node> <repo>/dist/server/main.js --ui browser
 ```
+
+Claude Codeは作業フォルダ（roots）を知らせるので、`--state-dir`も`--repo`も付けずに、セッションのフォルダのリポジトリが対象になります（2026-10-11、`initialize`の`capabilities`で`roots`を確認）。
 
 `request_review`がURLを返すので、それをブラウザで開いて回答します。AIは`get_review_result`の`wait`で回答を待ちます。
 

@@ -34,3 +34,4 @@
 | [0011](0011-inloop-command-and-app-templates.md) | Accepted | inloopコマンドでアプリのリポジトリを作り、標準の構成（React＋Hono＋SQLite、手元はTauriにHonoを同梱）を固定する |
 | [0012](0012-browser-ui-path.md) | Accepted | MCP AppsのUIを表示できないクライアント向けに、同じUIをブラウザで開き、回答はAIが待って受け取る（ポート・鍵・URLの形はADR-0013で更新） |
 | [0013](0013-machine-wide-ui-server.md) | Accepted | 画面をマシン全体で1つのサーバーから`<アプリ名>.inloop.localhost`のURLで配り、鍵の代わりにHostとOriginを確かめる |
+| [0014](0014-target-path-not-in-record.md) | Accepted | 対象のリポジトリのパスは記録に書かず、記録の置き場所で表す。`--state-dir`では対象が決まらなくても記録する |

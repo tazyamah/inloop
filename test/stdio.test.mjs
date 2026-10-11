@@ -1,17 +1,24 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
+function gitRepo() {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "inloop-repo-")));
+  execFileSync("git", ["init", "-q", dir]);
+  return dir;
+}
+
 test("実プロセスとしてstdioで起動し、依頼を受け付ける", async () => {
+  const repo = gitRepo();
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [fileURLToPath(new URL("../dist/server/main.js", import.meta.url))],
+    args: [fileURLToPath(new URL("../dist/server/main.js", import.meta.url)), "--repo", repo],
     stderr: "pipe",
   });
   const logs = [];
@@ -25,7 +32,10 @@ test("実プロセスとしてstdioで起動し、依頼を受け付ける", asy
     await client.close();
   }
   assert.match(logs.join(""), /model-bound kind=request_review chars=10 bytes=10/);
-  assert.match(logs.join(""), /state=memory/);
+  assert.match(logs.join(""), /state=repo/);
+  // 記録は対象のリポジトリの.inloop/に置き、中に自分用の.gitignoreを置く（ADR-0010）。
+  assert.equal(readFileSync(join(repo, ".inloop", "reviews.jsonl"), "utf8").trimEnd().split("\n").length, 1);
+  assert.equal(readFileSync(join(repo, ".inloop", ".gitignore"), "utf8"), "*\n");
   assert.match(logs.join(""), /\[inloop\] initialize client=\{"name":"stdio-test"/);
   assert.match(logs.join(""), /\[inloop\] call tool=request_review meta=/);
 });
@@ -73,6 +83,7 @@ test("保存先を使えない場合や引数が不正な場合は、メモリ�
     [["--state-dir"], /起動できません: --state-dir にディレクトリの指定がない/],
     [["--unknown"], /起動できません: 知らない引数 --unknown/],
     [["--ui", "web"], /起動できません: --ui は browser か mcp-apps/],
+    [["--repo", dir], /起動できません: .*gitの作業ツリーではない/],
   ]) {
     const r = spawnSync(process.execPath, [MAIN, ...args], { encoding: "utf8", input: "", timeout: 10000 });
     assert.equal(r.status, 1, args.join(" "));
@@ -82,8 +93,8 @@ test("保存先を使えない場合や引数が不正な場合は、メモリ�
 });
 
 test("--ui browserで、画面のURLを返し、接続が切れたら終了する", async () => {
-  const { text, logs } = await requestOnce({ args: ["--ui", "browser"] });
-  const m = text.match(/^R1 pending (http:\/\/127\.0\.0\.1:(\d+)\/r\/R1\?t=[\w-]+)$/);
+  const { text, logs } = await requestOnce({ args: ["--ui", "browser", "--repo", gitRepo()] });
+  const m = text.match(/^R1 pending (http:\/\/127\.0\.0\.1:(\d+)\/r\/\w{10}\/R1\?t=[\w-]+)$/);
   assert.ok(m, text);
   assert.match(logs.join(""), new RegExp(`browser UI on 127\\.0\\.0\\.1:${m[2]}`));
   assert.ok(!logs.join("").includes(new URL(m[1]).searchParams.get("t")), "鍵はログに出さない");
@@ -91,4 +102,10 @@ test("--ui browserで、画面のURLを返し、接続が切れたら終了す�
   const r = spawnSync(process.execPath, [MAIN, "--ui=browser"], { encoding: "utf8", input: "", timeout: 10000 });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stderr, /browser UI on/);
+});
+
+test("対象を決められない依頼は、記録せずに拒否する", async () => {
+  const { text, logs } = await requestOnce({ args: [] });
+  assert.equal(text, "repo がない");
+  assert.match(logs.join(""), /state=repo/);
 });

@@ -12,7 +12,7 @@
 | 証拠 | エンジン＋CI | 対応するテストと結果、静的解析などの結果 |
 | 回答 | 人 | 下記の列挙値と、行・シンボルに紐づくコメント |
 
-AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列、共通のcommit範囲だけです。再依頼では、元の依頼のIDも渡します。コードは渡しません。
+AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列、共通のcommit範囲、対象のリポジトリ（`repo`、省略できる場合がある）だけです。再依頼では、元の依頼のIDも渡します。コードは渡しません。
 
 ### 依頼ID
 
@@ -149,7 +149,7 @@ R13 ─ AIがfollowsで再依頼 ─► superseded（再依頼済み）
 
 ## 保存
 
-依頼と回答は、起動時に指定した状態ディレクトリの`reviews.jsonl`に、1行1件のJSONで追記します（[ADR-0007](../maintainer-guide/decisions/0007-append-only-review-log.md)）。状態は保存せず、記録を先頭から適用して再現します。
+依頼と回答は、対象のリポジトリの`.inloop/reviews.jsonl`（`--state-dir`を指定した場合はその`reviews.jsonl`）に、1行1件のJSONで追記します（[ADR-0010](../maintainer-guide/decisions/0010-target-repository-per-request.md)、[ADR-0014](../maintainer-guide/decisions/0014-target-path-not-in-record.md)）。対象のパスは記録に書きません。形式は[ADR-0007](../maintainer-guide/decisions/0007-append-only-review-log.md)のとおりです。状態は保存せず、記録を先頭から適用して再現します。
 
 ```text
 {"v":1,"type":"request","at":"2026-10-10T13:00:00.000Z","packet":{"id":"R12", ...}}
