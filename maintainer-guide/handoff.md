@@ -286,6 +286,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - ADRの番号: 並行したセッションで、信頼境界ルールと依存の図の両方がADR-0020を使った。GitHubのmainにある依存の図（0020）と呼び出し元（0021）はそのままにし、信頼境界ルールを0022に振り直した（ファイル名、本文、一覧、コード・文書・`inloop.json`の参照。利用者の判断）。そのうえでGitHubのmainを取り込み、`src/engine/build.ts`（ファイル単位の並びと`edges`・`callers`の両方）、`src/engine/project.ts`（`topLevel`と`repoFiles`、`references`の`uses`）、ADR一覧、handoffの衝突を、両方の変更を残して解消した。
 - 取り込んだ後の検証（同じMac）: `INLOOP_UI_E2E=1 npm test`が全83件pass（Playwright 1.56.0、Chromiumは手元にあったheadless shell 1228を`INLOOP_CHROMIUM`で指定）。取り込んだ雛形で作り直したアプリの`npm test`が2 pass、`npm run build`が通った。ファイルを対象にした必須の依頼（`#`のないID）の依頼票で、`callers`がどう振る舞うかは確かめていない（名前の照合はファイル名の末尾で行われ、呼び出し元は見つからない見込み）。
 
+### 2026-10-12 ブランチをmainに統合
+
+`claude/review-lifecycle`の未マージ分（アイコン2コミット）をmainに取り込んだ（`templates/desktop/README.md`の衝突は両方の記述を残した）。`claude/trust-boundary-rules`、`tauri-scaffold-remaining`、`claude/dependency-graph`はmainに含まれていた。検証: macOSで`npm ci`・`npm run build`、`npm test`が73 pass・10 skip・fail 0、`playwright@1.56.0`（`--no-save`）とChromium 149で`INLOOP_UI_E2E=1 npm test`が全83件pass。この環境ではSSHの鍵が使えず、GitHubとのやり取りはhttps（`gh`の認証）で行った。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
