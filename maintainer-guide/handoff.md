@@ -201,9 +201,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - `inloop init`と`inloop new`が、リポジトリの`.mcp.json`に`inloop`（`command: "inloop"`、`args: ["mcp", "--ui", "browser"]`）を書く。ほかのサーバーの登録は残し、同じ内容なら書き直さない。端末固有のパスを含めないので、commitしてよい。
 - Claudeデスクトップアプリの中のClaude Codeは、MCPサーバーにシェルの`PATH`（nvmのnodeや`~/.local/bin`を含む）を渡していた。`inloop`を使うには、シェルの設定で`<inloopのclone>/bin`に`PATH`を通す。
 - inloopリポジトリ自身にも`bin/inloop init .`で`.mcp.json`を置いた。
-- 名前の重なり: Claude Desktopの設定に`inloop`があると、Claudeデスクトップアプリの中のClaude Codeでは、そちらが呼ばれる（2026-10-11）。`.mcp.json`の`inloop`を使うには、Claude Desktopの設定の`inloop`を外す必要がある。
+- 名前の重なり: Claude Desktopの設定に`inloop`があると、Claudeデスクトップアプリの中のClaude Codeでは、そちらが呼ばれる（2026-10-11）。`.mcp.json`の`inloop`を使うには、Claude Desktopの設定の`inloop`を外す必要がある。利用者の環境では外した（Claude Desktopの通常の会話ではinloopを使わない状態）。
 
-検証: `npm test`が42 pass・6 skip・fail 0（`.mcp.json`のテストを追加）。実際のクライアントで`.mcp.json`から起動することは未検証。
+検証: `npm test`が42 pass・6 skip・fail 0（`.mcp.json`のテストを追加）。
+
+Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11）: 利用者が`~/.zshrc`で`bin`に`PATH`を通し、Claude Desktopの設定から`inloop`を外し、`inloop-code`の登録を外して開き直した。許可を求める画面ははっきりとは出なかったが、`.mcp.json`の`inloop`が`PATH`の`inloop`で起動し、依頼R3が`http://inloop.inloop.localhost:4656/r/R3`を返し、ブラウザペインでの承認が`wait`に届いた。ターミナルの`claude mcp list`では、このサーバーは「承認待ち」のままだった（ターミナル版の承認は別に管理されているらしい）。このとき、古い版の画面のサーバーが新しい版に自動で作り直されたことも確かめた。AIの側で読み込んだツール定義は、古い版の説明のままだった（引数`wait`は実際には働いた）。
 
 ## クライアント検証の結果
 
