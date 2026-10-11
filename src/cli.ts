@@ -1,9 +1,9 @@
 // inloopコマンド（ADR-0011）。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AppRegistry, uiPort } from "./server/apps.js";
+import { AppRegistry, defaultName, NAME_PATTERN, uiPort } from "./server/apps.js";
 import { runMcp } from "./server/mcp.js";
 import { gitTopLevel } from "./server/target.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
@@ -14,6 +14,7 @@ const USAGE = `使い方: inloop <コマンド>
 
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
+  new <dir> [--name <名前>] [--db sqlite]            新しいアプリを標準の構成（React＋Hono＋SQLite）で作る
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   update                                             inloopを更新してビルドし直す
@@ -37,6 +38,37 @@ function init(args: string[]): void {
   mkdirSync(dir, { recursive: true });
   if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
   process.stdout.write(`登録しました: ${n} → ${repo}\n画面: ${appOrigin(n, uiPort())}/r/<依頼ID>\n`);
+}
+
+/** 雛形を写す。`__APP_NAME__`をアプリ名に置き換え、`gitignore`は`.gitignore`にする。 */
+function copyTemplate(from: string, to: string, name: string): void {
+  mkdirSync(to, { recursive: true });
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    const src = join(from, entry.name);
+    const dest = join(to, entry.name === "gitignore" ? ".gitignore" : entry.name);
+    if (entry.isDirectory()) copyTemplate(src, dest, name);
+    else writeFileSync(dest, readFileSync(src, "utf8").replaceAll("__APP_NAME__", name));
+  }
+}
+
+/** 新しいアプリのリポジトリを、標準の構成で作る（ADR-0011）。 */
+function create(args: string[]): void {
+  const name = option(args, "--name");
+  const db = option(args, "--db") ?? "sqlite";
+  if (args.includes("--desktop")) throw new Error("手元で動くアプリ（Tauri）の雛形は、まだない");
+  if (db !== "sqlite") throw new Error(`--db ${db} の雛形は、まだない（今は sqlite だけ）`);
+  if (args.length !== 1) throw new Error("作るディレクトリを1つ指定する（例: inloop new myapp）");
+  const dir = resolve(args[0]!);
+  const appName = name ?? defaultName(dir);
+  if (!NAME_PATTERN.test(appName)) throw new Error(`アプリ名「${appName}」は使えない（英小文字・数字・-）。--name で指定する`);
+  const registry = new AppRegistry();
+  const taken = registry.pathOf(appName);
+  if (taken) throw new Error(`アプリ名「${appName}」は ${taken} が使っている。--name で別の名前を指定する`);
+  if (existsSync(dir) && readdirSync(dir).length > 0) throw new Error(`${dir} は空ではない`);
+  copyTemplate(join(ROOT, "templates", "server"), dir, appName);
+  execFileSync("git", ["init", "-q", dir]);
+  init([dir, "--name", appName]);
+  process.stdout.write(`作りました: ${dir}\n次に: cd ${basename(dir)} && npm install && npm run dev\n`);
 }
 
 /** cloneしたinloopを更新し、ビルドし直す。 */
@@ -85,6 +117,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "server":
         await server(args);
+        return;
+      case "new":
+        create(args);
         return;
       case "init":
         init(args);

@@ -24,7 +24,7 @@ npm run build
 npm test
 ```
 
-`bin/inloop`が`inloop`コマンドです（`mcp`・`server`・`init`・`apps`・`update`）。AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
+`bin/inloop`が`inloop`コマンドです（`new`・`init`・`apps`・`mcp`・`server`・`update`）。`inloop new <ディレクトリ>`で、標準の構成（React＋Hono＋SQLite、雛形は`templates/server/`）のアプリを作れます。AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
 
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)

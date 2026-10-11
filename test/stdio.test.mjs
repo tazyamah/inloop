@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -158,4 +158,25 @@ test("対象を決められない依頼は、記録せずに拒否する", async
   const { text, logs } = await requestOnce({ args: [] });
   assert.equal(text, "repo がない");
   assert.match(logs.join(""), /state=repo/);
+});
+
+test("inloop newは、標準の構成のリポジトリを作って登録する", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-new-")));
+  const run = (...a) => spawnSync(process.execPath, [BIN, ...a], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  const r = run("new", "My App");
+  assert.equal(r.status, 0, r.stderr);
+  const dir = join(parent, "My App");
+  for (const f of ["package.json", ".gitignore", "AGENTS.md", "CLAUDE.md", "server/app.ts", "server/db.ts", "web/src/App.tsx", "vite.config.ts", ".inloop/.gitignore", ".git/HEAD"]) {
+    assert.ok(existsSync(join(dir, f)), f);
+  }
+  assert.equal(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name, "my-app");
+  assert.ok(!readFileSync(join(dir, "web/index.html"), "utf8").includes("__APP_NAME__"));
+  assert.deepEqual(JSON.parse(readFileSync(join(home, "apps.json"), "utf8")).apps, { "my-app": dir });
+
+  assert.match(run("new", "My App").stderr, /アプリ名「my-app」は .* が使っている/);
+  assert.match(run("new", "My App", "--name", "other").stderr, /空ではない/);
+  assert.match(run("new", "x", "--db", "postgres").stderr, /--db postgres の雛形は、まだない/);
+  assert.match(run("new", "y", "--desktop").stderr, /Tauri）の雛形は、まだない/);
+  assert.equal(run("new").status, 1);
 });

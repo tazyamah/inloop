@@ -184,7 +184,17 @@ ADR-0010との差異: ADR-0010は「依頼票に対象を記録し、UIの上部
 
 Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11）: 開き直すとMCPサーバーが画面のサーバーを別のプロセスとして起動し、`127.0.0.1`と`::1`の4656で待ち受けた。依頼R2のURL`http://inloop.inloop.localhost:4656/r/R2`をブラウザペインで開いて利用者が承認し、`wait`に`R2 ok`が届いた。もう一度アプリを開き直すと、MCPサーバーは新しいプロセスになったが、画面のサーバーは同じプロセスのまま残り、同じURLでR2の画面（承認済み）が開けた。
 
-未対応: 画面のサーバーを止める・作り直す手段がない（`inloop update`の後は、プロセスを手で終了する）。ログイン時の自動起動はない。
+未対応: ログイン時の自動起動はない（MCPサーバーが起動する）。
+
+### 2026-10-11 画面のサーバーの管理と、inloop new（ADR-0011の一部）
+
+- `inloop server status|stop|restart|start`。引数なしは前面で動かす。画面のサーバーは`SIGTERM`で止まる。
+- 画面のサーバーは`/_inloop/health`でビルドの印（`dist/server/ui-server.js`の更新時刻）を返す。MCPサーバーは、動いているのが今のビルドより古ければ、止めて起動し直す。`inloop update`やビルドの後は、次の依頼で新しい版になる。
+- `inloop new <dir> [--name] [--db sqlite]`: `templates/server/`を写し（`__APP_NAME__`を置き換え、`gitignore`を`.gitignore`にする）、`git init`し、`inloop init`と同じ登録をする。空でないディレクトリ、使われているアプリ名は拒否する。`--db postgres`と`--desktop`（Tauri）は「まだない」として拒否する。
+- 雛形（サーバーで動くアプリ）: React 19＋Vite 8（`web/`）、Hono 4＋`@hono/node-server`（`server/`、ポート8787）、SQLiteはNode.js組み込みの`node:sqlite`（Node.js 22.13以上、実験的機能の警告が出る）。サーバーの実行とテストは`tsx`、型検査はTypeScript 7。例としてメモの一覧と追加、テスト2件。AIへの指示は`AGENTS.md`（`CLAUDE.md`から読む）に、レビュー依頼の出し方を書いた。
+- `.mcp.json`の作成と、inloopの設定ファイル（ルール、版）はまだない。`.mcp.json`は、Claude Desktopの設定と名前がぶつかる件（ADR-0012の影響）をどう扱うか決めてから作る。
+
+検証: `npm test`が41 pass・6 skip・fail 0（追加はstdio2件の拡張と`inloop new`1件）。`INLOOP_UI_E2E=1`で全47件pass。`inloop new demo-app`で作ったリポジトリで、`npm install`、`npm test`（2 pass）、`npm run build`（型検査と画面のビルド）が通り、`npm start`相当でサーバーを起動して`/api/health`・メモの追加と一覧・ビルドした画面の表示（ブラウザペインでReactの描画とメモの表示）を確かめた。`npm run dev`は確かめていない。
 
 ## クライアント検証の結果
 
@@ -259,14 +269,13 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 質問への答えは会話にだけあり、記録には残らない。
 - 承認後に対象のコードが変わっても、依頼の状態は変わらない（検出には解析エンジンが要る）。
 - 新しい版のサーバーが`reopen`か枝番の依頼を書くと、同じ記録を使っている古い版のサーバープロセスは、その行で止まる。再起動すれば読める。
-- 画面のサーバーは、inloopを更新しても古い版のまま動き続ける。止めるコマンドはない。
 - ブラウザの経路の画面は会話の外にある。全画面表示はない。AIは同じMacのシェルで記録や画面のサーバーを使えるので、AIが自分で回答を送ることは防げない（ADR-0012、ADR-0013）。
 - 記録先は起動時の`--state-dir`で1つに決まる。リポジトリごとに分けるのはADR-0010の実装から。
 
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
-2. `inloop`コマンドの残り: 画面のサーバーの停止と作り直し、`new`と雛形（React＋Hono＋SQLite）、inloopの設定ファイルの形式。
+2. `inloop`コマンドの残り: `.mcp.json`の作成、inloopの設定ファイルの形式、手元で動くアプリの雛形（Tauri＋同梱のHono）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. TypeScriptのシンボル解析と理解順の並べ替えを、inloop自身のコードを対象に作り始め、固定データを置き換える。シンボルIDの表記もここで決める。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。

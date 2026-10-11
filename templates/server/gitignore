@@ -1,0 +1,8 @@
+node_modules/
+dist/
+data/
+.inloop/
+*.log
+.DS_Store
+.env
+.env.*
