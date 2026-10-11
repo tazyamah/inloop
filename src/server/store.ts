@@ -465,6 +465,17 @@ const packetSchema = z.object({
     code: z.string(),
     changedLines: z.array(lineNumber),
   })),
+  edges: z.array(z.object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+    kind: z.enum(["call", "new", "type", "inherit"]),
+  })).optional(),
+  callers: z.array(z.object({
+    symbol: z.string().min(1),
+    file: z.string(),
+    startLine: lineNumber,
+    code: z.string(),
+  })).optional(),
   unresolved: z.array(z.string()),
   evidence: z.array(z.object({
     kind: z.enum(["test", "static"]),
@@ -473,6 +484,16 @@ const packetSchema = z.object({
   })),
   budget: z.object({ changedLines: z.number().int().min(0), limit: z.number().int().min(0) }),
   fixture: z.boolean(),
+}).superRefine((p, ctx) => {
+  // 使われる側は依頼票に並べたシンボル、使う側はそれか呼び出し元に限る（ADR-0020、ADR-0021）。
+  const symbols = new Set(p.steps.map((s) => s.symbol));
+  const callers = new Set(p.callers?.map((c) => c.symbol));
+  p.callers?.forEach((c, i) => {
+    if (symbols.has(c.symbol)) ctx.addIssue({ code: "custom", path: ["callers", i], message: "並べたシンボルと重なる" });
+  });
+  p.edges?.forEach((e, i) => {
+    if (!(symbols.has(e.from) || callers.has(e.from)) || !symbols.has(e.to)) ctx.addIssue({ code: "custom", path: ["edges", i], message: "依頼票にないシンボル" });
+  });
 });
 
 const answerSchema = z.object({

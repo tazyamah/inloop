@@ -584,6 +584,14 @@ test("依頼票は読み込みで形の全体を確かめ、知らない項目�
     [withStep({ startLine: 0 }), "steps.1.startLine"],
     [withStep({ change: "removed" }), "steps.1.change"],
     [withStep({ changedLines: ["1"] }), "steps.1.changedLines.0"],
+    // 使う関係（ADR-0020）。両端は依頼票に並べたシンボルに限る。
+    [{ ...packet, edges: [{ ...packet.edges[0], kind: "calls" }] }, "edges.0.kind"],
+    [{ ...packet, edges: [{ ...packet.edges[0], to: "src/x.ts#nope" }] }, "edges.0"],
+    [{ ...packet, edges: "なし" }, "edges"],
+    // 呼び出し元（ADR-0021）。並べたシンボルと重ならず、使う関係の使う側になれる。
+    [{ ...packet, callers: [{ symbol: packet.steps[0].symbol, file: "f", startLine: 1, code: "" }] }, "callers.0"],
+    [{ ...packet, callers: [{ symbol: "src/x.ts#y", file: "f", startLine: 0, code: "" }] }, "callers.0.startLine"],
+    [{ ...packet, edges: [{ from: packet.steps[1].symbol, to: "src/x.ts#y", kind: "call" }], callers: [{ symbol: "src/x.ts#y", file: "f", startLine: 1, code: "" }] }, "edges.0"],
   ]) {
     assert.throws(() => new ReviewStore({ file: write(bad) }), new RegExp(`:1: 依頼票の形が不正（${where.replaceAll(".", "\\.")}）`), where);
   }
@@ -593,4 +601,8 @@ test("依頼票は読み込みで形の全体を確かめ、知らない項目�
   extra.steps[0].note = "x";
   const store = new ReviewStore({ file: write(extra) });
   assert.deepEqual(store.get("R1"), packet);
+  // 使う関係のない依頼票（ADR-0020より前の記録）も読め、関係は補わない。
+  assert.equal(new ReviewStore({ file: write(without("edges")) }).get("R1").edges, undefined);
+  const withCaller = { ...packet, callers: [{ symbol: "src/x.ts#y", file: "src/x.ts", startLine: 3, code: "y()" }], edges: [...packet.edges, { from: "src/x.ts#y", to: packet.steps[1].symbol, kind: "call" }] };
+  assert.deepEqual(new ReviewStore({ file: write(withCaller) }).get("R1"), withCaller);
 });

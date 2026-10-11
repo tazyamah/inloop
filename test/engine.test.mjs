@@ -159,3 +159,46 @@ test("行数の上限を超える依頼は、対象のシンボルが2つ以上�
   const single = buildPackets(repo, [{ id: "R8", group: "R8", viewpoint: "q", symbols: ["src/cancel.ts#cancelOrder"] }], "HEAD", { maxLines: 1 });
   assert.equal(single[0].steps.at(-1).symbol, "src/cancel.ts#cancelOrder", "1つのシンボルは、それ以上小さくできないので受け付ける");
 });
+
+test("並べたシンボルどうしの使う関係を、種類とともに依頼票に残す（ADR-0020）", () => {
+  const repo = project();
+  const p = build(repo, ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"]);
+  assert.deepEqual(p.edges.map((e) => `${e.from} ${e.kind} ${e.to}`), [
+    "src/cancel.ts#cancelOrder call src/cancel.ts#canCancel",
+    "src/cancel.ts#cancelOrder call src/order.ts#OrderRepo.find",
+    "src/cancel.ts#cancelOrder call src/order.ts#OrderRepo.save",
+    "src/cancel.ts#setup new src/order.ts#OrderRepo.constructor",
+  ]);
+  // 依存として並べたものどうしの関係も残す。ただし、それをたどって新しいシンボルを並べはしない。
+  const q = build(repo, ["src/cancel.ts#canCancel"]);
+  assert.deepEqual(q.edges.filter((e) => e.from === "src/cancel.ts#canCancel"), [{ from: "src/cancel.ts#canCancel", to: "src/order.ts#Order", kind: "type" }]);
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + c();\n}\n");
+  const r = build(repo, ["src/chain.ts#a"]);
+  assert.deepEqual(r.steps.map((s) => s.symbol), ["src/chain.ts#c", "src/chain.ts#b", "src/chain.ts#a"]);
+  assert.deepEqual(r.edges.map((e) => `${e.from} ${e.to}`), ["src/chain.ts#b src/chain.ts#c", "src/chain.ts#a src/chain.ts#c", "src/chain.ts#a src/chain.ts#b"]);
+  for (const x of [p, q, r]) {
+    for (const e of x.edges) {
+      assert.ok(x.steps.some((s) => s.symbol === e.to), "使われる側は依頼票のシンボル");
+      assert.ok([...x.steps, ...x.callers].some((s) => s.symbol === e.from), "使う側は依頼票のシンボルか呼び出し元");
+    }
+  }
+});
+
+test("指定したシンボルと変わったシンボルの呼び出し元を、1段だけ探す（ADR-0021）", () => {
+  const repo = project();
+  const q = build(repo, ["src/cancel.ts#canCancel"]);
+  assert.deepEqual(q.callers.map((c) => `${c.symbol} ${c.startLine}`), ["src/cancel.ts#cancelOrder 9"]);
+  assert.match(q.callers[0].code, /^export function cancelOrder/);
+  assert.deepEqual(q.edges.filter((e) => e.from === "src/cancel.ts#cancelOrder"), [{ from: "src/cancel.ts#cancelOrder", to: "src/cancel.ts#canCancel", kind: "call" }]);
+  // newで使えばコンストラクターの呼び出し元。クラスを含む宣言（OrderRepo自身）は数えない。
+  assert.deepEqual(build(repo, ["src/order.ts#OrderRepo.constructor"]).callers.map((c) => c.symbol), ["src/cancel.ts#setup"]);
+  // 呼び出し元の呼び出し元はたどらない。並べたシンボル（stepsに入ったもの）は呼び出し元にしない。
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b();\n}\n");
+  assert.deepEqual(build(repo, ["src/chain.ts#c"]).callers.map((c) => c.symbol), ["src/chain.ts#b"]);
+  assert.deepEqual(build(repo, ["src/chain.ts#b"]).callers.map((c) => c.symbol), ["src/chain.ts#a"]);
+  // 依存として並べたものでも、変わっていれば呼び出し元を探す。変わっていなければ探さない。
+  commit(repo);
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 2;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b();\n}\nexport function d(): number {\n  return c();\n}\n");
+  assert.deepEqual(build(repo, ["src/chain.ts#b"]).callers.map((c) => c.symbol), ["src/chain.ts#a", "src/chain.ts#d"]);
+  assert.deepEqual(build(repo, ["src/chain.ts#a"]).callers, []);
+});

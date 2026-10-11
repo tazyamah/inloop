@@ -260,6 +260,16 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 検証: デバイス連携のLinux VM（Node.js 22.23.2、aarch64）で`npm test`が71 pass・7 skip・fail 0（追加は`test/boundaries.test.mjs`の13件）。VMからnpmの登録簿に届かなかったので、利用者の`node_modules`（macOS用）を写し、TypeScript 7とesbuildのLinux用の実行ファイルだけをクラウド環境で取って足した。UIは変えていないので、`INLOOP_UI_E2E=1`は実行していない。inloop自身で`inloop check --range main`を動かすと、この変更で必須の依頼が10件（すべて`missing`）になった。macOSでのテスト、実際のクライアントでの確認は未実施。
 
+### 2026-10-11 依存の図と、変わっていない依存の折りたたみ（ADR-0020）
+
+- 依頼票に`edges`（並べたシンボルどうしの使う関係、`call`・`new`・`type`・`inherit`）を足した。解析エンジンが、並べたすべてのシンボルの参照から作る（依存どうしの関係も含む。新しいシンボルは足さない）。`src/engine/project.ts`の`references`が`uses`（行き先と種類）も返す。読み込みで両端が`steps`にあることを確かめる。記録の版は1のまま。
+- 画面: 依頼票の先頭に依存の図（`src/ui/graph.ts`、自前のSVG）。使われる側が左、矢印は使う側から使われる側へ。色は変更の印、太枠はAIの指定、未解決の参照を含むシンボルに印。箱を押すとそのコードへ移る。各シンボルの見出しの下に「使う」「使われる」。変わっていない依存（AIが指定していないもの）のコードは既定で畳み、「コードを表示（N行）」で開く。
+- 「データの流れ」（値の追跡）は作っていない。
+- 利用者の判断で、呼び出し元を1段だけ足した（ADR-0021）。依頼票の`callers`。指定したシンボルと変わったシンボルを呼び出す（`new`を含む、型の参照は含めない）宣言を、プロジェクト全体から探す。図の右の列に点線の枠で出し、コードは「呼び出し元」に畳んで並べる。inloop自身で1回の依頼が0.4〜0.6秒。
+- [review-protocol](../docs/review-protocol.md)の「UIでの回答の操作」が、ADR-0018より前のコメント欄の説明のままだったので、今の操作に直した。
+
+検証（クラウド環境、Node.js 22.22.0）: `npm test`が60 pass・10 skip・fail 0（追加はエンジン2件。サーバーの形の確認に6例）。`playwright@1.56.0`（`--no-save`）とChromiumで`INLOOP_UI_E2E=1 npm test`が全70件pass（追加はブラウザ3件）。画面写真（固定データの図、3つの関数の図と折りたたみ、呼び出し元）を目視で確かめた。ダークテーマの図も画面写真で確かめた。実際のクライアントでの表示、macOSでのテストは未検証。
+
 ### 2026-10-12 手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー）
 
 同じMac（arm64、Node.js 22.18.0、Rust 1.99.0）で、`inloop new <dir> --desktop`で作ったアプリを使って確かめた。
@@ -273,6 +283,8 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 直したバグ: アプリをシグナルで止める（強制終了、`kill`）と、Tauriの終了処理が動かず、同梱のサーバーが残っていた。`DESKTOP=1`のサーバーは、親とつながった標準入力が閉じたら終えるようにした（`templates/desktop/server/index.ts`）。直した後、アプリの`kill -9`でもサーバーが止まること、Apple Eventでの通常の終了でも止まること、動いている間はサーバーが止まらないことを確かめた。
 - Windows・Linux: 未検証。このMacからは作れない。sidecarが今動いているNode（`process.execPath`）を写して作るので対象のOSのNodeが要り、TauriもLinuxはWebKitGTK、WindowsはMSVCとWebView2の環境で各OSのビルドを前提にする。CIなら、GitHub ActionsでOSごとのジョブ（`ubuntu-22.04`に`libwebkit2gtk-4.1-dev`などを入れる、`windows-latest`）で`npm ci && npm run package`を動かす。
 - 検証: `npm test`が58 pass・7 skip・fail 0（`inloop new --desktop`のテストに、`prepare-dev.mjs`・`beforeDevCommand`・`devUrl`・viteの待ち受けの確認を足した）。ADR-0022のmainを取り込んだ後、同じMacで`npm test`が71 pass・7 skip・fail 0（ADR-0022のテストのmacOSでの初めての実行）。生成したアプリの`npm test`が2 pass。inloopのUIは変えていないので、`INLOOP_UI_E2E=1`は動かしていない。
+- ADRの番号: 並行したセッションで、信頼境界ルールと依存の図の両方がADR-0020を使った。GitHubのmainにある依存の図（0020）と呼び出し元（0021）はそのままにし、信頼境界ルールを0022に振り直した（ファイル名、本文、一覧、コード・文書・`inloop.json`の参照。利用者の判断）。そのうえでGitHubのmainを取り込み、`src/engine/build.ts`（ファイル単位の並びと`edges`・`callers`の両方）、`src/engine/project.ts`（`topLevel`と`repoFiles`、`references`の`uses`）、ADR一覧、handoffの衝突を、両方の変更を残して解消した。
+- 取り込んだ後の検証（同じMac）: `INLOOP_UI_E2E=1 npm test`が全83件pass（Playwright 1.56.0、Chromiumは手元にあったheadless shell 1228を`INLOOP_CHROMIUM`で指定）。取り込んだ雛形で作り直したアプリの`npm test`が2 pass、`npm run build`が通った。ファイルを対象にした必須の依頼（`#`のないID）の依頼票で、`callers`がどう振る舞うかは確かめていない（名前の照合はファイル名の末尾で行われ、呼び出し元は見つからない見込み）。
 
 ## クライアント検証の結果
 
@@ -337,6 +349,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 実際のクライアントで、AIが`required:`の依頼を人に伝えるか、作業の終わりに`inloop check`を動かすか（ADR-0022）。
 - 大きなリポジトリで、`request_review`のたびに範囲のすべての変更にルールを当てる時間（inloop自身で、`main`からの範囲の`inloop check`は1秒未満）。
 - `inloop new`で作ったアプリで、雛形の`inloop.json`が狙いどおりに当たるか（`createApp`、`openDb`など）。
+- 依存の図と折りたたみで、行数の上限（ADR-0017）を超える依頼を人が判断できるか。実際の依頼で確かめていない。
 
 ## 既知の制約
 
@@ -347,6 +360,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 複数のプロセスが同時に依頼を作ると依頼IDが重複しうる。重複は次の読み込みで検出して拒否するが、排他制御はない。
 - 保存した依頼票は固定データのもの。読み込みで形の全体を確かめるので、解析エンジンで依頼票の形を変えるときは、記録の版を上げるかをADR-0009の基準で判断する。
 - 再依頼の依頼票は、元の依頼と同じ固定データ。差分だけを見せる仕組みはない。
+- 依存の図は直接の依存と1段の呼び出し元までで、値の流れは出さない。動的な呼び出しからの呼び出し元は見つからない（ADR-0020、ADR-0021）。ADR-0020より前の記録の依頼票には図が出ない。
 - `fixing`の依頼は、AIが再依頼するまで動かせない。人が指摘を取り下げて承認する経路はない。承認の取り消しもない。
 - 質問への答えは会話にだけあり、記録には残らない。
 - 承認後に対象のコードが変わっても、依頼の状態は変わらない（検出には解析エンジンが要る）。
@@ -362,5 +376,6 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形の残り（Windows・Linuxのビルド、アイコンの生成、署名。macOSの`dev:desktop`と`.dmg`は確認済み）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. 解析エンジンの次: 証拠（テスト結果）の取り込み、SQLの解析。信頼境界ルール（ADR-0022）を実際のクライアントで使い、`inloop new`の雛形のルールが狙いどおり当たるかを確かめる。
-5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。
-6. 余裕があるときに、Claude Code（CLI）、Codex、VS Codeでの確認。
+5. 依存の図（ADR-0020）を実際の依頼で使い、行数の上限の数え方を見直す（第一候補: 畳んである変わっていない依存の行を数えない）。
+6. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。
+7. 余裕があるときに、Claude Code（CLI）、Codex、VS Codeでの確認。

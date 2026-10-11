@@ -22,10 +22,15 @@ export interface Declaration {
   code: string;
 }
 
+/** 使い方の種類（ADR-0020）。呼び出し、new、型としての参照、継承・実装。 */
+export type UseKind = "call" | "new" | "type" | "inherit";
+
 /** 呼び出しや型の参照のうち、宣言までたどれたもの・たどれなかったもの。 */
 export interface References {
   /** 同じリポジトリの宣言のID（自分自身は含まない） */
   internal: string[];
+  /** internalのそれぞれを、どう使っているか。同じ宣言を別の使い方でも使えば、別の項目になる。 */
+  uses: { to: string; kind: UseKind }[];
   /** 解決できなかった呼び出し（`file:line 式`） */
   unresolved: string[];
 }
@@ -152,6 +157,11 @@ export class TsProject {
     return out;
   }
 
+  /** リポジトリのファイル（node_modulesを除く）。リポジトリからのパスの順。 */
+  repoFiles(): string[] {
+    return [...this.files.values()].map((f) => this.rel(f)).sort();
+  }
+
   /** シンボルIDから宣言を探す。なければundefined。 */
   find(id: string): Declaration | undefined {
     const i = id.indexOf("#");
@@ -180,7 +190,7 @@ export class TsProject {
   /** 最上位の文（topLevel）など、宣言ではないノードの中の参照。 */
   referencesIn(relFile: string, nodes: Node[], self?: Declaration): References {
     // nodeは宣言をたどる名前、shownは未解決のときに示す式。
-    const sites: { node: Node; shown: Node; call: boolean; construct?: boolean }[] = [];
+    const sites: { node: Node; shown: Node; call: boolean; construct?: boolean; inherit?: boolean }[] = [];
     const walk = (n: Node) => {
       if (n.kind === SyntaxKind.CallExpression || n.kind === SyntaxKind.NewExpression) {
         const e = (n as unknown as { expression: Node }).expression;
@@ -190,7 +200,7 @@ export class TsProject {
         sites.push({ node: t, shown: t, call: false });
       } else if (n.kind === SyntaxKind.ExpressionWithTypeArguments) {
         const x = (n as unknown as { expression: Node }).expression;
-        sites.push({ node: x, shown: x, call: false });
+        sites.push({ node: x, shown: x, call: false, inherit: true });
       }
       n.forEachChild(walk);
     };
@@ -202,6 +212,7 @@ export class TsProject {
     const symbols = targets.length > 0 ? this.checker.getSymbolAtLocation(targets) : [];
     const sf = this.sourceOf(relFile)!;
     const internal = new Set<string>();
+    const uses = new Map<string, { to: string; kind: UseKind }>();
     const unresolved: string[] = [];
     symbols.forEach((sym, i) => {
       let s = sym;
@@ -229,9 +240,12 @@ export class TsProject {
         if (!target) return;
       }
       internal.add(target.id);
+      const site = sites[i]!;
+      const kind: UseKind = site.construct ? "new" : site.call ? "call" : site.inherit ? "inherit" : "type";
+      uses.set(`${target.id}\n${kind}`, { to: target.id, kind });
     });
-    // 出てきた順（同じ入力からは同じ順）。
-    return { internal: [...internal], unresolved: [...new Set(unresolved)] };
+    // 出てきた順（同じ入力からは同じ順）。上限で省くときは、後に出てきたものから省く。
+    return { internal: [...internal], uses: [...uses.values()], unresolved: [...new Set(unresolved)] };
   }
 
   /**
