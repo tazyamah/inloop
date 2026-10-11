@@ -113,7 +113,7 @@ get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 横に開いた画面（ブラウザで開く経路）では、議論は会話で行い、画面は読む場所と記録にします（[ADR-0017](../maintainer-guide/decisions/0017-chat-centered-review-and-size-limit.md)）。
 
 - 画面の「位置をコピー」（回答済みの画面では行のクリック）で、`R6 src/server/wait.ts#answersOf#L12-L15`の形の位置をコピーし、会話に貼って話す
-- 人が会話で承認・保留の言葉（既定は「承認」「保留」、`~/.inloop/config.json`の`approvePhrase`・`holdPhrase`で変えられる）を言ったら、AIが`answer_review`で記録する。サーバーは言葉が設定と一致するときだけ記録する。必須の依頼は会話からは記録できない
+- 人が会話で承認・保留の言葉（既定は「承認」「保留」、`~/.inloop/config.json`の`approvePhrases`・`holdPhrases`（配列）で変えられる）を言ったら、AIが`answer_review`で記録する。サーバーは言葉が設定と一致するときだけ記録する。必須の依頼は会話からは記録できない
 - 画面の承認・保留のボタンも、これまでどおり使える
 - 依頼票のコードの行数の合計が上限（既定60行、`maxReviewLines`）を超え、対象のシンボルが2つ以上なら、依頼は断られる
 

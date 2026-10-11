@@ -179,7 +179,7 @@ test("人が会話で決まった言葉を言ったときだけ、AIが承認・
     assert.equal(lines(a).length, 2, "依頼の2行だけ");
     assert.equal(textOf(await answer({ ids: ["R1"], verdict: "ok", said: "承認" })), "R1 ok recorded");
     // 言葉は設定で変えられる。
-    writeFileSync(join(home, "config.json"), JSON.stringify({ holdPhrase: "開けゴマ" }));
+    writeFileSync(join(home, "config.json"), JSON.stringify({ holdPhrases: ["開けゴマ", "あとで"] }));
     assert.equal((await answer({ ids: ["R2"], verdict: "hold", said: "保留" })).isError, true);
     assert.equal(textOf(await answer({ ids: ["R2"], verdict: "hold", said: "開けゴマ" })), "R2 hold recorded");
     // 記録には、会話からAIが記録したことが残る。回答の取得はこれまでと同じ形。
@@ -189,6 +189,12 @@ test("人が会話で決まった言葉を言ったときだけ、AIが承認・
     const ui = await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo: a } });
     assert.deepEqual(ui.structuredContent.inbox.map((i) => [i.id, i.status, i.by]), [["R1", "approved", "chat"], ["R2", "held", "chat"]]);
     assert.deepEqual(ui.structuredContent.history, [{ id: "R1", answers: [{ id: "R1", verdict: "ok", by: "chat" }] }]);
+    // 言葉は複数指定でき、承認と保留の両方にある言葉は設定の誤りとして示す。
+    writeFileSync(join(home, "config.json"), JSON.stringify({ approvePhrases: ["承認", "あとで"], holdPhrases: ["あとで"] }));
+    assert.match(textOf(await answer({ ids: ["R1"], verdict: "ok", said: "承認" })), /approvePhrases と holdPhrases の両方にある言葉 あとで/);
+    writeFileSync(join(home, "config.json"), JSON.stringify({ holdPhrases: "開けゴマ" }));
+    assert.match(textOf(await answer({ ids: ["R1"], verdict: "ok", said: "承認" })), /holdPhrases は空でない文字列の配列/);
+    writeFileSync(join(home, "config.json"), JSON.stringify({ holdPhrases: ["開けゴマ", "あとで"] }));
     // 回答済みには記録できない。人は画面で未回答に戻して答え直せる。
     assert.match(textOf(await answer({ ids: ["R1"], verdict: "hold", said: "開けゴマ" })), /R1: 回答済み/);
     await client.callTool({ name: "inloop_reopen", arguments: { from: "R1", ids: ["R2"], repo: a } });

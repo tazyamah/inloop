@@ -272,14 +272,14 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
     async ({ ids, verdict, said, repo }) => {
       const t = await storeFor(targets, repo);
       if (isError(t)) return t;
-      let phrase: string;
+      let phrases: string[];
       try {
         const config = userConfig();
-        phrase = verdict === "ok" ? config.approvePhrase : config.holdPhrase;
+        phrases = verdict === "ok" ? config.approvePhrases : config.holdPhrases;
       } catch (e) {
         return error((e as Error).message);
       }
-      if (said.trim() !== phrase) {
+      if (!phrases.includes(said.trim())) {
         logModelBound("answer_review_error", "phrase mismatch");
         return error("said does not match the configured word; not recorded");
       }

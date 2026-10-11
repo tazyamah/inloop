@@ -229,7 +229,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 ### 2026-10-11 会話での議論と記録、依頼の大きさの上限（ADR-0017）
 
-- 利用者ごとの設定`~/.inloop/config.json`（`src/server/apps.ts`の`userConfig`）: `maxReviewLines`（既定60）、`approvePhrase`（既定「承認」）、`holdPhrase`（既定「保留」）。
+- 利用者ごとの設定`~/.inloop/config.json`（`src/server/apps.ts`の`userConfig`）: `maxReviewLines`（既定60）、`approvePhrases`（既定`["承認"]`）、`holdPhrases`（既定`["保留"]`）。
 - 依頼票のコードの行数が上限を超え、対象のシンボルが2つ以上なら、依頼を断る（`src/engine/build.ts`）。
 - 画面に「位置をコピー」。回答できる依頼のない行は、クリックで位置をコピー（Shiftで範囲）。形は`<依頼ID> <参照>`。
 - AIから見えるツール`answer_review`: 人が会話で設定の言葉を言ったときだけ、承認・保留を記録する。言葉が一致しなければ記録しない。必須の依頼は対象外。記録の種類は`chatAnswer`。画面には「会話で」と出る。

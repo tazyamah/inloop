@@ -72,23 +72,23 @@ export class AppRegistry {
 /** 依頼票に並べるコードの行数の既定の上限（ADR-0017）。R6（54行）を目安にした。 */
 export const DEFAULT_MAX_REVIEW_LINES = 60;
 
-/** 会話でAIに承認・保留を記録させる言葉の既定（ADR-0017）。 */
-export const DEFAULT_APPROVE_PHRASE = "承認";
-export const DEFAULT_HOLD_PHRASE = "保留";
+/** 会話でAIに承認・保留を記録させる言葉の既定（ADR-0017）。複数を指定できる（R7の指摘）。 */
+export const DEFAULT_APPROVE_PHRASES = ["承認"];
+export const DEFAULT_HOLD_PHRASES = ["保留"];
 
 export interface UserConfig {
   /** 依頼票に並べるコードの行数の上限 */
   maxReviewLines: number;
-  /** 人が会話でこの言葉を言ったら、AIが承認を記録できる */
-  approvePhrase: string;
-  /** 人が会話でこの言葉を言ったら、AIが保留を記録できる */
-  holdPhrase: string;
+  /** 人が会話でこのどれかを言ったら、AIが承認を記録できる */
+  approvePhrases: string[];
+  /** 人が会話でこのどれかを言ったら、AIが保留を記録できる */
+  holdPhrases: string[];
 }
 
 /** 利用者ごとの設定（`~/.inloop/config.json`）。読むたびにファイルから取り直す。 */
 export function userConfig(home = inloopHome()): UserConfig {
   const file = join(home, "config.json");
-  let data: { maxReviewLines?: unknown; approvePhrase?: unknown; holdPhrase?: unknown } = {};
+  let data: { maxReviewLines?: unknown; approvePhrases?: unknown; holdPhrases?: unknown } = {};
   if (existsSync(file)) {
     try {
       data = JSON.parse(readFileSync(file, "utf8")) as typeof data;
@@ -98,13 +98,16 @@ export function userConfig(home = inloopHome()): UserConfig {
   }
   const max = data.maxReviewLines ?? DEFAULT_MAX_REVIEW_LINES;
   if (typeof max !== "number" || !Number.isInteger(max) || max < 1) throw new Error(`${file}: maxReviewLines は1以上の整数`);
-  const phrase = (key: "approvePhrase" | "holdPhrase", fallback: string) => {
+  const phrases = (key: "approvePhrases" | "holdPhrases", fallback: string[]) => {
     const v = data[key] ?? fallback;
-    if (typeof v !== "string" || v.trim() === "") throw new Error(`${file}: ${key} は空でない文字列`);
-    return v.trim();
+    if (!Array.isArray(v) || v.length === 0 || v.some((p) => typeof p !== "string" || p.trim() === "")) {
+      throw new Error(`${file}: ${key} は空でない文字列の配列`);
+    }
+    return [...new Set(v.map((p: string) => p.trim()))];
   };
-  const approvePhrase = phrase("approvePhrase", DEFAULT_APPROVE_PHRASE);
-  const holdPhrase = phrase("holdPhrase", DEFAULT_HOLD_PHRASE);
-  if (approvePhrase === holdPhrase) throw new Error(`${file}: approvePhrase と holdPhrase が同じ`);
-  return { maxReviewLines: max, approvePhrase, holdPhrase };
+  const approvePhrases = phrases("approvePhrases", DEFAULT_APPROVE_PHRASES);
+  const holdPhrases = phrases("holdPhrases", DEFAULT_HOLD_PHRASES);
+  const both = approvePhrases.filter((p) => holdPhrases.includes(p));
+  if (both.length > 0) throw new Error(`${file}: approvePhrases と holdPhrases の両方にある言葉 ${both.join(", ")}`);
+  return { maxReviewLines: max, approvePhrases, holdPhrases };
 }
