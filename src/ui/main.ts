@@ -1,5 +1,5 @@
 import { App } from "@modelcontextprotocol/ext-apps";
-import type { Answer, InboxItem, ReviewPacket, ReviewStep } from "../server/types.js";
+import type { Answer, AnswerRound, InboxItem, ReviewPacket, ReviewStep } from "../server/types.js";
 
 type CommentVerdict = "fix" | "ask";
 type Decision = "ok" | "hold";
@@ -22,8 +22,10 @@ interface Composer {
 
 const VERDICT_LABEL: Record<string, string> = { ok: "承認", fix: "修正依頼", ask: "質問", hold: "保留" };
 const STATUS_LABEL: Record<string, string> = {
-  pending: "未回答", approved: "承認済み", fixing: "修正待ち", answering: "回答待ち", held: "保留中",
+  pending: "未回答", approved: "承認済み", fixing: "修正待ち", answering: "回答待ち", held: "保留中", superseded: "再依頼済み",
 };
+/** 人が同じ依頼票のまま未回答に戻せる状態（ADR-0009）。 */
+const REOPENABLE = new Set(["held", "answering"]);
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -46,6 +48,8 @@ let inbox: InboxItem[] = [];
 /** 別の呼び出しで出された未回答の依頼の数。この画面からは回答できない。 */
 let elsewhere = 0;
 const packets = new Map<string, ReviewPacket>();
+/** 依頼と、同じ系列でそれより前の依頼に、これまで付いた回答。 */
+const histories = new Map<string, AnswerRound[]>();
 const drafts = new Map<string, Draft>();
 let composer: Composer | null = null;
 let keySeq = 0;
@@ -72,8 +76,9 @@ function structured<T>(r: { structuredContent?: unknown; isError?: boolean; cont
 
 async function fetchPacket(id: string): Promise<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number }> {
   const r = await app.callServerTool({ name: "inloop_get_request", arguments: { id } });
-  const data = structured<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number }>(r);
+  const data = structured<{ packet: ReviewPacket; inbox: InboxItem[]; elsewhere?: number; history?: AnswerRound[] }>(r);
   packets.set(id, data.packet);
+  histories.set(id, data.history ?? []);
   return data;
 }
 
@@ -185,6 +190,27 @@ function commitComposer() {
   render();
 }
 
+/** 保留中・回答待ちの依頼を未回答に戻す。会話には何も送らない。 */
+async function reopen(id: string) {
+  try {
+    const r = await app.callServerTool({ name: "inloop_reopen", arguments: { from: toolId ?? shownId, ids: [id] } });
+    const data = structured<{ inbox: InboxItem[]; elsewhere?: number }>(r);
+    inbox = data.inbox;
+    elsewhere = data.elsewhere ?? 0;
+    // 行コメントの宛先候補にするため、依頼票を手元に置く
+    if (!packets.has(id)) await fetchPacket(id);
+    setStatus(`${id}を未回答に戻しました。`);
+  } catch (e) {
+    setStatus((e as Error).message, true);
+  }
+  render();
+}
+
+function answerText(a: Answer): string {
+  const where = a.verdict === "ok" || a.verdict === "hold" ? "" : ` ${shortRef(a.ref)}`;
+  return `${a.id} ${VERDICT_LABEL[a.verdict]}${where}${a.comment ? `: ${a.comment}` : ""}`;
+}
+
 function removeComment(reviewId: string, key: number) {
   const d = draftOf(reviewId);
   d.comments = d.comments.filter((c) => c.key !== key);
@@ -277,7 +303,12 @@ function renderDetail() {
   $("viewpoint").textContent = p.viewpoint;
   const meta = [`範囲: ${p.range}`, `変更行 ${p.budget.changedLines} / 予算 ${p.budget.limit}`];
   if (p.requestedSymbols.length) meta.push(`AIの指定: ${p.requestedSymbols.join(", ")}`);
+  const branch = /^(R\d+)-(\d+)$/.exec(p.id);
+  if (branch) meta.unshift(`${branch[1]}の再依頼（${branch[2]}回目）`);
   $("meta").textContent = meta.join(" ・ ");
+  const past = (histories.get(p.id) ?? []).flatMap((round) => round.answers);
+  $("history-box").hidden = past.length === 0;
+  $("history").replaceChildren(...past.map((a) => el("li", undefined, answerText(a))));
 
   const allComments = [...drafts.entries()].flatMap(([id, d]) => d.comments.map((c) => ({ id, c, r: parseRef(c.ref) })));
   const steps = $("steps");
@@ -332,8 +363,16 @@ function renderAnswers() {
     vp.title = "この依頼票を表示";
     vp.addEventListener("click", () => { composer = null; load(item.id).catch((e) => setStatus(String((e as Error).message ?? e), true)); });
     head.append(el("span", item.kind === "required" ? "chip req" : "chip", item.kind === "required" ? "必須" : "任意"),
-      vp, el("span", pending ? "chip" : "chip ok", STATUS_LABEL[item.status] ?? item.status));
+      vp, el("span", pending || item.status === "superseded" ? "chip" : "chip ok",
+        (STATUS_LABEL[item.status] ?? item.status) + (item.supersededBy ? ` → ${item.supersededBy}` : "")));
     row.append(head);
+    if (REOPENABLE.has(item.status)) {
+      const actions = el("div", "row actions");
+      const back = button("未回答に戻す", () => { void reopen(item.id); });
+      back.dataset.reopen = item.id;
+      actions.append(back);
+      row.append(actions);
+    }
     if (pending) {
       const d = draftOf(item.id);
       const actions = el("div", "row actions");

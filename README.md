@@ -29,6 +29,6 @@ AIクライアントへの登録と確認の手順は[docs/client-verification.m
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)
 - 開発のイテレーション: [docs/iteration.md](docs/iteration.md)
-- レビュー依頼のプロトコル（草案）: [docs/review-protocol.md](docs/review-protocol.md)
+- レビュー依頼のプロトコル: [docs/review-protocol.md](docs/review-protocol.md)
 - クライアント検証: [docs/client-verification.md](docs/client-verification.md)
 - 開発者向け: [AGENTS.md](AGENTS.md)、[maintainer-guide/](maintainer-guide/README.md)

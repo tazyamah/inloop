@@ -24,16 +24,23 @@ export function createServer(store = new ReviewStore()): McpServer {
 
   // AIが呼ぶツール。戻り値は依頼IDと状態だけにする（ADR-0004）。
   // 1回の呼び出しで渡された依頼は、1つのUIからまとめて回答できる（ADR-0008）。
+  // followsを付けた依頼は再依頼で、元のIDに枝番を足したIDになる（ADR-0009）。
   registerAppTool(
     server,
     "request_review",
     {
       title: "Request human review",
       description:
-        "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. Returns only IDs. Answers arrive later as a user message.",
+        "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns only IDs. Answers arrive later as a user message.",
       inputSchema: z.object({
         reviews: z
-          .array(z.object({ viewpoint: z.string().min(1).max(500), symbols: z.array(z.string().max(200)).max(50).optional() }))
+          .array(
+            z.object({
+              viewpoint: z.string().min(1).max(500).optional(),
+              symbols: z.array(z.string().max(200)).max(50).optional(),
+              follows: z.string().max(30).optional(),
+            }),
+          )
           .min(1)
           .max(10),
         range: z.string().max(100).optional(),
@@ -41,8 +48,15 @@ export function createServer(store = new ReviewStore()): McpServer {
       _meta: { ui: { resourceUri: UI_URI } },
     },
     async ({ reviews, range }) => {
-      const packets = store.create(reviews.map((r) => ({ viewpoint: r.viewpoint, symbols: r.symbols ?? [] })), range ?? "HEAD");
-      const ids = packets.map((p) => p.id);
+      let ids: string[];
+      try {
+        ids = store.create(reviews, range ?? "HEAD").map((p) => p.id);
+      } catch (e) {
+        // 観点も元の依頼もない、元の依頼が存在しない、など。何も記録していない。
+        const t = (e as Error).message;
+        logModelBound("request_review_error", t);
+        return error(t);
+      }
       const t = `${ids.join(" ")} pending`;
       logModelBound("request_review", t);
       return { ...text(t), structuredContent: { ids } };
@@ -87,6 +101,7 @@ export function createServer(store = new ReviewStore()): McpServer {
           status: store.statusOf(id),
           inbox: store.inbox(packet.group),
           elsewhere: store.pendingElsewhere(packet.group),
+          history: store.history(id),
         },
       };
     },
@@ -120,6 +135,26 @@ export function createServer(store = new ReviewStore()): McpServer {
         const message = formatAnswerMessage(recorded);
         logModelBound("answer_message", message);
         return { ...text("recorded"), structuredContent: { message, inbox: store.inbox(group), elsewhere: store.pendingElsewhere(group) } };
+      } catch (e) {
+        return error((e as Error).message);
+      }
+    },
+  );
+
+  // 保留中・回答待ちの依頼を未回答に戻す。会話には何も送らない（ADR-0009）。
+  registerAppTool(
+    server,
+    "inloop_reopen",
+    {
+      description: "UI only: return held or answering reviews to pending.",
+      inputSchema: z.object({ from: z.string(), ids: z.array(z.string()).min(1).max(50) }),
+      _meta: { ui: { resourceUri: UI_URI, visibility: ["app"] } },
+    },
+    async ({ ids, from }) => {
+      try {
+        store.reopen(ids, from);
+        const group = store.get(from)!.group;
+        return { ...text("reopened"), structuredContent: { inbox: store.inbox(group), elsewhere: store.pendingElsewhere(group) } };
       } catch (e) {
         return error((e as Error).message);
       }

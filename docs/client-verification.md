@@ -80,7 +80,7 @@ args = ["<repo>/dist/server/main.js", "--state-dir", "<state>"]
 UIが表示されたら、コード行（例: 44行目）をクリックして修正依頼にし、コメントを書いて「まとめて送信」を押します。会話に次のような1通が届き、AIが続きの作業を始めれば成功です。
 
 ```text
-[inloop] レビュー回答。fixは修正後にrequest_reviewで差分を再依頼:
+[inloop] レビュー回答。fixは修正後にrequest_reviewのfollowsで再依頼、askは会話で答える:
 R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 ```
 

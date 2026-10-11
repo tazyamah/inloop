@@ -1,9 +1,14 @@
 import { appendFileSync, closeSync, mkdirSync, openSync, readSync, statSync } from "node:fs";
 import { dirname } from "node:path";
+import { z } from "zod";
 import { buildFixturePacket } from "./fixture.js";
-import type { Answer, InboxItem, RequestStatus, ReviewPacket } from "./types.js";
+import type { Answer, AnswerRound, InboxItem, RequestStatus, ReviewPacket } from "./types.js";
 
-/** 保存形式の版。読めない版の行があれば起動を拒否する（ADR-0007）。 */
+/**
+ * 保存形式の版。読めない版の行があれば起動を拒否する（ADR-0007）。
+ * 版を上げるのは、すでにある行をそのまま読めなくなるときか、古い実装が新しい行を
+ * 拒否せずに別の意味で読んでしまうときに限る（ADR-0009）。
+ */
 export const LOG_VERSION = 1;
 
 /** 状態ディレクトリの中の、依頼と回答の記録ファイル名。 */
@@ -12,7 +17,26 @@ export const LOG_FILE_NAME = "reviews.jsonl";
 /** 記録ファイルの1行。追記だけを行い、書き換えない。 */
 export type LogEvent =
   | { v: typeof LOG_VERSION; type: "request"; at: string; packet: ReviewPacket }
-  | { v: typeof LOG_VERSION; type: "answer"; at: string; answers: Answer[] };
+  | { v: typeof LOG_VERSION; type: "answer"; at: string; answers: Answer[] }
+  | { v: typeof LOG_VERSION; type: "reopen"; at: string; ids: string[] };
+
+/** 1回の呼び出しで渡される依頼。followsがあれば、その依頼の再依頼になる。 */
+export interface NewReview {
+  viewpoint?: string;
+  symbols?: string[];
+  /** 再依頼する元の依頼のID。同じ系列のIDならどれでもよい。 */
+  follows?: string;
+}
+
+/** 依頼ID。`R13`は新しい依頼、`R13-2`はその2回目の再依頼。 */
+const ID_PATTERN = /^R([1-9]\d*)(?:-([1-9]\d*))?$/;
+
+function parseId(id: string): { root: string; number: number; branch: number } | undefined {
+  const m = ID_PATTERN.exec(id);
+  return m ? { root: `R${m[1]}`, number: Number(m[1]), branch: m[2] ? Number(m[2]) : 0 } : undefined;
+}
+
+const idOf = (root: string, branch: number) => (branch === 0 ? root : `${root}-${branch}`);
 
 export interface StoreOptions {
   /** 記録ファイルのパス。省略するとプロセス内のメモリにだけ保持する。 */
@@ -30,8 +54,16 @@ export class ReviewStore {
   private seq = 0;
   private readonly packets = new Map<string, ReviewPacket>();
   private readonly status = new Map<string, RequestStatus>();
+  /** 現在の状態を決めた回答。未回答に戻すと消える。 */
   private readonly answers = new Map<string, Answer[]>();
-  private readonly order: string[] = [];
+  /** 回答がある依頼のID。回答された順。 */
+  private order: string[] = [];
+  /** これまでに記録した回答のすべて。依頼ごとに、送信された順。 */
+  private readonly rounds = new Map<string, Answer[][]>();
+  /** 系列（枝番を除いたID）ごとの、最新の枝番。 */
+  private readonly heads = new Map<string, number>();
+  /** 再依頼済みの依頼と、それを引き継いだ依頼。 */
+  private readonly successors = new Map<string, string>();
   private readonly file: string | undefined;
   private readonly now: () => string;
   /** 記録ファイルのうち、読み込み済みのバイト数と行数 */
@@ -58,20 +90,44 @@ export class ReviewStore {
   /**
    * 1回の呼び出しで渡された依頼をまとめて作る。同じ呼び出しの依頼は同じまとまりになり、
    * 1つのUIからまとめて回答できる。別の呼び出しの依頼と同じまとまりにする手段はない。
+   * followsのある依頼は再依頼で、元の依頼の系列に枝番を足したIDになり、それまでの
+   * 最新の依頼は再依頼済みになる。不正な依頼が1つでもあれば何も記録しない。
    */
-  create(items: { viewpoint: string; symbols: string[] }[], range: string): ReviewPacket[] {
+  create(items: NewReview[], range: string): ReviewPacket[] {
     if (items.length === 0) throw new Error("依頼がない");
     this.sync();
-    const group = `R${this.seq + 1}`;
+    const errors: string[] = [];
+    const roots = new Set<string>();
+    let fresh = 0;
+    const planned = items.map((item) => {
+      if (item.follows === undefined) {
+        if (!item.viewpoint?.trim()) errors.push("観点がない");
+        return { id: `R${this.seq + ++fresh}`, viewpoint: item.viewpoint ?? "", symbols: item.symbols ?? [] };
+      }
+      const root = this.packets.has(item.follows) ? parseId(item.follows)!.root : undefined;
+      if (root === undefined) { errors.push(`${item.follows}: 存在しない依頼`); return undefined; }
+      if (roots.has(root)) { errors.push(`${item.follows}: 同じ依頼への再依頼が重複している`); return undefined; }
+      roots.add(root);
+      // 元の依頼として系列のどのIDが渡されても、引き継ぐのは最新の依頼になる。
+      const branch = this.heads.get(root)!;
+      const head = this.packets.get(idOf(root, branch))!;
+      return {
+        id: idOf(root, branch + 1),
+        viewpoint: item.viewpoint?.trim() ? item.viewpoint : head.viewpoint,
+        symbols: item.symbols ?? head.requestedSymbols,
+      };
+    });
+    if (errors.length > 0) throw new Error(errors.join("\n"));
+    const group = planned[0]!.id;
     const at = this.now();
-    const events: LogEvent[] = items.map((item, i) => ({
+    const events: LogEvent[] = planned.map((p) => ({
       v: LOG_VERSION,
       type: "request",
       at,
-      packet: buildFixturePacket(`R${this.seq + 1 + i}`, group, item.viewpoint, item.symbols, range),
+      packet: buildFixturePacket(p!.id, group, p!.viewpoint, p!.symbols, range),
     }));
     this.record(events);
-    return events.map((e) => this.packets.get((e as { packet: ReviewPacket }).packet.id)!);
+    return planned.map((p) => this.packets.get(p!.id)!);
   }
 
   get(id: string): ReviewPacket | undefined {
@@ -93,6 +149,7 @@ export class ReviewStore {
       viewpoint: p.viewpoint,
       status: this.status.get(p.id) ?? "pending",
       symbols: p.steps.map((s) => s.symbol),
+      ...(this.successors.has(p.id) ? { supersededBy: this.successors.get(p.id)! } : {}),
     }));
   }
 
@@ -116,7 +173,9 @@ export class ReviewStore {
       const packet = this.packets.get(id);
       if (!packet) { errors.push(`${id}: 存在しない依頼`); continue; }
       if (packet.group !== group) { errors.push(`${id}: 別に出された依頼には、この画面から回答できない`); continue; }
-      if (this.status.get(id) !== "pending") errors.push(`${id}: 回答済み`);
+      const status = this.status.get(id);
+      if (status === "superseded") errors.push(`${id}: 再依頼済み（${this.successors.get(id)}に回答する）`);
+      else if (status !== "pending") errors.push(`${id}: 回答済み`);
       const decisions = list.filter((a) => a.verdict === "ok" || a.verdict === "hold");
       if (decisions.length > 0 && list.length > 1) errors.push(`${id}: 承認・保留は他の回答と同時に送れない`);
       for (const a of list) {
@@ -142,7 +201,48 @@ export class ReviewStore {
     return recorded;
   }
 
-  /** 回答済みの回答。idsを指定した場合は、その依頼の分だけを返す。 */
+  /**
+   * 保留中・回答待ちの依頼を、同じ依頼票のまま未回答に戻す。戻せない依頼が1つでもあれば
+   * 何も記録しない。fromは、submitと同じく、UIが開かれた依頼のID。
+   * 修正待ちの依頼は戻せない。依頼票が修正前のものなので、AIの再依頼で引き継ぐ。
+   */
+  reopen(ids: string[], from: string): void {
+    this.sync();
+    const group = this.packets.get(from)?.group;
+    if (group === undefined) throw new Error(`${from}: 存在しない依頼`);
+    if (ids.length === 0) throw new Error("依頼がない");
+    const errors: string[] = [];
+    const seen = new Set<string>();
+    for (const id of ids) {
+      const packet = this.packets.get(id);
+      if (!packet) { errors.push(`${id}: 存在しない依頼`); continue; }
+      if (packet.group !== group) { errors.push(`${id}: 別に出された依頼は、この画面から戻せない`); continue; }
+      if (seen.has(id)) errors.push(`${id}: 重複している`);
+      seen.add(id);
+      const status = this.status.get(id)!;
+      if (!REOPENABLE.has(status)) errors.push(`${id}: ${status}の依頼は未回答に戻せない`);
+    }
+    if (errors.length > 0) throw new Error(errors.join("\n"));
+    this.record([{ v: LOG_VERSION, type: "reopen", at: this.now(), ids }]);
+  }
+
+  /**
+   * その依頼と、同じ系列でそれより前の依頼に、これまで記録された回答。送信された順。
+   * 再依頼のUIで、前回の指摘を見せるために使う。AIには返さない。
+   */
+  history(id: string): AnswerRound[] {
+    this.sync();
+    const parsed = this.packets.has(id) ? parseId(id) : undefined;
+    if (!parsed) return [];
+    const out: AnswerRound[] = [];
+    for (let b = 0; b <= parsed.branch; b++) {
+      const member = idOf(parsed.root, b);
+      for (const answers of this.rounds.get(member) ?? []) out.push({ id: member, answers });
+    }
+    return out;
+  }
+
+  /** 回答済みの回答。idsを指定した場合は、その依頼の分だけを返す。未回答に戻した依頼の分は含まない。 */
   answered(ids?: string[]): Answer[] {
     this.sync();
     const targets = ids && ids.length > 0 ? this.order.filter((id) => ids.includes(id)) : this.order;
@@ -211,24 +311,56 @@ export class ReviewStore {
   private apply(event: LogEvent): void {
     if (event.type === "request") {
       const { id } = event.packet;
+      const { root, number, branch } = parseId(id)!;
       if (this.packets.has(id)) throw new Error(`依頼IDが重複している ${id}`);
+      if (branch > 0) {
+        // 再依頼。系列の最新の依頼を引き継ぐ。枝番は飛ばさない。
+        const head = this.heads.get(root);
+        if (head === undefined) throw new Error(`存在しない依頼への再依頼 ${id}`);
+        if (branch !== head + 1) throw new Error(`枝番が連続していない ${id}（最新は${idOf(root, head)}）`);
+        const previous = idOf(root, head);
+        this.status.set(previous, "superseded");
+        this.successors.set(previous, id);
+      }
       this.packets.set(id, event.packet);
       this.status.set(id, "pending");
-      this.seq = Math.max(this.seq, Number(id.slice(1)));
+      this.heads.set(root, branch);
+      this.seq = Math.max(this.seq, number);
+      return;
+    }
+    if (event.type === "reopen") {
+      const ids = new Set(event.ids);
+      if (ids.size !== event.ids.length) throw new Error("未回答に戻す依頼が重複している");
+      for (const id of ids) {
+        const status = this.status.get(id);
+        if (status === undefined) throw new Error(`存在しない依頼を未回答に戻している ${id}`);
+        if (!REOPENABLE.has(status)) throw new Error(`${status}の依頼を未回答に戻している ${id}`);
+      }
+      for (const id of ids) {
+        this.answers.delete(id);
+        this.status.set(id, "pending");
+      }
+      this.order = this.order.filter((id) => !ids.has(id));
       return;
     }
     const byId = groupById(event.answers);
     for (const id of byId.keys()) {
-      if (!this.packets.has(id)) throw new Error(`存在しない依頼への回答 ${id}`);
-      if (this.status.get(id) !== "pending") throw new Error(`回答済みの依頼への回答 ${id}`);
+      const status = this.status.get(id);
+      if (status === undefined) throw new Error(`存在しない依頼への回答 ${id}`);
+      if (status === "superseded") throw new Error(`再依頼済みの依頼への回答 ${id}`);
+      if (status !== "pending") throw new Error(`回答済みの依頼への回答 ${id}`);
     }
     for (const [id, list] of byId) {
       this.answers.set(id, list);
+      this.rounds.set(id, [...(this.rounds.get(id) ?? []), list]);
       this.order.push(id);
       this.status.set(id, statusAfter(list));
     }
   }
 }
+
+/** 人が同じ依頼票のまま未回答に戻せる状態。 */
+const REOPENABLE: ReadonlySet<RequestStatus> = new Set(["held", "answering"]);
 
 function groupById(answers: Answer[]): Map<string, Answer[]> {
   const byId = new Map<string, Answer[]>();
@@ -240,7 +372,57 @@ function groupById(answers: Answer[]): Map<string, Answer[]> {
   return byId;
 }
 
-const VERDICT_SET = new Set(["ok", "fix", "ask", "hold"]);
+const idSchema = z.string().regex(ID_PATTERN);
+const lineNumber = z.number().int().min(1);
+
+/**
+ * 記録に保存する依頼票の形（ADR-0009）。UIはこの形を前提に表示するので、読み込みで全体を確かめる。
+ * ここにない項目は無視する（捨てた方式が残した項目を含む、古い記録を読めるようにするため）。
+ */
+const packetSchema = z.object({
+  id: idSchema,
+  // ADR-0008より前の記録にはまとまりがない。その依頼だけのまとまりとして扱う。
+  group: idSchema.optional(),
+  kind: z.enum(["required", "optional"]),
+  triggeredBy: z.array(z.string()),
+  viewpoint: z.string(),
+  requestedSymbols: z.array(z.string()),
+  range: z.string(),
+  steps: z.array(z.object({
+    order: z.number().int(),
+    symbol: z.string().min(1),
+    file: z.string(),
+    startLine: lineNumber,
+    layer: z.string(),
+    boundaries: z.array(z.string()),
+    change: z.enum(["added", "modified"]),
+    code: z.string(),
+    changedLines: z.array(lineNumber),
+  })),
+  unresolved: z.array(z.string()),
+  evidence: z.array(z.object({
+    kind: z.enum(["test", "static"]),
+    name: z.string(),
+    status: z.enum(["pass", "fail", "missing"]),
+  })),
+  budget: z.object({ changedLines: z.number().int().min(0), limit: z.number().int().min(0) }),
+  fixture: z.literal(true),
+});
+
+const answerSchema = z.object({
+  id: z.string(),
+  verdict: z.enum(["ok", "fix", "ask", "hold"]),
+  ref: z.string().optional(),
+  comment: z.string().optional(),
+});
+
+/** 形が合わない場所を、エラーに添える。 */
+function shape<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
+  const r = schema.safeParse(value);
+  if (r.success) return r.data;
+  const where = r.error.issues[0]?.path.join(".");
+  throw new Error(where ? `${what}の形が不正（${where}）` : `${what}の形が不正`);
+}
 
 /** 記録の1行を読む。形が合わなければ、推測で補わずに拒否する。 */
 function parseEvent(line: string): LogEvent {
@@ -254,23 +436,16 @@ function parseEvent(line: string): LogEvent {
   const e = raw as Record<string, unknown>;
   if (e.v !== LOG_VERSION) throw new Error(`対応していない版 v=${JSON.stringify(e.v)}（対応: ${LOG_VERSION}）`);
   if (typeof e.at !== "string") throw new Error("atがない");
+  const head = { v: LOG_VERSION, at: e.at } as const;
   if (e.type === "request") {
-    const p = e.packet as Partial<ReviewPacket> | undefined;
-    if (!p || typeof p.id !== "string" || !/^R[1-9]\d*$/.test(p.id) || typeof p.viewpoint !== "string" || !Array.isArray(p.steps)) {
-      throw new Error("依頼票の形が不正");
-    }
-    // ADR-0008より前の記録にはまとまりがない。その依頼だけのまとまりとして扱う。
-    if (p.group === undefined) p.group = p.id;
-    else if (typeof p.group !== "string" || !/^R[1-9]\d*$/.test(p.group)) throw new Error("依頼票の形が不正");
-    return raw as LogEvent;
+    const p = shape(packetSchema, e.packet, "依頼票");
+    return { ...head, type: "request", packet: { ...p, group: p.group ?? p.id } };
   }
   if (e.type === "answer") {
-    const list = e.answers;
-    if (!Array.isArray(list) || list.length === 0) throw new Error("回答の形が不正");
-    for (const a of list as Partial<Answer>[]) {
-      if (!a || typeof a.id !== "string" || typeof a.verdict !== "string" || !VERDICT_SET.has(a.verdict)) throw new Error("回答の形が不正");
-    }
-    return raw as LogEvent;
+    return { ...head, type: "answer", answers: shape(z.array(answerSchema).min(1), e.answers, "回答") as Answer[] };
+  }
+  if (e.type === "reopen") {
+    return { ...head, type: "reopen", ids: shape(z.array(idSchema).min(1), e.ids, "未回答に戻す依頼") };
   }
   throw new Error(`知らない種類 type=${JSON.stringify(e.type)}`);
 }

@@ -1,7 +1,11 @@
-/** 依頼票（草案）。docs/review-protocol.md と対応する。 */
+/** 依頼票と回答。docs/review-protocol.md、ADR-0009と対応する。 */
 export type ReviewKind = "required" | "optional";
 export type Verdict = "ok" | "fix" | "ask" | "hold";
-export type RequestStatus = "pending" | "approved" | "fixing" | "answering" | "held";
+/**
+ * 依頼の状態。記録には保存せず、記録を先頭から適用して決める（ADR-0007）。
+ * supersededは、再依頼によって枝番の依頼に引き継がれ、もう回答できない状態。
+ */
+export type RequestStatus = "pending" | "approved" | "fixing" | "answering" | "held" | "superseded";
 
 export interface ReviewStep {
   /** 理解順の並び（定義が使用より先） */
@@ -27,6 +31,10 @@ export interface Evidence {
 }
 
 export interface ReviewPacket {
+  /**
+   * 依頼ID。新しい依頼は`R13`、その再依頼は`R13-1`、`R13-2`と枝番を付ける（ADR-0009）。
+   * 1つのIDは、1回の呼び出しで人に見せた1つの依頼票を指し、中身は変わらない。
+   */
   id: string;
   /**
    * 依頼が属するまとまり（ADR-0008）。1回のrequest_reviewで作った依頼が同じ値を持ち、
@@ -62,6 +70,12 @@ export interface Answer {
   comment?: string;
 }
 
+/** 1回の送信で、1つの依頼に付いた回答。 */
+export interface AnswerRound {
+  id: string;
+  answers: Answer[];
+}
+
 export interface InboxItem {
   id: string;
   kind: ReviewKind;
@@ -69,4 +83,6 @@ export interface InboxItem {
   status: RequestStatus;
   /** 依頼票に含まれるシンボル。行コメントの宛先候補を決めるのに使う */
   symbols: string[];
+  /** 再依頼済みの場合、引き継いだ依頼のID */
+  supersededBy?: string;
 }

@@ -50,7 +50,7 @@ ul{margin:4px 0;padding-left:20px}
 .item:last-child{border-bottom:0}
 .item.cur{background:var(--soft)}
 .item .vp{cursor:pointer;color:var(--accent)}
-.item.done{opacity:.6}
+.item.done>.row:first-child{opacity:.6}
 .actions{margin-top:6px}
 label{margin-right:10px;white-space:nowrap}
 textarea,input[type=text]{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px}
@@ -70,6 +70,10 @@ button:disabled{opacity:.5;cursor:default}
     <div class="notice">固定データ: 解析エンジンは未実装です。対象コード・証拠は合成した例で、実際の変更ではありません。</div>
     <div class="q" id="viewpoint"></div>
     <div class="muted" id="meta"></div>
+    <div id="history-box" hidden>
+      <h2>これまでの回答</h2>
+      <ul id="history"></ul>
+    </div>
     <h2>対象（理解順・定義が先）</h2>
     <div id="steps"></div>
     <h2>未解決の参照</h2>
@@ -78,7 +82,7 @@ button:disabled{opacity:.5;cursor:default}
     <ul id="evidence"></ul>
   </section>
   <h2>回答（未回答の依頼をまとめて送信）</h2>
-  <div class="muted">コード行をクリックすると、その行の下にコメント欄が開きます。コメントのない依頼は「承認」か「保留」を選びます。</div>
+  <div class="muted">コード行をクリックすると、その行の下にコメント欄が開きます。コメントのない依頼は「承認」か「保留」を選びます。保留中・回答待ちの依頼は「未回答に戻す」で回答し直せます。</div>
   <div class="inbox" id="inbox"></div>
   <div class="row" style="margin-top:10px"><button class="primary" id="send" disabled>まとめて送信</button><span id="status"></span></div>
 </main>

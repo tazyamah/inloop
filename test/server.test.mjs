@@ -28,10 +28,11 @@ test("AIから見えるツールとUI専用ツールが分かれている", asyn
   const client = await connect();
   const { tools } = await client.listTools();
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
-  assert.deepEqual(Object.keys(byName).sort(), ["get_review_result", "inloop_get_request", "inloop_submit", "request_review"]);
+  assert.deepEqual(Object.keys(byName).sort(), ["get_review_result", "inloop_get_request", "inloop_reopen", "inloop_submit", "request_review"]);
   for (const t of tools) assert.equal(t._meta?.ui?.resourceUri, UI_URI, t.name);
   assert.deepEqual(visibility(byName.inloop_get_request), ["app"]);
   assert.deepEqual(visibility(byName.inloop_submit), ["app"]);
+  assert.deepEqual(visibility(byName.inloop_reopen), ["app"]);
   assert.ok(visibility(byName.request_review) === undefined || visibility(byName.request_review).includes("model"));
   assert.deepEqual(visibility(byName.get_review_result), ["model"]);
 });
@@ -58,6 +59,10 @@ test("request_reviewはIDと状態だけを返し、コードを含まない", a
   // 依頼のない呼び出しや、古い形の引数は受け付けない。
   assert.equal((await client.callTool({ name: "request_review", arguments: { reviews: [] } })).isError, true);
   assert.equal((await client.callTool({ name: "request_review", arguments: { viewpoint: "q" } })).isError, true);
+  // 観点のない依頼は、再依頼（follows）でなければ受け付けない。
+  const noViewpoint = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q5" }, {}] } });
+  assert.equal(noViewpoint.isError, true);
+  assert.equal(textOf(await ask(client, "q5")), "R5 pending");
 });
 
 test("UI用の取得は理解順の依頼票と受付箱を返す", async () => {
@@ -88,7 +93,7 @@ test("回答は1行1件で記録され、AI向けの取得でも同じ形式に�
   });
   assert.equal(r.isError, undefined);
   assert.equal(r.structuredContent.message,
-    "[inloop] レビュー回答。fixは修正後にrequest_reviewで差分を再依頼:\nR1 ok\nR2 fix src/db/orders.ts#cancelOrder#L44 \"発送済みも409にする\"");
+    "[inloop] レビュー回答。fixは修正後にrequest_reviewのfollowsで再依頼、askは会話で答える:\nR1 ok\nR2 fix src/db/orders.ts#cancelOrder#L44 \"発送済みも409にする\"");
   assert.deepEqual(r.structuredContent.inbox.map((i) => i.status), ["approved", "fixing"]);
   const g = await client.callTool({ name: "get_review_result", arguments: { ids: ["R1", "R2"] } });
   assert.equal(textOf(g), "R1 ok\nR2 fix src/db/orders.ts#cancelOrder#L44 \"発送済みも409にする\"");
@@ -351,4 +356,239 @@ test("まとまりのない古い記録の依頼は、その依頼だけのま�
   // まとまりの形が不正な記録は拒否する。
   writeFileSync(file, lines.map((l) => { const e = JSON.parse(l); e.packet.group = "x"; return JSON.stringify(e); }).join("\n") + "\n");
   assert.throws(() => new ReviewStore({ file }), /:1: 依頼票の形が不正/);
+});
+
+// ---- 状態遷移（ADR-0009） ----
+
+test("再依頼は元のIDに枝番を足したIDになり、元の依頼は再依頼済みになる", async () => {
+  const client = await connect();
+  const call = (name, args) => client.callTool({ name, arguments: args });
+  const view = async (id) => (await call("inloop_get_request", { id })).structuredContent;
+  await call("request_review", { reviews: [{ viewpoint: "q1", symbols: ["src/db/orders.ts#cancelOrder"] }, { viewpoint: "q2" }], range: "a..b" });
+  await call("inloop_submit", { from: "R1", answers: [
+    { id: "R1", verdict: "fix", ref: "src/db/orders.ts#cancelOrder#L44", comment: "発送済みも409にする" },
+    { id: "R2", verdict: "ok" },
+  ] });
+
+  // AIは、修正後に元のIDを渡して再依頼する。観点と対象は元の依頼から引き継ぐ。戻り値はIDと状態だけ。
+  const again = await call("request_review", { reviews: [{ follows: "R1" }, { viewpoint: "q3" }], range: "b..c" });
+  assert.equal(textOf(again), "R1-1 R3 pending");
+  assert.deepEqual(again.structuredContent, { ids: ["R1-1", "R3"] });
+  const next = await view("R1-1");
+  assert.deepEqual([next.packet.id, next.packet.group, next.packet.viewpoint, next.packet.range], ["R1-1", "R1-1", "q1", "b..c"]);
+  assert.deepEqual(next.packet.requestedSymbols, ["src/db/orders.ts#cancelOrder"]);
+  assert.equal(next.status, "pending");
+  // 再依頼は新しい呼び出しのまとまりに入る。元の依頼は、元のまとまりに再依頼済みとして残る。
+  assert.deepEqual(next.inbox.map((i) => [i.id, i.status]), [["R1-1", "pending"], ["R3", "pending"]]);
+  assert.deepEqual((await view("R1")).inbox.map((i) => [i.id, i.status, i.supersededBy]), [["R1", "superseded", "R1-1"], ["R2", "approved", undefined]]);
+  // 再依頼のUIには、前回の指摘が出る。
+  assert.deepEqual(next.history, [{ id: "R1", answers: [{ id: "R1", verdict: "fix", ref: "src/db/orders.ts#cancelOrder#L44", comment: "発送済みも409にする" }] }]);
+
+  // 再依頼済みの依頼には、元の画面からも新しい画面からも回答できない。
+  for (const from of ["R1", "R1-1"]) {
+    const r = await call("inloop_submit", { from, answers: [{ id: "R1", verdict: "ok" }] });
+    assert.equal(r.isError, true, from);
+  }
+  assert.match(textOf(await call("inloop_submit", { from: "R1", answers: [{ id: "R1", verdict: "ok" }] })), /R1: 再依頼済み（R1-1に回答する）/);
+
+  // 2回目の再依頼。元の依頼として系列のどのIDを渡しても、最新の依頼を引き継ぐ。観点は書き換えられる。
+  await call("inloop_submit", { from: "R1-1", answers: [{ id: "R1-1", verdict: "ask", comment: "なぜ409?" }, { id: "R3", verdict: "hold" }] });
+  assert.equal(textOf(await call("request_review", { reviews: [{ follows: "R1", viewpoint: "q1改" }] })), "R1-2 pending");
+  const third = await view("R1-2");
+  assert.equal(third.packet.viewpoint, "q1改");
+  assert.deepEqual(third.history.map((h) => [h.id, h.answers[0].verdict]), [["R1", "fix"], ["R1-1", "ask"]]);
+  assert.equal((await view("R1-1")).inbox[0].supersededBy, "R1-2");
+  // 未回答のまま再依頼してもよい（依頼票を出し直す）。承認済みの依頼も再依頼できる。
+  assert.equal(textOf(await call("request_review", { reviews: [{ follows: "R1-2" }, { follows: "R2" }] })), "R1-3 R2-1 pending");
+  assert.equal((await view("R2")).status, "superseded");
+  // 新しい依頼の番号は、枝番に関係なく続きから振る。
+  assert.equal(textOf(await ask(client, "q4")), "R4 pending");
+
+  await call("inloop_submit", { from: "R1-3", answers: [{ id: "R1-3", verdict: "ok" }] });
+  assert.equal(textOf(await call("get_review_result", { ids: ["R1", "R1-1", "R1-3"] })),
+    'R1 fix src/db/orders.ts#cancelOrder#L44 "発送済みも409にする"\nR1-1 ask "なぜ409?"\nR1-3 ok');
+});
+
+test("不正な再依頼は呼び出し全体を拒否し、何も記録しない", async () => {
+  const file = tmpLog();
+  const client = await connect(new ReviewStore({ file, now: at }));
+  await ask(client, "q1", "q2");
+  const before = readFileSync(file, "utf8");
+  for (const [reviews, expected] of [
+    [[{ viewpoint: "q3" }, { follows: "R9" }], /R9: 存在しない依頼/],
+    [[{ follows: "R1-1" }], /R1-1: 存在しない依頼/],
+    [[{ follows: "x" }], /x: 存在しない依頼/],
+    [[{ follows: "R1" }, { follows: "R1" }], /R1: 同じ依頼への再依頼が重複している/],
+    [[{ viewpoint: "q3" }, {}], /観点がない/],
+  ]) {
+    const r = await client.callTool({ name: "request_review", arguments: { reviews } });
+    assert.equal(r.isError, true, JSON.stringify(reviews));
+    assert.match(textOf(r), expected);
+    assert.ok(textOf(r).length < 100, textOf(r));
+  }
+  assert.equal(readFileSync(file, "utf8"), before);
+  assert.equal(textOf(await ask(client, "q3")), "R3 pending");
+});
+
+test("保留中・回答待ちの依頼は、同じ画面から未回答に戻して回答し直せる", async () => {
+  const client = await connect();
+  const call = (name, args) => client.callTool({ name, arguments: args });
+  await ask(client, "q1", "q2", "q3", "q4");
+  await ask(client, "別に出した依頼");
+  await call("inloop_submit", { from: "R1", answers: [
+    { id: "R1", verdict: "hold" },
+    { id: "R2", verdict: "ask", comment: "リトライは冪等?" },
+    { id: "R3", verdict: "fix", comment: "直して" },
+    { id: "R4", verdict: "ok" },
+  ] });
+  await call("inloop_submit", { from: "R5", answers: [{ id: "R5", verdict: "hold" }] });
+
+  // 修正待ち・承認済み・未回答の依頼、別に出された依頼、存在しない依頼は戻せない。1つでもあれば全体を拒否する。
+  for (const [ids, expected] of [
+    [["R1", "R3"], /R3: fixingの依頼は未回答に戻せない/],
+    [["R4"], /R4: approvedの依頼は未回答に戻せない/],
+    [["R1", "R5"], /R5: 別に出された依頼は、この画面から戻せない/],
+    [["R1", "R1"], /R1: 重複している/],
+    [["R9"], /R9: 存在しない依頼/],
+  ]) {
+    const r = await call("inloop_reopen", { from: "R1", ids });
+    assert.equal(r.isError, true, ids.join());
+    assert.match(textOf(r), expected);
+  }
+  assert.equal((await call("inloop_reopen", { ids: ["R1"] })).isError, true);
+  assert.equal((await call("inloop_reopen", { from: "R9", ids: ["R1"] })).isError, true);
+  assert.equal((await call("inloop_get_request", { id: "R1" })).structuredContent.status, "held");
+
+  const r = await call("inloop_reopen", { from: "R1", ids: ["R1", "R2"] });
+  assert.equal(r.isError, undefined, JSON.stringify(r));
+  assert.deepEqual(r.structuredContent.inbox.map((i) => [i.id, i.status]), [["R1", "pending"], ["R2", "pending"], ["R3", "fixing"], ["R4", "approved"]]);
+  assert.equal(r.structuredContent.elsewhere, 0);
+  // 戻した依頼は未回答なので、もう一度は戻せない。AI向けの取得にも、戻す前の回答は出ない。
+  assert.equal((await call("inloop_reopen", { from: "R1", ids: ["R1"] })).isError, true);
+  assert.equal(textOf(await call("get_review_result", { ids: ["R1", "R2", "R3"] })), 'R3 fix "直して"');
+  // 戻す前の回答は、UIに「これまでの回答」として出る。
+  assert.deepEqual((await call("inloop_get_request", { id: "R2" })).structuredContent.history,
+    [{ id: "R2", answers: [{ id: "R2", verdict: "ask", comment: "リトライは冪等?" }] }]);
+
+  const answered = await call("inloop_submit", { from: "R1", answers: [{ id: "R2", verdict: "ok" }, { id: "R1", verdict: "ask", comment: "やはり質問" }] });
+  assert.equal(answered.isError, undefined, JSON.stringify(answered));
+  assert.equal(answered.structuredContent.message.split("\n").slice(1).join("\n"), 'R2 ok\nR1 ask "やはり質問"');
+  assert.equal(textOf(await call("get_review_result", { ids: ["R1", "R2", "R3"] })), 'R3 fix "直して"\nR2 ok\nR1 ask "やはり質問"');
+  assert.deepEqual((await call("inloop_get_request", { id: "R2" })).structuredContent.history.map((h) => h.answers[0].verdict), ["ask", "ok"]);
+});
+
+test("再依頼と、未回答に戻した記録が、再起動後も同じ状態になる", async () => {
+  const file = tmpLog();
+  const store = new ReviewStore({ file, now: at });
+  store.create([{ viewpoint: "q1" }, { viewpoint: "q2" }], "HEAD");
+  store.submit([{ id: "R1", verdict: "fix", comment: "直して" }, { id: "R2", verdict: "hold" }], "R1");
+  store.reopen(["R2"], "R1");
+  store.create([{ follows: "R1" }, { viewpoint: "q3" }], "HEAD");
+  store.submit([{ id: "R1-1", verdict: "ok" }], "R1-1");
+  const events = readFileSync(file, "utf8").trimEnd().split("\n").map((l) => JSON.parse(l));
+  // 版は1のまま。未回答に戻す記録が1種類増え、再依頼は枝番のIDを持つ依頼として記録する。
+  assert.deepEqual(events.map((e) => [e.v, e.type, e.packet?.id ?? e.ids ?? e.answers.map((a) => a.id)]), [
+    [1, "request", "R1"], [1, "request", "R2"], [1, "answer", ["R1", "R2"]], [1, "reopen", ["R2"]],
+    [1, "request", "R1-1"], [1, "request", "R3"], [1, "answer", ["R1-1"]],
+  ]);
+  assert.deepEqual(events[3], { v: 1, type: "reopen", at: at(), ids: ["R2"] });
+  assert.deepEqual([events[4].packet.group, events[5].packet.group], ["R1-1", "R1-1"]);
+  // 拒否された操作は記録しない。
+  const text = readFileSync(file, "utf8");
+  assert.throws(() => store.reopen(["R1"], "R1"), /supersededの依頼は未回答に戻せない/);
+  assert.throws(() => store.create([{ follows: "R7" }], "HEAD"), /R7: 存在しない依頼/);
+  assert.equal(readFileSync(file, "utf8"), text);
+
+  const reloaded = new ReviewStore({ file, now: at });
+  for (const id of ["R1", "R2", "R1-1", "R3"]) {
+    assert.equal(reloaded.statusOf(id), store.statusOf(id), id);
+    assert.deepEqual(reloaded.get(id), store.get(id), id);
+    assert.deepEqual(reloaded.history(id), store.history(id), id);
+  }
+  assert.deepEqual(["R1", "R2", "R1-1", "R3"].map((id) => reloaded.statusOf(id)), ["superseded", "pending", "approved", "pending"]);
+  assert.deepEqual(reloaded.inbox("R1"), store.inbox("R1"));
+  assert.deepEqual(reloaded.answered(), store.answered());
+  assert.equal(reloaded.pendingElsewhere("R1"), 1);
+  // 続きの番号と枝番も同じになる。
+  assert.deepEqual(reloaded.create([{ follows: "R1" }, { viewpoint: "q4" }], "HEAD").map((p) => p.id), ["R1-2", "R4"]);
+});
+
+test("状態遷移に合わない記録は、行を示して拒否する", () => {
+  const file = tmpLog();
+  const store = new ReviewStore({ file, now: at });
+  store.create([{ viewpoint: "q1" }, { viewpoint: "q2" }], "HEAD");
+  store.submit([{ id: "R1", verdict: "hold" }, { id: "R2", verdict: "fix", comment: "c" }], "R1");
+  const good = readFileSync(file, "utf8");
+  const packet = JSON.parse(good.split("\n")[0]).packet;
+  const line = (e) => JSON.stringify({ v: 1, at: at(), ...e }) + "\n";
+  const request = (id, extra = {}) => line({ type: "request", packet: { ...packet, id, group: id, ...extra } });
+  const reopen = (...ids) => line({ type: "reopen", ids });
+  const answer = (id) => line({ type: "answer", answers: [{ id, verdict: "ok" }] });
+  const cases = [
+    // 未回答に戻せるのは、保留中か回答待ちの依頼だけ。
+    [reopen("R2"), /:4: fixingの依頼を未回答に戻している R2/],
+    [reopen("R1") + reopen("R1"), /:5: pendingの依頼を未回答に戻している R1/],
+    [reopen("R1", "R1"), /:4: 未回答に戻す依頼が重複している/],
+    [reopen("R9"), /:4: 存在しない依頼を未回答に戻している R9/],
+    [reopen(), /:4: 未回答に戻す依頼の形が不正/],
+    [line({ type: "reopen", ids: ["x"] }), /:4: 未回答に戻す依頼の形が不正（0）/],
+    // 再依頼は、系列の最新の依頼を、枝番を飛ばさずに引き継ぐ。
+    [request("R9-1"), /:4: 存在しない依頼への再依頼 R9-1/],
+    [request("R2-2"), /:4: 枝番が連続していない R2-2（最新はR2）/],
+    [request("R2-1") + request("R2-1"), /:5: 依頼IDが重複している R2-1/],
+    [request("R2-1") + request("R2-3"), /:5: 枝番が連続していない R2-3（最新はR2-1）/],
+    [request("R2-0"), /:4: 依頼票の形が不正（id）/],
+    [request("R2-1-1"), /:4: 依頼票の形が不正（id）/],
+    // 再依頼済みの依頼には回答も、未回答に戻すこともできない。
+    [request("R2-1") + answer("R2"), /:5: 再依頼済みの依頼への回答 R2/],
+    [request("R1-1") + reopen("R1"), /:5: supersededの依頼を未回答に戻している R1/],
+  ];
+  for (const [tail, expected] of cases) {
+    const f = tmpLog();
+    new ReviewStore({ file: f });
+    writeFileSync(f, good + tail);
+    assert.throws(() => new ReviewStore({ file: f }), expected, tail);
+  }
+  // 整合する記録は読める。
+  const f = tmpLog();
+  new ReviewStore({ file: f });
+  writeFileSync(f, good + reopen("R1") + answer("R1") + request("R2-1") + request("R2-2") + answer("R2-2"));
+  const ok = new ReviewStore({ file: f });
+  assert.deepEqual(["R1", "R2", "R2-1", "R2-2"].map((id) => ok.statusOf(id)), ["approved", "superseded", "superseded", "approved"]);
+});
+
+test("依頼票は読み込みで形の全体を確かめ、知らない項目は無視する", () => {
+  const source = tmpLog();
+  new ReviewStore({ file: source, now: at }).create([{ viewpoint: "q", symbols: ["a#b"] }], "HEAD");
+  const packet = JSON.parse(readFileSync(source, "utf8")).packet;
+  const write = (p) => {
+    const f = tmpLog();
+    new ReviewStore({ file: f });
+    writeFileSync(f, JSON.stringify({ v: 1, type: "request", at: at(), packet: p }) + "\n");
+    return f;
+  };
+  const without = (key) => { const p = structuredClone(packet); delete p[key]; return p; };
+  const withStep = (patch) => { const p = structuredClone(packet); Object.assign(p.steps[1], patch); return p; };
+  for (const [bad, where] of [
+    [without("kind"), "kind"],
+    [without("evidence"), "evidence"],
+    [without("budget"), "budget"],
+    [without("fixture"), "fixture"],
+    [{ ...packet, kind: "maybe" }, "kind"],
+    [{ ...packet, unresolved: "なし" }, "unresolved"],
+    [{ ...packet, requestedSymbols: [1] }, "requestedSymbols.0"],
+    [{ ...packet, evidence: [{ kind: "test", name: "t", status: "ok" }] }, "evidence.0.status"],
+    [withStep({ code: undefined }), "steps.1.code"],
+    [withStep({ startLine: 0 }), "steps.1.startLine"],
+    [withStep({ change: "removed" }), "steps.1.change"],
+    [withStep({ changedLines: ["1"] }), "steps.1.changedLines.0"],
+  ]) {
+    assert.throws(() => new ReviewStore({ file: write(bad) }), new RegExp(`:1: 依頼票の形が不正（${where.replaceAll(".", "\\.")}）`), where);
+  }
+  // 知らない項目（捨てた方式が残したthreadなど）は無視し、UIにも渡さない。
+  const extra = structuredClone(packet);
+  extra.thread = "T1";
+  extra.steps[0].note = "x";
+  const store = new ReviewStore({ file: write(extra) });
+  assert.deepEqual(store.get("R1"), packet);
 });

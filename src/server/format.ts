@@ -10,9 +10,12 @@ export function formatAnswerLine(a: Answer): string {
   return parts.join(" ");
 }
 
-/** 会話へ送るメッセージ。先頭の1行で、AIに次の行動を示す。 */
+/** 回答のメッセージの先頭の1行。AIに次の行動を示す。 */
+export const ANSWER_HEADER = "[inloop] レビュー回答。fixは修正後にrequest_reviewのfollowsで再依頼、askは会話で答える:";
+
+/** 会話へ送るメッセージ。 */
 export function formatAnswerMessage(answers: Answer[]): string {
-  return ["[inloop] レビュー回答。fixは修正後にrequest_reviewで差分を再依頼:", ...answers.map(formatAnswerLine)].join("\n");
+  return [ANSWER_HEADER, ...answers.map(formatAnswerLine)].join("\n");
 }
 
 /** AIの文脈へ入る文字列の大きさを記録する（stderrはクライアントのログへ出る）。 */
