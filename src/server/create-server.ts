@@ -32,16 +32,26 @@ function error(t: string) {
 
 export interface ServerOptions {
   /**
-   * ブラウザで開く経路（ADR-0012）。指定すると、request_reviewが画面のURLを返す。
-   * 依頼の最初のIDと対象のリポジトリを受け取り、その依頼のまとまりを開くURLを返す。
+   * ブラウザで開く経路（ADR-0012、ADR-0013）。指定すると、request_reviewが画面のURLを返す。
+   * 対象のリポジトリを受け取り、そのアプリの画面のURLの基点（http://<アプリ名>.inloop.localhost:<ポート>）を返す。
+   * 画面を出せない対象なら、依頼を作る前にTargetErrorを投げる。
    */
-  browserUrl?: (id: string, repo: string | undefined) => string;
+  browserBase?: (repo: string | undefined) => Promise<string>;
 }
 
 /** 対象を決め、決まらなければAIやUIへ返すエラーにする。 */
 async function storeFor(targets: Targets, repo: string | undefined): Promise<{ repo: string | undefined; store: ReviewStore } | ToolResult> {
   try {
     return await targets.resolve(repo);
+  } catch (e) {
+    if (e instanceof TargetError) return error(e.message);
+    throw e;
+  }
+}
+
+async function locate(targets: Targets, repo: string | undefined): Promise<{ repo: string | undefined } | ToolResult> {
+  try {
+    return await targets.locate(repo);
   } catch (e) {
     if (e instanceof TargetError) return error(e.message);
     throw e;
@@ -146,7 +156,8 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
  */
 export function createServer(target: ReviewStore | Targets = new ReviewStore(), options: ServerOptions = {}): McpServer {
   const server = new McpServer({ name: "inloop", version: VERSION });
-  const { browserUrl } = options;
+  const { browserBase } = options;
+  const browserUrl = browserBase;
   const targets = target instanceof Targets ? target : new Targets({ store: target });
   // クライアントが作業フォルダ（roots）を知らせられるなら、対象を決めるのに使う。
   targets.useRoots(async () => {
@@ -184,13 +195,25 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
       _meta: { ui: { resourceUri: UI_URI } },
     },
     async ({ reviews, range, repo }) => {
-      const t = await storeFor(targets, repo);
-      if (isError(t)) {
-        logModelBound("request_review_error", t.content[0]!.text);
-        return t;
+      const found = await locate(targets, repo);
+      if (isError(found)) {
+        logModelBound("request_review_error", found.content[0]!.text);
+        return found;
       }
-      const { store } = t;
+      const t = found;
       const meta = t.repo ? { _meta: { [REPO_META]: t.repo } } : {};
+      let base: string | undefined;
+      if (browserBase) {
+        try {
+          base = await browserBase(t.repo);
+        } catch (e) {
+          const m = (e as Error).message;
+          logModelBound("request_review_error", m);
+          return error(m);
+        }
+      }
+      // 画面を出せることを確かめてから、記録の置き場所を開く。
+      const { store } = targets.open(t);
       let ids: string[];
       try {
         ids = store.create(reviews, range ?? "HEAD").map((p) => p.id);
@@ -200,8 +223,8 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
         logModelBound("request_review_error", t);
         return error(t);
       }
-      if (browserUrl) {
-        const url = browserUrl(ids[0]!, t.repo);
+      if (base !== undefined) {
+        const url = `${base}/r/${ids[0]}`;
         const out = `${ids.join(" ")} pending ${url}`;
         logModelBound("request_review", out);
         return { ...text(out), structuredContent: { ids, url }, ...meta };

@@ -15,7 +15,16 @@ npm test
 which node   # 登録で使う絶対パスを控える
 ```
 
-`dist/server/main.js`がMCPサーバーの入口です。GUIアプリからはシェルの`PATH`が見えないことがあるため、`node`は絶対パスで指定します。
+`dist/server/main.js`がMCPサーバーの入口です（`bin/inloop mcp`と同じ）。GUIアプリからはシェルの`PATH`が見えないことがあるため、`node`は絶対パスで指定します。
+
+`inloop`コマンド（[ADR-0011](../maintainer-guide/decisions/0011-inloop-command-and-app-templates.md)）は、cloneしたinloopの`bin/`にパスを通して使います。
+
+```sh
+export PATH="<repo>/bin:$PATH"
+inloop init <アプリのリポジトリ>   # ブラウザで開く経路で使うリポジトリを登録する
+inloop apps                        # 登録したアプリと画面のURL
+inloop update                      # inloopを更新してビルドし直す
+```
 
 ## 依頼と回答の保存
 
@@ -57,7 +66,7 @@ claude mcp add inloop-code -s local -- <node> <repo>/dist/server/main.js --ui br
 
 Claude Codeは作業フォルダ（roots）を知らせるので、`--state-dir`も`--repo`も付けずに、セッションのフォルダのリポジトリが対象になります（2026-10-11、`initialize`の`capabilities`で`roots`を確認）。
 
-`request_review`がURLを返すので、それをブラウザで開いて回答します。AIは`get_review_result`の`wait`で回答を待ちます。
+対象のリポジトリは、先に`inloop init`で登録しておきます。`request_review`が`http://<アプリ名>.inloop.localhost:4656/r/R1`の形のURLを返すので、それをブラウザで開いて回答します（[ADR-0013](../maintainer-guide/decisions/0013-machine-wide-ui-server.md)）。画面のサーバーはマシン全体で1つで、MCPサーバーが起動時に、動いていなければ起動します。ポートは`INLOOP_PORT`で変えられます。AIは`get_review_result`の`wait`で回答を待ちます。
 
 ### Codex
 

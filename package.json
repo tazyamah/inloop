@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "bin": {
+    "inloop": "bin/inloop",
     "inloop-mcp": "dist/server/main.js"
   },
   "scripts": {

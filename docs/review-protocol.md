@@ -99,7 +99,7 @@ R16-1 ok
 MCP AppsのUIを表示できないクライアントでは、サーバーを`--ui browser`で起動し、同じUIをブラウザで開きます（[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）。
 
 ```text
-request_review(reviews: [...]) -> "R12 R13 pending http://127.0.0.1:<port>/r/R12?t=<鍵>"
+request_review(reviews: [...]) -> "R12 R13 pending http://<アプリ名>.inloop.localhost:4656/r/R12"
 get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 ```
 

@@ -24,7 +24,7 @@ npm run build
 npm test
 ```
 
-AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
+`bin/inloop`が`inloop`コマンドです（`mcp`・`server`・`init`・`apps`・`update`）。AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
 
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)

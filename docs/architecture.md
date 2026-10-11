@@ -27,7 +27,7 @@ inloop MCPサーバー（クライアントが自動起動）
 | レビューUI | 依頼の受付箱、依頼票の表示、まとめての回答（MCP Apps） | TypeScript / HTML |
 | スキル | いつ・どの粒度で依頼するかをAIに指示する | Markdown |
 
-MCP Appsに対応しないクライアント向けに、同じUIをローカルのブラウザで開く代替経路があります（`--ui browser`、[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）。ツールの呼び出し方は共通で、回答はAIが`get_review_result`の`wait`で受け取ります。
+MCP Appsに対応しないクライアント向けに、同じUIをローカルのブラウザで開く代替経路があります（`--ui browser`、[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）。画面はマシン全体で1つの画面のサーバーが`http://<アプリ名>.inloop.localhost:4656`で配ります（[ADR-0013](../maintainer-guide/decisions/0013-machine-wide-ui-server.md)）。ツールの呼び出し方は共通で、回答はAIが`get_review_result`の`wait`で受け取ります。
 
 ## 解析エンジン
 

@@ -88,6 +88,17 @@ export class Targets {
    * 順序: `--repo`、AIの引数`repo`、ちょうど1つのroots。`--state-dir`があれば、決まらないときはそこを使う。
    */
   async resolve(repo: string | undefined): Promise<{ repo: string | undefined; store: ReviewStore }> {
+    return this.open(await this.locate(repo));
+  }
+
+  /** 決めた対象の記録を開く。記録の置き場所は、ここで初めて作る。 */
+  open(target: { repo: string | undefined }): { repo: string | undefined; store: ReviewStore } {
+    if (this.legacy) return { repo: target.repo, store: this.legacy };
+    return { repo: target.repo, store: this.storeOf(target.repo!) };
+  }
+
+  /** 対象を決める。記録の置き場所は作らない。 */
+  async locate(repo: string | undefined): Promise<{ repo: string | undefined }> {
     const roots = await this.rootsList();
     let top: string | undefined;
     if (this.fixed) {
@@ -99,12 +110,12 @@ export class Targets {
       top = gitTopLevel(roots[0]!);
     }
     if (top === undefined) {
-      if (this.legacy) return { repo: undefined, store: this.legacy };
+      if (this.legacy) return { repo: undefined };
       throw new TargetError(roots && roots.length > 1 ? "repo がない（作業フォルダが複数ある）" : "repo がない");
     }
     if (roots && roots.length > 0 && !roots.some((r) => inside(top!, r))) throw new TargetError(`${top}: 作業フォルダの外`);
     this.check(top);
-    return { repo: top, store: this.legacy ?? this.storeOf(top) };
+    return { repo: top };
   }
 
   private normalize(repo: string): string {

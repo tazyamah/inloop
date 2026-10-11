@@ -1,11 +1,10 @@
-// ブラウザで開く経路のホスト（ADR-0010）。MCP Appsのホストの役を務め、レビューUIを
+// ブラウザで開く経路のホスト（ADR-0012、ADR-0013）。MCP Appsのホストの役を務め、レビューUIを
 // iframeに読み込む。UIのツール呼び出しはサーバーのHTTPへ転送する。会話へのメッセージは
 // 届けられないので、回答はAIがget_review_resultで受け取る。
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
 
-const token = new URLSearchParams(location.search).get("t") ?? "";
-// URLは /r/<対象の印>/<依頼ID>（ADR-0010）。
-const [, , repoKey = "-", id = ""] = location.pathname.split("/");
+// URLは http://<アプリ名>.inloop.localhost:<ポート>/r/<依頼ID>（ADR-0013）。アプリ名が対象のリポジトリを表す。
+const id = location.pathname.split("/")[2] ?? "";
 const dark = matchMedia("(prefers-color-scheme: dark)");
 
 const notice = document.getElementById("notice")!;
@@ -20,7 +19,7 @@ const bridge = new AppBridge(
 );
 
 bridge.oncalltool = async (params) => {
-  const res = await fetch(`/api/${repoKey}/call?t=${encodeURIComponent(token)}`, {
+  const res = await fetch("/api/call", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: params.name, arguments: params.arguments ?? {} }),
@@ -39,7 +38,7 @@ bridge.onmessage = async () => {
 // 再依頼済みの依頼から、引き継ぎ先の依頼のページへ移る。
 bridge.onopenlink = async ({ url }) => {
   const m = /^inloop:review\/(R\d+(?:-\d+)?)$/.exec(url);
-  if (m) location.href = `/r/${repoKey}/${m[1]}?t=${encodeURIComponent(token)}`;
+  if (m) location.href = `/r/${m[1]}`;
   else window.open(url, "_blank", "noopener");
   return {};
 };
@@ -57,4 +56,4 @@ bridge.onsizechange = ({ height }) => {
 };
 
 await bridge.connect(new PostMessageTransport(iframe.contentWindow!, iframe.contentWindow!));
-iframe.src = `/ui/review.html?t=${encodeURIComponent(token)}`;
+iframe.src = "/ui/review.html";

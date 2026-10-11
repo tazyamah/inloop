@@ -5,6 +5,8 @@ import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { request } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
@@ -41,9 +43,22 @@ test("実プロセスとしてstdioで起動し、依頼を受け付ける", asy
 });
 
 const MAIN = fileURLToPath(new URL("../dist/server/main.js", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/inloop", import.meta.url));
 
-async function requestOnce({ args = [], env = {} }) {
-  const transport = new StdioClientTransport({ command: process.execPath, args: [MAIN, ...args], env: { ...process.env, ...env }, stderr: "pipe" });
+function freePort() {
+  return new Promise((resolve) => {
+    const s = createNetServer().listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); });
+  });
+}
+
+function httpGet(port, path, host) {
+  return new Promise((resolve, reject) => {
+    request({ host: "127.0.0.1", port, path, headers: { host } }, (res) => { res.resume(); res.on("end", () => resolve({ status: res.statusCode })); }).on("error", reject).end();
+  });
+}
+
+async function requestOnce({ args = [], env = {}, cwdRepo }) {
+  const transport = new StdioClientTransport({ command: process.execPath, args: [MAIN, ...args], env: { ...process.env, ...env }, stderr: "pipe", ...(cwdRepo ? { cwd: cwdRepo } : {}) });
   const logs = [];
   transport.stderr?.on("data", (d) => logs.push(String(d)));
   const client = new Client({ name: "stdio-test", version: "0" });
@@ -84,6 +99,7 @@ test("保存先を使えない場合や引数が不正な場合は、メモリ�
     [["--unknown"], /起動できません: 知らない引数 --unknown/],
     [["--ui", "web"], /起動できません: --ui は browser か mcp-apps/],
     [["--repo", dir], /起動できません: .*gitの作業ツリーではない/],
+    [["--ui", "browser", "--state-dir", mkdtempSync(join(tmpdir(), "inloop-stdio-"))], /起動できません: --ui browser は --state-dir と併用できない/],
   ]) {
     const r = spawnSync(process.execPath, [MAIN, ...args], { encoding: "utf8", input: "", timeout: 10000 });
     assert.equal(r.status, 1, args.join(" "));
@@ -92,16 +108,30 @@ test("保存先を使えない場合や引数が不正な場合は、メモリ�
   }
 });
 
-test("--ui browserで、画面のURLを返し、接続が切れたら終了する", async () => {
-  const { text, logs } = await requestOnce({ args: ["--ui", "browser", "--repo", gitRepo()] });
-  const m = text.match(/^R1 pending (http:\/\/127\.0\.0\.1:(\d+)\/r\/\w{10}\/R1\?t=[\w-]+)$/);
-  assert.ok(m, text);
-  assert.match(logs.join(""), new RegExp(`browser UI on 127\\.0\\.0\\.1:${m[2]}`));
-  assert.ok(!logs.join("").includes(new URL(m[1]).searchParams.get("t")), "鍵はログに出さない");
-  // 標準入力が閉じたら、HTTPを開いていても終わる。
-  const r = spawnSync(process.execPath, [MAIN, "--ui=browser"], { encoding: "utf8", input: "", timeout: 10000 });
-  assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stderr, /browser UI on/);
+test("--ui browserで、画面のサーバーを起動し、MCPサーバーが起動し直しても同じURLを返す", async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const port = await freePort();
+  const env = { INLOOP_HOME: home, INLOOP_PORT: String(port) };
+  const repo = gitRepo();
+  const init = spawnSync(process.execPath, [BIN, "init", repo, "--name", "appa"], { encoding: "utf8", env: { ...process.env, ...env } });
+  assert.equal(init.status, 0, init.stderr);
+  assert.match(init.stdout, new RegExp(`登録しました: appa → ${repo}`));
+  let pid;
+  try {
+    const first = await requestOnce({ args: ["--ui", "browser", "--repo", repo], env: { ...env } });
+    assert.equal(first.text, `R1 pending http://appa.inloop.localhost:${port}/r/R1`, first.logs.join(""));
+    // MCPサーバーが終わっても、画面のサーバーは残り、同じURLで画面を開ける。
+    const health = await (await fetch(`http://127.0.0.1:${port}/_inloop/health`)).json();
+    pid = health.pid;
+    const page = await httpGet(port, "/r/R1", `appa.inloop.localhost:${port}`);
+    assert.equal(page.status, 200);
+    const second = await requestOnce({ args: ["--ui", "browser", "--repo", repo], env: { ...env } });
+    assert.equal(second.text, `R2 pending http://appa.inloop.localhost:${port}/r/R2`);
+    const again = await (await fetch(`http://127.0.0.1:${port}/_inloop/health`)).json();
+    assert.equal(again.pid, pid, "2つ目のMCPサーバーは、動いている画面のサーバーを使う");
+  } finally {
+    if (pid) process.kill(pid);
+  }
 });
 
 test("対象を決められない依頼は、記録せずに拒否する", async () => {
