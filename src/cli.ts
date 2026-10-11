@@ -8,6 +8,7 @@ import { runMcp } from "./server/mcp.js";
 import { LOG_FILE_NAME, ReviewStore } from "./server/store.js";
 import { gitTopLevel } from "./server/target.js";
 import { answersOf } from "./server/wait.js";
+import { checkRequired } from "./server/check.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
 
 /** 文字として読み書きすると壊れるファイル。そのままコピーする。 */
@@ -23,6 +24,7 @@ const USAGE = `使い方: inloop <コマンド>
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
+  check [--repo <dir>] [--range <範囲>]              信頼境界ルールが求める必須の依頼が、すべて承認済みかを確かめる
   update                                             inloopを更新してビルドし直す
 `;
 
@@ -149,6 +151,28 @@ async function wait(args: string[]): Promise<void> {
   process.stdout.write(`${await answersOf(store, ids, timeout)}\n`);
 }
 
+/**
+ * 信頼境界ルールが求める必須の依頼が、すべて承認済みかを確かめる（ADR-0020）。マージの前に、取り込む先を範囲に渡す。
+ * 1つでも承認されていなければ終了コード1。記録は書かない。
+ */
+function check(args: string[]): void {
+  const repoArg = option(args, "--repo");
+  const range = option(args, "--range") ?? "HEAD";
+  if (args.length > 0) throw new Error(`知らない引数 ${args.join(" ")}`);
+  const repo = gitTopLevel(resolve(repoArg ?? "."));
+  const file = join(repo, ".inloop", LOG_FILE_NAME);
+  // 記録がなければ、作らずに空の記録として確かめる。
+  const lines = checkRequired(repo, range, new ReviewStore(existsSync(file) ? { file } : {}));
+  for (const l of lines) process.stdout.write(`${l.state}\t${l.id ?? "-"}\t${l.symbol}\t${l.rules.join(",")}\n`);
+  const bad = lines.filter((l) => l.state !== "ok").length;
+  if (bad === 0) {
+    process.stdout.write(`必須の依頼はすべて承認済み（${lines.length}件）\n`);
+    return;
+  }
+  process.stdout.write(`承認されていない必須の依頼がある（${bad}/${lines.length}件）。request_review を呼ぶと、必須の依頼が加わる\n`);
+  process.exitCode = 1;
+}
+
 export async function main(argv: string[]): Promise<void> {
   const [command, ...args] = argv;
   try {
@@ -175,6 +199,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "wait":
         await wait(args);
+        return;
+      case "check":
+        check(args);
         return;
       case undefined:
       case "help":

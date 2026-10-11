@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "boundaries": [
+    {
+      "id": "http-input",
+      "question": "外部から届く入力（パス、クエリ、本文、ヘッダー）を、使う前に検証しているか。エラーの応答に内部の情報を出していないか",
+      "match": [
+        {
+          "import": "hono"
+        },
+        {
+          "import": "@hono/node-server"
+        }
+      ]
+    },
+    {
+      "id": "db-write",
+      "question": "SQLは固定の文で、値はプレースホルダーで渡しているか。書き込む値は検証済みか",
+      "match": [
+        {
+          "import": "node:sqlite"
+        },
+        {
+          "symbols": [
+            "server/db.ts#Db"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "secrets",
+      "question": "環境変数の値（秘密情報を含みうる）を、ログや応答や画面に出していないか",
+      "match": [
+        {
+          "global": "process.env"
+        }
+      ]
+    },
+    {
+      "id": "outbound",
+      "question": "外部への通信の宛先と送る内容は決まっているか。宛先を外部からの入力で変えられないか",
+      "match": [
+        {
+          "import": "node:http"
+        },
+        {
+          "import": "node:https"
+        },
+        {
+          "import": "node:net"
+        }
+      ]
+    },
+    {
+      "id": "process",
+      "question": "外部コマンドに渡す引数に、外部からの入力が混ざらないか",
+      "match": [
+        {
+          "import": "node:child_process"
+        }
+      ]
+    }
+  ]
+}

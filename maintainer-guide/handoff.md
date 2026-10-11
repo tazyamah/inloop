@@ -13,6 +13,7 @@
 - MCP AppsのUIを表示できないクライアント向けに、同じUIをブラウザで開く経路を作った（2026-10-11、ADR-0012）。`--ui browser`で起動する。
 - inloopで複数のアプリを作るときの形を決めた（2026-10-11）。対象のリポジトリを依頼ごとに決めて記録をリポジトリごとに置き（ADR-0010）、`inloop`コマンドで標準の構成のリポジトリを作る（ADR-0011）。どちらも未実装。
 - 当面の主なクライアントはClaude Desktopの通常の会話のまま（ADR-0006は変えない）。手元のMacでの作業をVMより速くするため、Claude Desktopに`claude mcp serve`を足す方法を試し始めた（未検証）。
+- 信頼境界ルールと必須の依頼を作った（2026-10-11、ADR-0020）。ルールはリポジトリ直下の`inloop.json`。`request_review`のたびにエンジンが範囲の変更にルールを当て、当たった単位ごとに必須の依頼を加える。`inloop check`で承認を確かめる。自動テストまでで、実際のクライアントでは未検証。
 - npmでの名前の確保は行わない方針にした。`package.json`は`private: true`。
 - 商標（J-PlatPat、USPTO）は未確認。
 
@@ -246,6 +247,19 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 `inloop new <dir> --desktop`でTauriの外枠を重ねた雛形を作る（`templates/desktop/`）。サーバーはNodeのSEAにして同梱。SEAのビルドと起動、宛先・送信元の確認は、生成したアプリで確かめた。Rust 1.99.0を入れて（利用者の許可、rustup）、生成したアプリで`cargo build`と`npm run package -- --bundles app`（118MB）が通り、`.app`を開いてサーバーの自動起動・画面の表示（利用者が目で確認）・終了時のサーバーの停止を確かめた。未検証: `npm run dev:desktop`、dmgなどのインストーラー。`inloop new`が画像を壊すバグを直した。
 
+### 2026-10-11 信頼境界ルールと必須の依頼（ADR-0020）
+
+- `inloop.json`（リポジトリ直下、commitする）: `format`（1）と`boundaries`（`id`・`question`・`match`）。当て方は`import`（`names`は任意）・`global`・`files`・`symbols`。知らない項目は拒否する。`src/engine/rules.ts`。
+- `src/engine/boundaries.ts`: 範囲の基点から作業ツリーまでに変わったファイルにルールを当てる。TypeScriptは宣言ごと（`import`・`global`・`symbols`）、`files`に当たったファイルと最上位の文はファイル全体を1つの単位にする。TypeScript以外のファイルと消したファイルは`files`だけ。ルールは基点と作業ツリーの`inloop.json`の和。`inloop.json`の変更には組み込みの`inloop-config`が当たる。
+- `src/engine/project.ts`: `uses`（importした名前と、外の名前の連なり）、`topLevel`（最上位の文）、`referencesIn`を足した。importの判定は型の解決で宣言をたどる。
+- `src/engine/build.ts`: ルールに当たった単位ごとの必須の依頼を、同じ解析で作る。`#`のないシンボルID（ファイル）を扱う。`inloop.json`と消したファイルは、基点の中身を`<基点>:<パス>`として並べる。必須の依頼は行数の上限で断らない。
+- `src/server/store.ts`: 同じ単位の必須の系列の最新の依頼のコードが今と同じなら作らず、違えば枝番の再依頼にする（`triggeredBy`は和）。必須の系列への`follows`で、対象と観点を変えさせない（固定データは対象外）。`reviews`が空の呼び出しを受け付ける。
+- `request_review`: 必須の依頼があれば、テキストの末尾に`required:R6`、structuredContentに`required`。
+- `inloop check [--repo] [--range]`（`src/server/check.ts`）: 当たった単位ごとに`ok`・`missing`・`changed`・状態を出し、1つでも`ok`でなければ終了コード1。記録は書かない。
+- 雛形（`templates/server/inloop.json`、`templates/desktop/inloop.json`）とinloop自身（`inloop.json`）にルールを置いた。雛形のAIへの指示に、必須の依頼と`inloop check`を書いた。
+
+検証: デバイス連携のLinux VM（Node.js 22.23.2、aarch64）で`npm test`が71 pass・7 skip・fail 0（追加は`test/boundaries.test.mjs`の13件）。VMからnpmの登録簿に届かなかったので、利用者の`node_modules`（macOS用）を写し、TypeScript 7とesbuildのLinux用の実行ファイルだけをクラウド環境で取って足した。UIは変えていないので、`INLOOP_UI_E2E=1`は実行していない。inloop自身で`inloop check --range main`を動かすと、この変更で必須の依頼が10件（すべて`missing`）になった。macOSでのテスト、実際のクライアントでの確認は未実施。
+
 ### 2026-10-12 手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー）
 
 同じMac（arm64、Node.js 22.18.0、Rust 1.99.0）で、`inloop new <dir> --desktop`で作ったアプリを使って確かめた。
@@ -258,7 +272,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - インストーラー: 既定の`npm run package`（`targets: "all"`）で、`.app`（118.05MiB）と`.dmg`（`src-tauri/target/release/bundle/dmg/<名前>_<版>_aarch64.dmg`、37.09MiB）ができた。署名・公証はしていない。`hdiutil verify`が通り、読み取り専用でマウントした`.dmg`の中の`.app`を起動すると、同梱のサーバーが空いているポートで起動し、`/api/health`と画面が返った。アイコンは仮のpng 1枚のまま（`.icns`はTauriが作った）。
 - 直したバグ: アプリをシグナルで止める（強制終了、`kill`）と、Tauriの終了処理が動かず、同梱のサーバーが残っていた。`DESKTOP=1`のサーバーは、親とつながった標準入力が閉じたら終えるようにした（`templates/desktop/server/index.ts`）。直した後、アプリの`kill -9`でもサーバーが止まること、Apple Eventでの通常の終了でも止まること、動いている間はサーバーが止まらないことを確かめた。
 - Windows・Linux: 未検証。このMacからは作れない。sidecarが今動いているNode（`process.execPath`）を写して作るので対象のOSのNodeが要り、TauriもLinuxはWebKitGTK、WindowsはMSVCとWebView2の環境で各OSのビルドを前提にする。CIなら、GitHub ActionsでOSごとのジョブ（`ubuntu-22.04`に`libwebkit2gtk-4.1-dev`などを入れる、`windows-latest`）で`npm ci && npm run package`を動かす。
-- 検証: `npm test`が58 pass・7 skip・fail 0（`inloop new --desktop`のテストに、`prepare-dev.mjs`・`beforeDevCommand`・`devUrl`・viteの待ち受けの確認を足した）。生成したアプリの`npm test`が2 pass。inloopのUIは変えていないので、`INLOOP_UI_E2E=1`は動かしていない。
+- 検証: `npm test`が58 pass・7 skip・fail 0（`inloop new --desktop`のテストに、`prepare-dev.mjs`・`beforeDevCommand`・`devUrl`・viteの待ち受けの確認を足した）。ADR-0020のmainを取り込んだ後、同じMacで`npm test`が71 pass・7 skip・fail 0（ADR-0020のテストのmacOSでの初めての実行）。生成したアプリの`npm test`が2 pass。inloopのUIは変えていないので、`INLOOP_UI_E2E=1`は動かしていない。
 
 ## クライアント検証の結果
 
@@ -298,9 +312,9 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - TypeScriptの型解決にGo版コンパイラ（TypeScript 7）を使えるか。外部から呼び出すAPIの状況は未確認。
 - 手元のアプリで同梱するHonoの実行ファイルの作り方（Bun、Deno、Node.jsの単一実行ファイル）と、Tauriからの起動・終了（ADR-0011）。
 - 対象のパスを依頼票とUIにどこまで見せるか（ADR-0010）。
-- inloopの設定ファイル（ルール、版）の名前と形式（ADR-0011）。
+- inloopの設定ファイル（`inloop.json`、ADR-0020）に、使うinloopの版とレイヤー対応ルールをどう足すか。当て方を特定のファイルに絞る指定。
 - ライセンス。
-- [docs/review-protocol.md](../docs/review-protocol.md)の未決事項（シンボルIDの表記、レビュー予算の単位、信頼境界ルールの記述形式、差分だけの再依頼、承認後の変更の検出、記録の整理）。
+- [docs/review-protocol.md](../docs/review-protocol.md)の未決事項（レビュー予算の単位、差分だけの再依頼、承認後の変更の検出（必須の依頼以外）、記録の整理）。
 
 ## 未検証事項
 
@@ -320,6 +334,9 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - Claude Desktopの通常の会話で、AIが毎回`repo`を渡すか（ADR-0010を実装した後）。
 - Tauriにサーバーを同梱した手元のアプリのメモリ（ADR-0011）。大きさは`.app`が118MB、`.dmg`が37MB（macOS arm64）。
 - 手元で動くアプリの雛形のWindows・Linuxでのビルドと起動（sidecarの作り方を含む）。署名と公証。`npm run dev:desktop`で、ウィンドウを閉じたときに開発用のプロセスが止まるか。
+- 実際のクライアントで、AIが`required:`の依頼を人に伝えるか、作業の終わりに`inloop check`を動かすか（ADR-0020）。
+- 大きなリポジトリで、`request_review`のたびに範囲のすべての変更にルールを当てる時間（inloop自身で、`main`からの範囲の`inloop check`は1秒未満）。
+- `inloop new`で作ったアプリで、雛形の`inloop.json`が狙いどおりに当たるか（`createApp`、`openDb`など）。
 
 ## 既知の制約
 
@@ -336,12 +353,14 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 新しい版のサーバーが`reopen`か枝番の依頼を書くと、同じ記録を使っている古い版のサーバープロセスは、その行で止まる。再起動すれば読める。
 - ブラウザの経路の画面は会話の外にある。全画面表示はない。AIは同じMacのシェルで記録や画面のサーバーを使えるので、AIが自分で回答を送ることは防げない（ADR-0012、ADR-0013）。
 - 記録先は起動時の`--state-dir`で1つに決まる。リポジトリごとに分けるのはADR-0010の実装から。
+- 必須の依頼が作られるのは`request_review`のときだけ。AIが依頼しなければ、`inloop check`で人やCIが気づくまで分からない（ADR-0020）。
+- ルールの`import`・`global`は、`require()`、文字列を組み立てた動的import、別のファイルから再exportした名前を追わない。消したコード（宣言の削除）には当てない。
 
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
 2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形の残り（Windows・Linuxのビルド、アイコンの生成、署名。macOSの`dev:desktop`と`.dmg`は確認済み）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
-4. 解析エンジンの次: 信頼境界ルールの記述形式と必須の依頼（inloopの設定ファイルの形もここで決める）、証拠（テスト結果）の取り込み、SQLの解析。
-5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。
+4. 解析エンジンの次: 証拠（テスト結果）の取り込み、SQLの解析。信頼境界ルール（ADR-0020）を実際のクライアントで使い、`inloop new`の雛形のルールが狙いどおり当たるかを確かめる。
+5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。
 6. 余裕があるときに、Claude Code（CLI）、Codex、VS Codeでの確認。

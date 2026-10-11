@@ -36,6 +36,7 @@ MCP Appsに対応しないクライアント向けに、同じUIをローカル�
 - 型情報まで含めてシンボルを解決する（TypeScriptはコンパイラAPIを使う）
 - フレームワークごとの**レイヤー対応ルール**で、コードを論理レイヤーと信頼境界に対応づける（例: HTTPハンドラの登録は入口、クエリの実行はDB層）。Semgrepのように、ルールを外付けのファイルとして管理する
 - 解決できなかった参照は未解決として明示する
+- 信頼境界ルールは、対象のリポジトリ直下の`inloop.json`に書く。エンジンが範囲の変更に当て、当たった単位ごとに必須の依頼を作る（[ADR-0020](../maintainer-guide/decisions/0020-trust-boundary-rules.md)）
 
 最初の対象はTypeScriptとSQLです（[ADR-0005](../maintainer-guide/decisions/0005-typescript-first-and-self-hosting.md)）。重い処理は、将来Rust製モジュールへの差し替えを検討します。
 
