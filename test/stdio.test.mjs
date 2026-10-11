@@ -72,10 +72,23 @@ test("保存先を使えない場合や引数が不正な場合は、メモリ�
     [["--state-dir", join(blocked, "sub")], /起動できません/],
     [["--state-dir"], /起動できません: --state-dir にディレクトリの指定がない/],
     [["--unknown"], /起動できません: 知らない引数 --unknown/],
+    [["--ui", "web"], /起動できません: --ui は browser か mcp-apps/],
   ]) {
     const r = spawnSync(process.execPath, [MAIN, ...args], { encoding: "utf8", input: "", timeout: 10000 });
     assert.equal(r.status, 1, args.join(" "));
     assert.match(r.stderr, expected);
     assert.equal(r.stdout, "");
   }
+});
+
+test("--ui browserで、画面のURLを返し、接続が切れたら終了する", async () => {
+  const { text, logs } = await requestOnce({ args: ["--ui", "browser"] });
+  const m = text.match(/^R1 pending (http:\/\/127\.0\.0\.1:(\d+)\/r\/R1\?t=[\w-]+)$/);
+  assert.ok(m, text);
+  assert.match(logs.join(""), new RegExp(`browser UI on 127\\.0\\.0\\.1:${m[2]}`));
+  assert.ok(!logs.join("").includes(new URL(m[1]).searchParams.get("t")), "鍵はログに出さない");
+  // 標準入力が閉じたら、HTTPを開いていても終わる。
+  const r = spawnSync(process.execPath, [MAIN, "--ui=browser"], { encoding: "utf8", input: "", timeout: 10000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /browser UI on/);
 });

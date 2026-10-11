@@ -94,6 +94,18 @@ R16-1 ok
 
 コード抜粋は返しません。AIはrepositoryを読めるため、場所を示せば十分です。
 
+### ブラウザで開く経路
+
+MCP AppsのUIを表示できないクライアントでは、サーバーを`--ui browser`で起動し、同じUIをブラウザで開きます（[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）。
+
+```text
+request_review(reviews: [...]) -> "R12 R13 pending http://127.0.0.1:<port>/r/R12?t=<鍵>"
+get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
+```
+
+- ブラウザからは会話へ送れないので、AIは`wait`で回答を待つ。時間切れなら、未回答の依頼を`R13 pending`として返す
+- 保留・質問の回答を受け取った後に待つと、人が未回答に戻して答え直すまで待つ。新しい回答がなければ`no change`を返す
+
 ## UIでの回答の操作
 
 GitHubのコードレビューと同じく、行を起点に回答します。

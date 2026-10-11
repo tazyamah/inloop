@@ -49,6 +49,14 @@ which node   # 登録で使う絶対パスを控える
 claude mcp add inloop -- <node> <repo>/dist/server/main.js --state-dir <state>
 ```
 
+Claudeデスクトップアプリの中のClaude Codeは、レビューUIを会話に表示しない（2026-10-11）。ブラウザで開く経路（[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）を使います。Claude Desktopの設定にも`inloop`がある場合は、そちらが呼ばれるので、別の名前で登録します。
+
+```sh
+claude mcp add inloop-code -s local -- <node> <repo>/dist/server/main.js --state-dir <state> --ui browser
+```
+
+`request_review`がURLを返すので、それをブラウザで開いて回答します。AIは`get_review_result`の`wait`で回答を待ちます。
+
 ### Codex
 
 `~/.codex/config.toml`:
