@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildPackets, MAX_STEPS } from "../dist/engine/build.js";
+import { buildPackets } from "../dist/engine/build.js";
 import { makeRepo } from "./helpers.mjs";
 
 const commit = (repo) => {
@@ -138,12 +138,12 @@ test("同じ入力からは、同じ依頼票を作る", () => {
   assert.deepEqual(a, b);
 });
 
-test("並べるシンボルには上限があり、省いた依存はその旨を示す", () => {
+test("並べるシンボルの数に上限はなく、直接の依存はすべて並べる", () => {
   const repo = makeRepo("many", { commit: true });
-  const fns = Array.from({ length: MAX_STEPS + 3 }, (_, i) => `export function f${i}(): number {\n  return ${i};\n}\n`);
+  const fns = Array.from({ length: 15 }, (_, i) => `export function f${i}(): number {\n  return ${i};\n}\n`);
   writeFileSync(join(repo, "src", "many.ts"), `${fns.join("\n")}\nexport function all(): number {\n  return ${fns.map((_, i) => `f${i}()`).join(" + ")};\n}\n`);
   const p = build(repo, ["src/many.ts#all"]);
-  assert.equal(p.steps.length, MAX_STEPS);
-  assert.equal(p.steps.at(-1).symbol, "src/many.ts#all", "指定したシンボルは必ず入れる");
-  assert.match(p.unresolved.at(-1), /^ほかに4個の依存を、上限（12）のため省略した: /);
+  assert.equal(p.steps.length, 16);
+  assert.equal(p.steps.at(-1).symbol, "src/many.ts#all");
+  assert.deepEqual(p.unresolved, []);
 });

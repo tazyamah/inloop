@@ -4,8 +4,6 @@ import { baseOf, changedLines, checkBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
 import type { ReviewPacket, ReviewStep } from "../server/types.js";
 
-/** 依頼票に並べるシンボルの数の上限。指定されたシンボルは必ず入れ、残りを依存で埋める。 */
-export const MAX_STEPS = 12;
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
 export const BUDGET_LIMIT = 40;
 
@@ -48,7 +46,8 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
 
 function packetOf(project: TsProject, review: PlannedReview, range: string, changed: (d: Declaration) => Set<number>): ReviewPacket {
   const requested = [...new Set(review.symbols)].map((s) => project.find(s)!);
-  // 指定されたシンボルと、それが直接使う同じリポジトリのシンボル。
+  // 指定されたシンボルと、それが直接使う同じリポジトリのシンボル。数の上限は設けない。
+  // 依頼を小さくするのはAIの側の務めで、画面の側では省かない（R4の指摘）。
   const deps = new Map<string, string[]>();
   const unresolved: string[] = [];
   const all = new Map<string, Declaration>(requested.map((d) => [d.id, d]));
@@ -57,10 +56,9 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
     deps.set(d.id, refs.internal);
     unresolved.push(...refs.unresolved);
     for (const id of refs.internal) {
-      if (!all.has(id) && all.size < MAX_STEPS) all.set(id, project.find(id)!);
+      if (!all.has(id)) all.set(id, project.find(id)!);
     }
   }
-  const omitted = new Set(requested.flatMap((d) => deps.get(d.id)!).filter((id) => !all.has(id)));
   const steps = order([...all.values()], deps).map((d, i): ReviewStep => {
     const lines = changed(d);
     const rel: number[] = [];
@@ -78,7 +76,6 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
       changedLines: rel,
     };
   });
-  if (omitted.size > 0) unresolved.push(`ほかに${omitted.size}個の依存を、上限（${MAX_STEPS}）のため省略した: ${[...omitted].sort().join(", ")}`);
   return {
     id: review.id,
     group: review.group,

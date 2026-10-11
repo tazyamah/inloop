@@ -211,7 +211,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 - `src/engine/project.ts`: TypeScript 7の`typescript/unstable/sync`を使う部分。リポジトリ直下の`tsconfig.json`を読み、宣言の一覧（シンボルID`パス#名前`、メンバーは`.`）と、宣言の中の呼び出し・`new`・型の参照・継承の行き先を返す。別名（import）は`getAliasedSymbol`でたどる。APIが返すパスは小文字のことがあるので、小文字で突き合わせる。
 - `src/engine/diff.ts`: 範囲の基点と作業ツリーの`git diff -U0`から、変わった行を出す。
-- `src/engine/build.ts`: 依頼票を組み立てる。指定したシンボルと直接の依存を12個まで、定義が先の順に並べる。クラスを型として参照しただけなら並べず、`new`ならコンストラクター。宣言までたどれない呼び出しは未解決。`kind`は`optional`、`layer`・`boundaries`・`evidence`は空。
+- `src/engine/build.ts`: 依頼票を組み立てる。指定したシンボルと直接の依存を（数の上限なく）定義が先の順に並べる。クラスを型として参照しただけなら並べず、`new`ならコンストラクター。宣言までたどれない呼び出しは未解決。`kind`は`optional`、`layer`・`boundaries`・`evidence`は空。
 - `ReviewStore`に依頼票の作り方（`build`）を渡せるようにした。対象のリポジトリの記録はエンジン、それ以外は固定データ。作れなければ（見つからないシンボルなど）何も記録しない。
 - 依頼票の`change`に`unchanged`、`fixture`に`false`を足した（版は1のまま）。UIは`fixture`のときだけ固定データの注意を出し、空の`layer`を出さず、証拠がなければ「まだ取り込んでいない」と出す。
 - `typescript`（7.0.2固定）を実行時の依存にした。
