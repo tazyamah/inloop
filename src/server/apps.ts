@@ -68,3 +68,43 @@ export class AppRegistry {
     return { name: n, repo };
   }
 }
+
+/** 依頼票に並べるコードの行数の既定の上限（ADR-0017）。R6（54行）を目安にした。 */
+export const DEFAULT_MAX_REVIEW_LINES = 60;
+
+/** 会話でAIに承認・保留を記録させる言葉の既定（ADR-0017）。 */
+export const DEFAULT_APPROVE_PHRASE = "承認";
+export const DEFAULT_HOLD_PHRASE = "保留";
+
+export interface UserConfig {
+  /** 依頼票に並べるコードの行数の上限 */
+  maxReviewLines: number;
+  /** 人が会話でこの言葉を言ったら、AIが承認を記録できる */
+  approvePhrase: string;
+  /** 人が会話でこの言葉を言ったら、AIが保留を記録できる */
+  holdPhrase: string;
+}
+
+/** 利用者ごとの設定（`~/.inloop/config.json`）。読むたびにファイルから取り直す。 */
+export function userConfig(home = inloopHome()): UserConfig {
+  const file = join(home, "config.json");
+  let data: { maxReviewLines?: unknown; approvePhrase?: unknown; holdPhrase?: unknown } = {};
+  if (existsSync(file)) {
+    try {
+      data = JSON.parse(readFileSync(file, "utf8")) as typeof data;
+    } catch {
+      throw new Error(`${file}: JSONとして読めない`);
+    }
+  }
+  const max = data.maxReviewLines ?? DEFAULT_MAX_REVIEW_LINES;
+  if (typeof max !== "number" || !Number.isInteger(max) || max < 1) throw new Error(`${file}: maxReviewLines は1以上の整数`);
+  const phrase = (key: "approvePhrase" | "holdPhrase", fallback: string) => {
+    const v = data[key] ?? fallback;
+    if (typeof v !== "string" || v.trim() === "") throw new Error(`${file}: ${key} は空でない文字列`);
+    return v.trim();
+  };
+  const approvePhrase = phrase("approvePhrase", DEFAULT_APPROVE_PHRASE);
+  const holdPhrase = phrase("holdPhrase", DEFAULT_HOLD_PHRASE);
+  if (approvePhrase === holdPhrase) throw new Error(`${file}: approvePhrase と holdPhrase が同じ`);
+  return { maxReviewLines: max, approvePhrase, holdPhrase };
+}

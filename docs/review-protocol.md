@@ -108,6 +108,15 @@ get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 - ブラウザからは会話へ送れないので、AIは`inloop wait R12 R13`をバックグラウンドのコマンドとして動かして手番を終え、コマンドが終わったら（人が送信したら）続きを始める（[ADR-0016](../maintainer-guide/decisions/0016-wait-in-background-command.md)）。バックグラウンドで動かせなければ、`get_review_result`の`wait`で待つ。時間切れなら、未回答の依頼を`R13 pending`として返す
 - 保留・質問の回答を受け取った後に待つと、人が未回答に戻して答え直すまで待つ。新しい回答がなければ`no change`を返す
 
+## 会話での議論と記録
+
+横に開いた画面（ブラウザで開く経路）では、議論は会話で行い、画面は読む場所と記録にします（[ADR-0017](../maintainer-guide/decisions/0017-chat-centered-review-and-size-limit.md)）。
+
+- 画面の「位置をコピー」（回答済みの画面では行のクリック）で、`R6 src/server/wait.ts#answersOf#L12-L15`の形の位置をコピーし、会話に貼って話す
+- 人が会話で承認・保留の言葉（既定は「承認」「保留」、`~/.inloop/config.json`の`approvePhrase`・`holdPhrase`で変えられる）を言ったら、AIが`answer_review`で記録する。サーバーは言葉が設定と一致するときだけ記録する。必須の依頼は会話からは記録できない
+- 画面の承認・保留のボタンも、これまでどおり使える
+- 依頼票のコードの行数の合計が上限（既定60行、`maxReviewLines`）を超え、対象のシンボルが2つ以上なら、依頼は断られる
+
 ## UIでの回答の操作
 
 GitHubのコードレビューと同じく、行を起点に回答します。

@@ -18,7 +18,15 @@ export interface PlannedReview {
  * 1回の呼び出しの依頼票をまとめて作る。解析は1回だけ行う。
  * 指定されたシンボルが見つからない、範囲が読めない、などの場合は例外を投げ、何も作らない（fail-closed）。
  */
-export function buildPackets(repo: string, reviews: PlannedReview[], range: string): ReviewPacket[] {
+export interface BuildOptions {
+  /**
+   * 依頼票に並べるコードの行数の上限（ADR-0017）。超えた依頼は、対象のシンボルが2つ以上なら断る。
+   * 1つだけなら、それ以上小さくできないので受け付ける。省略すると上限なし。
+   */
+  maxLines?: number;
+}
+
+export function buildPackets(repo: string, reviews: PlannedReview[], range: string, options: BuildOptions = {}): ReviewPacket[] {
   const base = baseOf(range);
   checkBase(repo, base);
   const project = new TsProject(repo);
@@ -38,7 +46,18 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       }
       return lines;
     };
-    return reviews.map((r) => packetOf(project, r, range, changed));
+    const packets = reviews.map((r) => packetOf(project, r, range, changed));
+    const max = options.maxLines;
+    if (max !== undefined) {
+      const over = packets.flatMap((p) => {
+        const lines = p.steps.reduce((n, s) => n + s.code.split("\n").length, 0);
+        return lines > max && new Set(p.requestedSymbols).size > 1
+          ? [`${p.id}: 依頼票が${lines}行で、上限の${max}行を超える。対象のシンボルを分けて、別々の依頼（別の呼び出し）にする`]
+          : [];
+      });
+      if (over.length > 0) throw new Error(over.join("\n"));
+    }
+    return packets;
   } finally {
     project.close();
   }

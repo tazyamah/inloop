@@ -28,13 +28,14 @@ test("AIから見えるツールとUI専用ツールが分かれている", asyn
   const client = await connect();
   const { tools } = await client.listTools();
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
-  assert.deepEqual(Object.keys(byName).sort(), ["get_review_result", "inloop_get_request", "inloop_reopen", "inloop_submit", "request_review"]);
+  assert.deepEqual(Object.keys(byName).sort(), ["answer_review", "get_review_result", "inloop_get_request", "inloop_reopen", "inloop_submit", "request_review"]);
   for (const t of tools) assert.equal(t._meta?.ui?.resourceUri, UI_URI, t.name);
   assert.deepEqual(visibility(byName.inloop_get_request), ["app"]);
   assert.deepEqual(visibility(byName.inloop_submit), ["app"]);
   assert.deepEqual(visibility(byName.inloop_reopen), ["app"]);
   assert.ok(visibility(byName.request_review) === undefined || visibility(byName.request_review).includes("model"));
   assert.deepEqual(visibility(byName.get_review_result), ["model"]);
+  assert.deepEqual(visibility(byName.answer_review), ["model"]);
 });
 
 test("AIから見えるツール定義の説明文は短い", async () => {
@@ -42,7 +43,8 @@ test("AIから見えるツール定義の説明文は短い", async () => {
   const { tools } = await client.listTools();
   const modelTools = tools.filter((t) => !visibility(t) || visibility(t).includes("model"));
   const size = JSON.stringify(modelTools.map((t) => ({ n: t.name, d: t.description, s: t.inputSchema }))).length;
-  assert.ok(size < 1500, `model-visible tool definitions are ${size} chars`);
+  // 会話から承認・保留を記録するツール（ADR-0017）を足して、上限を1500から2000にした。
+  assert.ok(size < 2000, `model-visible tool definitions are ${size} chars`);
 });
 
 test("request_reviewはIDと状態だけを返し、コードを含まない", async () => {

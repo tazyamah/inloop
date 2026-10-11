@@ -69,6 +69,8 @@ export interface Answer {
   verdict: Verdict;
   ref?: string;
   comment?: string;
+  /** 会話での人の指示を受けて、AIが記録した承認・保留（ADR-0017）。人が画面で回答したものにはない。 */
+  by?: "chat";
 }
 
 /** 1回の送信で、1つの依頼に付いた回答。 */
@@ -86,4 +88,6 @@ export interface InboxItem {
   symbols: string[];
   /** 再依頼済みの場合、引き継いだ依頼のID */
   supersededBy?: string;
+  /** 今の回答を、会話での指示を受けてAIが記録した場合（ADR-0017） */
+  by?: "chat";
 }

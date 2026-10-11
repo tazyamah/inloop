@@ -6,6 +6,7 @@ import { z } from "zod";
 import { formatAnswerLine, formatAnswerMessage, logModelBound, VERDICTS } from "./format.js";
 import { ReviewStore } from "./store.js";
 import { answersOf } from "./wait.js";
+import { userConfig } from "./apps.js";
 import { TargetError, Targets } from "./target.js";
 
 export const UI_URI = "ui://inloop/review.html";
@@ -248,6 +249,49 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
       // IDを必須にしている。絞り込みなしでは、別の会話の回答まで返してしまう。
       const out = await answersOf(store, ids, wait, (extra as { signal?: AbortSignal } | undefined)?.signal);
       logModelBound("get_review_result", out);
+      return text(out);
+    },
+  );
+
+  // 会話での人の指示を受けて、AIが承認・保留を記録する（ADR-0017）。人が言った言葉を渡させ、
+  // 設定の言葉と一致するときだけ記録する。画面のボタンも引き続き使える。必須の依頼は記録しない。
+  registerAppTool(
+    server,
+    "answer_review",
+    {
+      title: "Record the human's approval or hold",
+      description: "Only when the human explicitly says the configured word in chat, record ok/hold for reviews. said: the human's exact word.",
+      inputSchema: z.object({
+        ids: z.array(z.string()).min(1).max(10),
+        verdict: z.enum(["ok", "hold"]),
+        said: z.string().max(100),
+        repo: repoParam,
+      }),
+      _meta: { ui: { resourceUri: UI_URI, visibility: ["model"] } },
+    },
+    async ({ ids, verdict, said, repo }) => {
+      const t = await storeFor(targets, repo);
+      if (isError(t)) return t;
+      let phrase: string;
+      try {
+        const config = userConfig();
+        phrase = verdict === "ok" ? config.approvePhrase : config.holdPhrase;
+      } catch (e) {
+        return error((e as Error).message);
+      }
+      if (said.trim() !== phrase) {
+        logModelBound("answer_review_error", "phrase mismatch");
+        return error("said does not match the configured word; not recorded");
+      }
+      try {
+        t.store.submit(ids.map((id) => ({ id, verdict })), ids[0]!, { by: "chat" });
+      } catch (e) {
+        const m = (e as Error).message;
+        logModelBound("answer_review_error", m);
+        return error(m);
+      }
+      const out = `${ids.join(" ")} ${verdict} recorded`;
+      logModelBound("answer_review", out);
       return text(out);
     },
   );

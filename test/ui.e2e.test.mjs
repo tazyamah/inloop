@@ -119,10 +119,10 @@ test("依頼が複数あると、行クリックで宛先の依頼を選んで�
     assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "承認済み");
     assert.equal(await view.locator(".bubble").count(), 0);
 
-    // 回答済みの依頼しかない行をクリックしても、コメント欄は開かない
+    // 回答済みの依頼しかない行をクリックしても、コメント欄は開かず、位置をコピーする（ADR-0017）
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
     assert.equal(await view.locator(".composer").count(), 0);
-    assert.match(await view.locator("#status").textContent(), /未回答の依頼はありません/);
+    await view.locator("#status", { hasText: "R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
 
     await view.locator("#full").click();
     // 要求はiframeからホストへ非同期に届くので、届くまで待つ。
@@ -297,6 +297,33 @@ test("再依頼の画面には、元の依頼への指摘が出て、枝番のID
     await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
     assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }] });
     assert.equal(messages[0].content[0].text, `${HEADER}\nR1-1 ok`);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("位置をコピーでき、回答済みの依頼では行のクリックで位置をコピーする", { skip: !enabled }, async () => {
+  const { browser, page, view, errors } = await setup({ requests: 1 });
+  try {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
+    await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
+    // コメント欄の中から、選んだ範囲の位置をコピーする。
+    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
+    await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
+    await view.locator('[data-copy="composer"]').click();
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
+    await view.locator("[data-composer-text]").press("Escape");
+    // 回答した後は、行のクリックで位置をコピーする（会話で「ここの範囲」と話すため）。
+    await view.locator('.item[data-id="R1"] [data-decision="hold"]').click();
+    await view.locator("#send").click();
+    await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
+    await line(view, "src/db/orders.ts#cancelOrder#L42").click();
+    await line(view, "src/db/orders.ts#cancelOrder#L43").click({ modifiers: ["Shift"] });
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L42-L43" }).waitFor({ timeout: 5000 });
+    assert.equal(await view.locator(".ln.sel").count(), 2);
+    await shot(page, "review-copy");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

@@ -184,9 +184,10 @@ test("ブラウザで開く経路でも、AIから見えるツール定義は短
   try {
     const { tools } = await client.listTools();
     const modelTools = tools.filter((t) => !t._meta?.ui?.visibility || t._meta.ui.visibility.includes("model"));
-    assert.deepEqual(modelTools.map((t) => t.name).sort(), ["get_review_result", "request_review"]);
+    assert.deepEqual(modelTools.map((t) => t.name).sort(), ["answer_review", "get_review_result", "request_review"]);
     const size = JSON.stringify(modelTools.map((t) => ({ n: t.name, d: t.description, s: t.inputSchema }))).length;
-    assert.ok(size < 1500, `model-visible tool definitions are ${size} chars`);
+    // 会話から承認・保留を記録するツール（ADR-0017）を足して、上限を1500から2000にした。
+    assert.ok(size < 2000, `model-visible tool definitions are ${size} chars`);
   } finally {
     await close();
   }

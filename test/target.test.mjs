@@ -144,3 +144,67 @@ test("依頼票は対象のリポジトリのコードから作り、再依頼�
   assert.equal(textOf(bad), "src/app.ts#nope: 見つからないシンボル");
   assert.equal(lines(a).length, 2);
 });
+
+test("行数の上限は利用者ごとの設定（~/.inloop/config.json）で変えられる", async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const before = process.env.INLOOP_HOME;
+  process.env.INLOOP_HOME = home;
+  try {
+    const a = makeRepo();
+    const client = await connect();
+    const both = { reviews: [{ viewpoint: "q", symbols: ["src/app.ts#hello", "src/app.ts#greet"] }], repo: a };
+    assert.equal(textOf(await client.callTool({ name: "request_review", arguments: both })), "R1 pending", "既定（60行）なら受け付ける");
+    writeFileSync(join(home, "config.json"), JSON.stringify({ maxReviewLines: 3 }));
+    const r = await client.callTool({ name: "request_review", arguments: both });
+    assert.equal(r.isError, true);
+    assert.match(textOf(r), /^R2: 依頼票が6行で、上限の3行を超える/);
+    writeFileSync(join(home, "config.json"), JSON.stringify({ maxReviewLines: "x" }));
+    assert.match(textOf(await client.callTool({ name: "request_review", arguments: both })), /maxReviewLines は1以上の整数/);
+  } finally {
+    if (before === undefined) delete process.env.INLOOP_HOME; else process.env.INLOOP_HOME = before;
+  }
+});
+
+test("人が会話で決まった言葉を言ったときだけ、AIが承認・保留を記録できる", async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const before = process.env.INLOOP_HOME;
+  process.env.INLOOP_HOME = home;
+  try {
+    const a = makeRepo();
+    const client = await connect();
+    await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1", symbols: [SYMBOL] }, { viewpoint: "q2", symbols: [SYMBOL] }], repo: a } });
+    const answer = (args) => client.callTool({ name: "answer_review", arguments: { repo: a, ...args } });
+    const wrong = await answer({ ids: ["R1"], verdict: "ok", said: "いいよ" });
+    assert.equal(wrong.isError, true, "設定の言葉でなければ記録しない");
+    assert.equal(lines(a).length, 2, "依頼の2行だけ");
+    assert.equal(textOf(await answer({ ids: ["R1"], verdict: "ok", said: "承認" })), "R1 ok recorded");
+    // 言葉は設定で変えられる。
+    writeFileSync(join(home, "config.json"), JSON.stringify({ holdPhrase: "開けゴマ" }));
+    assert.equal((await answer({ ids: ["R2"], verdict: "hold", said: "保留" })).isError, true);
+    assert.equal(textOf(await answer({ ids: ["R2"], verdict: "hold", said: "開けゴマ" })), "R2 hold recorded");
+    // 記録には、会話からAIが記録したことが残る。回答の取得はこれまでと同じ形。
+    const log = readFileSync(join(a, ".inloop", "reviews.jsonl"), "utf8").trimEnd().split("\n").map((l) => JSON.parse(l));
+    assert.deepEqual(log.slice(2).map((e) => e.type), ["chatAnswer", "chatAnswer"]);
+    assert.equal(textOf(await client.callTool({ name: "get_review_result", arguments: { ids: ["R1", "R2"], repo: a } })), "R1 ok\nR2 hold");
+    const ui = await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo: a } });
+    assert.deepEqual(ui.structuredContent.inbox.map((i) => [i.id, i.status, i.by]), [["R1", "approved", "chat"], ["R2", "held", "chat"]]);
+    assert.deepEqual(ui.structuredContent.history, [{ id: "R1", answers: [{ id: "R1", verdict: "ok", by: "chat" }] }]);
+    // 回答済みには記録できない。人は画面で未回答に戻して答え直せる。
+    assert.match(textOf(await answer({ ids: ["R1"], verdict: "hold", said: "開けゴマ" })), /R1: 回答済み/);
+    await client.callTool({ name: "inloop_reopen", arguments: { from: "R1", ids: ["R2"], repo: a } });
+    await client.callTool({ name: "inloop_submit", arguments: { from: "R1", answers: [{ id: "R2", verdict: "ok" }], repo: a } });
+    const after = await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo: a } });
+    assert.deepEqual(after.structuredContent.inbox.map((i) => [i.id, i.status, i.by]), [["R1", "approved", "chat"], ["R2", "approved", undefined]]);
+  } finally {
+    if (before === undefined) delete process.env.INLOOP_HOME; else process.env.INLOOP_HOME = before;
+  }
+});
+
+test("必須の依頼は、会話からは承認できない（画面で人が答える）", async () => {
+  const client = await connect({ store: undefined, stateFile: join(realpathSync(mkdtempSync(join(tmpdir(), "inloop-state-"))), "reviews.jsonl") });
+  // 記録先を固定した場合の依頼票は固定データで、必須（required）になっている。
+  await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q" }] } });
+  const r = await client.callTool({ name: "answer_review", arguments: { ids: ["R1"], verdict: "ok", said: "承認" } });
+  assert.equal(r.isError, true);
+  assert.match(textOf(r), /R1: 必須の依頼は、画面で回答する/);
+});

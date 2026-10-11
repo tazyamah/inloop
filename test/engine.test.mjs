@@ -147,3 +147,15 @@ test("並べるシンボルの数に上限はなく、直接の依存はすべ�
   assert.equal(p.steps.at(-1).symbol, "src/many.ts#all");
   assert.deepEqual(p.unresolved, []);
 });
+
+test("行数の上限を超える依頼は、対象のシンボルが2つ以上なら断り、1つなら受け付ける", () => {
+  const repo = project();
+  const lines = (p) => p.steps.reduce((n, s) => n + s.code.split("\n").length, 0);
+  const both = build(repo, ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"]);
+  const total = lines(both);
+  const opts = (maxLines) => buildPackets(repo, [{ id: "R7", group: "R7", viewpoint: "q", symbols: ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"] }], "HEAD", { maxLines });
+  assert.equal(opts(total).length, 1, "ちょうど上限なら受け付ける");
+  assert.throws(() => opts(total - 1), new RegExp(`R7: 依頼票が${total}行で、上限の${total - 1}行を超える。対象のシンボルを分けて`));
+  const single = buildPackets(repo, [{ id: "R8", group: "R8", viewpoint: "q", symbols: ["src/cancel.ts#cancelOrder"] }], "HEAD", { maxLines: 1 });
+  assert.equal(single[0].steps.at(-1).symbol, "src/cancel.ts#cancelOrder", "1つのシンボルは、それ以上小さくできないので受け付ける");
+});

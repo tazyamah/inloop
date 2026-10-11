@@ -18,6 +18,8 @@ export const LOG_FILE_NAME = "reviews.jsonl";
 export type LogEvent =
   | { v: typeof LOG_VERSION; type: "request"; at: string; packet: ReviewPacket }
   | { v: typeof LOG_VERSION; type: "answer"; at: string; answers: Answer[] }
+  // 会話での人の指示を受けて、AIが記録した承認・保留（ADR-0017）。古い実装が人の回答と読み違えないよう、別の種類にする。
+  | { v: typeof LOG_VERSION; type: "chatAnswer"; at: string; answers: Answer[] }
   | { v: typeof LOG_VERSION; type: "reopen"; at: string; ids: string[] };
 
 /** 1回の呼び出しで渡される依頼。followsがあれば、その依頼の再依頼になる。 */
@@ -159,6 +161,7 @@ export class ReviewStore {
       status: this.status.get(p.id) ?? "pending",
       symbols: p.steps.map((s) => s.symbol),
       ...(this.successors.has(p.id) ? { supersededBy: this.successors.get(p.id)! } : {}),
+      ...(this.answers.get(p.id)?.[0]?.by === "chat" ? { by: "chat" as const } : {}),
     }));
   }
 
@@ -172,7 +175,7 @@ export class ReviewStore {
    * 回答を検証して記録する。不正な行が1つでもあれば何も記録しない。
    * fromは回答を送るUIが開かれた依頼のIDで、その依頼と同じまとまりの依頼にだけ回答できる。
    */
-  submit(answers: Answer[], from: string): Answer[] {
+  submit(answers: Answer[], from: string, options: { by?: "chat" } = {}): Answer[] {
     this.sync();
     const group = this.packets.get(from)?.group;
     if (group === undefined) throw new Error(`${from}: 存在しない依頼`);
@@ -186,6 +189,11 @@ export class ReviewStore {
       if (status === "superseded") errors.push(`${id}: 再依頼済み（${this.successors.get(id)}に回答する）`);
       else if (status !== "pending") errors.push(`${id}: 回答済み`);
       const decisions = list.filter((a) => a.verdict === "ok" || a.verdict === "hold");
+      if (options.by === "chat") {
+        // 会話から記録できるのは承認・保留だけ。必須の依頼は、画面で人が答える（ADR-0001、ADR-0017）。
+        if (decisions.length !== list.length) errors.push(`${id}: 会話から記録できるのは承認・保留だけ`);
+        if (packet.kind === "required") errors.push(`${id}: 必須の依頼は、画面で回答する`);
+      }
       if (decisions.length > 0 && list.length > 1) errors.push(`${id}: 承認・保留は他の回答と同時に送れない`);
       for (const a of list) {
         if ((a.verdict === "fix" || a.verdict === "ask") && !a.comment?.trim()) {
@@ -206,7 +214,7 @@ export class ReviewStore {
         recorded.push(c);
       }
     }
-    this.record([{ v: LOG_VERSION, type: "answer", at: this.now(), answers: recorded }]);
+    this.record([{ v: LOG_VERSION, type: options.by === "chat" ? "chatAnswer" : "answer", at: this.now(), answers: recorded }]);
     return recorded;
   }
 
@@ -352,8 +360,14 @@ export class ReviewStore {
       this.order = this.order.filter((id) => !ids.has(id));
       return;
     }
-    const byId = groupById(event.answers);
+    const by = event.type === "chatAnswer" ? { by: "chat" as const } : {};
+    const byId = groupById(event.answers.map((a) => ({ ...a, ...by })));
     for (const id of byId.keys()) {
+      if (event.type === "chatAnswer") {
+        const packet = this.packets.get(id);
+        if (packet?.kind === "required") throw new Error(`必須の依頼への会話からの回答 ${id}`);
+        if (byId.get(id)!.some((a) => a.verdict !== "ok" && a.verdict !== "hold")) throw new Error(`会話から承認・保留以外を記録している ${id}`);
+      }
       const status = this.status.get(id);
       if (status === undefined) throw new Error(`存在しない依頼への回答 ${id}`);
       if (status === "superseded") throw new Error(`再依頼済みの依頼への回答 ${id}`);
@@ -450,8 +464,8 @@ function parseEvent(line: string): LogEvent {
     const p = shape(packetSchema, e.packet, "依頼票");
     return { ...head, type: "request", packet: { ...p, group: p.group ?? p.id } };
   }
-  if (e.type === "answer") {
-    return { ...head, type: "answer", answers: shape(z.array(answerSchema).min(1), e.answers, "回答") as Answer[] };
+  if (e.type === "answer" || e.type === "chatAnswer") {
+    return { ...head, type: e.type, answers: shape(z.array(answerSchema).min(1), e.answers, "回答") as Answer[] };
   }
   if (e.type === "reopen") {
     return { ...head, type: "reopen", ids: shape(z.array(idSchema).min(1), e.ids, "未回答に戻す依頼") };

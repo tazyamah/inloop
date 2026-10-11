@@ -138,6 +138,31 @@ function viewpointOf(id: string): string {
   return inbox.find((i) => i.id === id)?.viewpoint ?? "";
 }
 
+// ---- 位置のコピー ----
+
+/** 回答していない依頼の行を選んだまま、位置だけを手元に置く（回答済みの画面で、チャットに貼るため）。 */
+let picked: { symbol: string; start: number; end: number } | null = null;
+
+/** 位置の文字列をクリップボードに写す。会話で「ここの範囲なんだけど」と貼るため（ADR-0017）。 */
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // ホストがクリップボードを許さない場合（MCP Appsのiframeなど）は、選択してのコピーを試す。
+    const ta = el("textarea");
+    ta.value = text;
+    document.body.append(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    if (!ok) { setStatus(`コピーできませんでした。手で写してください: ${text}`, true); return; }
+  }
+  setStatus(`コピーしました: ${text}`);
+}
+
+/** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */
+const positionOf = (reviewId: string, ref: string) => `${reviewId} ${ref}`;
+
 // ---- 行の操作 ----
 
 function onLineClick(step: ReviewStep, abs: number, shift: boolean) {
@@ -150,9 +175,17 @@ function onLineClick(step: ReviewStep, abs: number, shift: boolean) {
   }
   const candidates = candidatesFor(step.symbol);
   if (candidates.length === 0) {
-    setStatus("この行に対応する未回答の依頼はありません。", true);
+    // 回答する依頼がなければ、行を選んで位置をコピーする。Shift+クリックで範囲にする。
+    if (shift && picked?.symbol === step.symbol) {
+      picked = { symbol: step.symbol, start: Math.min(picked.start, abs), end: Math.max(picked.end, abs) };
+    } else {
+      picked = { symbol: step.symbol, start: abs, end: abs };
+    }
+    render();
+    void copyText(positionOf(shownId!, refOf(picked.symbol, picked.start, picked.end)));
     return;
   }
+  picked = null;
   composer = {
     symbol: step.symbol, start: abs, end: abs,
     stage: candidates.length > 1 ? "choose" : "write",
@@ -214,7 +247,7 @@ async function reopen(id: string) {
 
 function answerText(a: Answer): string {
   const where = a.verdict === "ok" || a.verdict === "hold" ? "" : ` ${shortRef(a.ref)}`;
-  return `${a.id} ${VERDICT_LABEL[a.verdict]}${where}${a.comment ? `: ${a.comment}` : ""}`;
+  return `${a.id} ${VERDICT_LABEL[a.verdict]}${where}${a.comment ? `: ${a.comment}` : ""}${a.by === "chat" ? "（会話での指示をAIが記録）" : ""}`;
 }
 
 function removeComment(reviewId: string, key: number) {
@@ -242,7 +275,14 @@ function renderComposer(): HTMLElement {
     return box;
   }
 
-  box.append(el("div", "composer-title", `${c.reviewId} · ${where}`));
+  const title = el("div", "row");
+  title.append(el("span", "composer-title", `${c.reviewId} · ${where}`), el("span", "spacer"));
+  if (c.symbol !== undefined && c.start !== undefined) {
+    const copy = button("位置をコピー", () => { void copyText(positionOf(c.reviewId!, refOf(c.symbol!, c.start!, c.end ?? c.start!))); }, "link");
+    copy.dataset.copy = "composer";
+    title.append(copy);
+  }
+  box.append(title);
   const radios = el("div", "row");
   for (const v of ["fix", "ask"] as CommentVerdict[]) {
     const lab = el("label");
@@ -311,7 +351,7 @@ function renderDetail() {
   if (item?.supersededBy) {
     kind.prepend(nextButton(item.supersededBy), " ");
   } else if (item && ANSWERED_LABEL[item.status]) {
-    kind.prepend(el("span", "chip ok state", ANSWERED_LABEL[item.status]), " ");
+    kind.prepend(el("span", "chip ok state", ANSWERED_LABEL[item.status] + (item.by === "chat" ? "・会話で" : "")), " ");
   }
   $("fixture").hidden = !p.fixture;
   $("viewpoint").textContent = p.viewpoint;
@@ -339,14 +379,19 @@ function renderDetail() {
     if (s.layer) h.append(el("span", "chip", s.layer));
     h.append(el("span", "chip", s.change === "added" ? "追加" : s.change === "modified" ? "変更" : "変更なし"));
     for (const b of s.boundaries) h.append(el("span", "chip req", b));
+    h.append(el("span", "spacer"));
+    const copy = button("位置をコピー", () => { void copyText(positionOf(p.id, s.symbol)); }, "link");
+    copy.dataset.copy = s.symbol;
+    h.append(copy);
     const code = el("div", "code");
     s.code.split("\n").forEach((line, i) => {
       const abs = s.startLine + i;
-      const selected = composer?.symbol === s.symbol && composer.start !== undefined && abs >= composer.start && abs <= (composer.end ?? composer.start);
+      const selected = (composer?.symbol === s.symbol && composer.start !== undefined && abs >= composer.start && abs <= (composer.end ?? composer.start))
+        || (!composer && picked?.symbol === s.symbol && abs >= picked.start && abs <= picked.end);
       const commented = allComments.some((x) => x.r?.symbol === s.symbol && x.r.start !== undefined && abs >= x.r.start && abs <= (x.r.end ?? x.r.start));
       const ln = el("div", "ln" + (s.changedLines.includes(i + 1) ? " chg" : "") + (selected ? " sel" : "") + (commented ? " has-comment" : ""));
       ln.dataset.ref = `${s.symbol}#L${abs}`;
-      ln.title = "クリックでコメント、Shift+クリックで範囲選択";
+      ln.title = candidatesFor(s.symbol).length > 0 ? "クリックでコメント、Shift+クリックで範囲選択" : "クリックで位置をコピー、Shift+クリックで範囲";
       const no = el("span", "no");
       no.append(el("span", "plus", "+"), String(abs));
       ln.append(no, el("span", "tx", line));
@@ -385,7 +430,7 @@ function renderAnswers() {
     vp.addEventListener("click", () => { composer = null; load(item.id).catch((e) => setStatus(String((e as Error).message ?? e), true)); });
     head.append(el("span", item.kind === "required" ? "chip req" : "chip", item.kind === "required" ? "必須" : "任意"), vp,
       item.supersededBy ? nextButton(item.supersededBy)
-        : el("span", pending ? "chip" : "chip ok", STATUS_LABEL[item.status] ?? item.status));
+        : el("span", pending ? "chip" : "chip ok", (STATUS_LABEL[item.status] ?? item.status) + (item.by === "chat" ? "（会話で）" : "")));
     row.append(head);
     if (REOPENABLE.has(item.status)) {
       const actions = el("div", "row actions");

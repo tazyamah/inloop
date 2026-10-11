@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPackets } from "../engine/build.js";
+import { userConfig } from "./apps.js";
 import { LOG_FILE_NAME, ReviewStore } from "./store.js";
 
 export interface TargetOptions {
@@ -140,7 +141,8 @@ export class Targets {
       const ignore = join(dir, ".gitignore");
       if (!existsSync(ignore)) writeFileSync(ignore, "*\n");
       // 依頼票は、このリポジトリのコードから解析エンジンで作る（ADR-0015）。
-      store = new ReviewStore({ file: join(dir, LOG_FILE_NAME), build: (reviews, range) => buildPackets(top, reviews, range) });
+      // 行数の上限は利用者ごとの設定で、依頼のたびに読む（ADR-0017）。
+      store = new ReviewStore({ file: join(dir, LOG_FILE_NAME), build: (reviews, range) => buildPackets(top, reviews, range, { maxLines: userConfig().maxReviewLines }) });
       this.stores.set(top, store);
     }
     return store;

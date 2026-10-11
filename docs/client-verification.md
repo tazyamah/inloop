@@ -26,6 +26,12 @@ inloop init <アプリのリポジトリ>   # 既存のリポジトリを登録�
 inloop apps                        # 登録したアプリと画面のURL
 inloop server status|stop|restart  # 画面のサーバーの状態を見る、止める、起動し直す
 inloop wait R4 R5                  # 回答が記録されるまで待つ（AIがバックグラウンドで動かす）
+```
+
+利用者ごとの設定は`~/.inloop/config.json`です（[ADR-0017](../maintainer-guide/decisions/0017-chat-centered-review-and-size-limit.md)）。
+
+```json
+{ "maxReviewLines": 60, "approvePhrase": "承認", "holdPhrase": "保留" }
 inloop update                      # inloopを更新してビルドし直す（画面のサーバーは次の依頼で新しい版になる）
 ```
 
