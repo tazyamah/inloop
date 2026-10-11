@@ -39,4 +39,4 @@
 | [0016](0016-wait-in-background-command.md) | Accepted | ブラウザで開く経路の回答は、AIが`inloop wait`をバックグラウンドで動かして待つ。送信でAIの続きが始まる |
 | [0017](0017-chat-centered-review-and-size-limit.md) | Accepted | 議論は会話で行い、画面は読む場所と記録にする。会話の決まった言葉でAIが承認・保留を記録できる。依頼票の行数に上限（利用者ごとの設定） |
 | [0018](0018-ui-as-reading-and-record.md) | Accepted | 画面からコメント欄と送信を外し、承認・保留は押したらすぐ記録。AIは`inloop wait`を既定では動かさない |
-| [0019](0019-desktop-template-node-sea-sidecar.md) | Accepted | 手元で動くアプリの雛形は、Tauriの外枠にNodeのSEAにまとめたHonoを同梱する（Rust側は未検証） |
+| [0019](0019-desktop-template-node-sea-sidecar.md) | Accepted | 手元で動くアプリの雛形は、Tauriの外枠にNodeのSEAにまとめたHonoを同梱する（`.app`まで確認） |

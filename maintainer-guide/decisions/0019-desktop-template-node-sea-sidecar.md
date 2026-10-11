@@ -15,7 +15,9 @@
 ## 検証
 
 - 確かめた（macOS、arm64、Node.js 22.18.0）: 雛形から`npm run build:desktop`でSEAの実行ファイルができ、`DESKTOP=1`で起動して、API・画面の配信・SQLiteの書き込みが動くこと。宛先・送信元が違う要求を403で拒否すること（最初は、確認をルートより後に登録して効いておらず、直した）。
-- 未検証: Rust側（`src-tauri`のビルド、アプリとしての起動、`tauri build`のインストーラー）。このMacにはRustが入っていない。
+- 確かめた（同じMac、Rust 1.99.0、Tauri 2.12）: 生成したアプリで`cargo build`（デバッグ）と`npm run package -- --bundles app`（`.app`、118MB）が通り、`.app`を開くと、同梱のサーバーが空いているポートで自動で起動し、APIと画面が返り、データベースがアプリのデータフォルダ（`~/Library/Application Support/<identifier>/app.db`）にでき、ウィンドウにアプリの画面（利用者が目で確認）が出ること。アプリを終えるとサーバーも止まること。
+- 直したバグ: `inloop new`が画像（アイコン）を文字として読み書きして壊していた。画像はそのままコピーする。
+- 未検証: `npm run dev:desktop`（開発中の起動）、`dmg`などのインストーラー、`tauri build`をアイコンの`icns`なしで通すこと（仮のpng1枚で`.app`は通った）。
 - 未検証: Windows・Linuxでのsidecarの作り方（macOSのcodesign以外は未確認）、アプリアイコンの生成（仮の1枚だけ）、署名と公証。
 
 ## 影響

@@ -1,6 +1,6 @@
 // inloopコマンド（ADR-0011）。
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppRegistry, defaultName, NAME_PATTERN, uiPort } from "./server/apps.js";
@@ -9,6 +9,9 @@ import { LOG_FILE_NAME, ReviewStore } from "./server/store.js";
 import { gitTopLevel } from "./server/target.js";
 import { answersOf } from "./server/wait.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
+
+/** 文字として読み書きすると壊れるファイル。そのままコピーする。 */
+const BINARY_FILES = /\.(png|icns|ico|jpg|jpeg|gif|woff2?)$/i;
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -62,6 +65,7 @@ function copyTemplate(from: string, to: string, name: string): void {
     const src = join(from, entry.name);
     const dest = join(to, entry.name === "gitignore" ? ".gitignore" : entry.name);
     if (entry.isDirectory()) copyTemplate(src, dest, name);
+    else if (BINARY_FILES.test(entry.name)) copyFileSync(src, dest);
     else writeFileSync(dest, readFileSync(src, "utf8").replaceAll("__APP_NAME__", name));
   }
 }

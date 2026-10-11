@@ -221,6 +221,10 @@ test("inloop new --desktopは、サーバー向けの雛形にTauriの外枠を�
   assert.equal(pkg.name, "desk-app");
   assert.ok(pkg.devDependencies["@tauri-apps/cli"]);
   assert.match(readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"), /name = "desk-app"/);
+  // 画像は、文字として扱わず、そのままコピーする。
+  const icon = readFileSync(join(dir, "src-tauri/icons/icon.png"));
+  assert.deepEqual([...icon.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.deepEqual(icon, readFileSync(new URL("../templates/desktop/src-tauri/icons/icon.png", import.meta.url)));
   assert.equal(JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"), "utf8")).identifier, "app.inloop.desk-app");
   assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /src-tauri\/target\//);
   assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);

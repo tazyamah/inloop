@@ -244,7 +244,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 ### 2026-10-11 手元で動くアプリの雛形（ADR-0019）
 
-`inloop new <dir> --desktop`でTauriの外枠を重ねた雛形を作る（`templates/desktop/`）。サーバーはNodeのSEAにして同梱。SEAのビルドと起動、宛先・送信元の確認は、生成したアプリで確かめた。**Rust側（`src-tauri`のビルドと起動、`tauri build`）は未検証**（このMacにRustがない）。次の一手: Rustを入れて、`npm run dev:desktop`と`npm run package`を通す。
+`inloop new <dir> --desktop`でTauriの外枠を重ねた雛形を作る（`templates/desktop/`）。サーバーはNodeのSEAにして同梱。SEAのビルドと起動、宛先・送信元の確認は、生成したアプリで確かめた。Rust 1.99.0を入れて（利用者の許可、rustup）、生成したアプリで`cargo build`と`npm run package -- --bundles app`（118MB）が通り、`.app`を開いてサーバーの自動起動・画面の表示（利用者が目で確認）・終了時のサーバーの停止を確かめた。未検証: `npm run dev:desktop`、dmgなどのインストーラー。`inloop new`が画像を壊すバグを直した。
 
 ## クライアント検証の結果
 
@@ -325,7 +325,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
-2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形のRust側の確認（ADR-0019）、PostgreSQLの雛形。
+2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー、ADR-0019）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. 解析エンジンの次: 信頼境界ルールの記述形式と必須の依頼（inloopの設定ファイルの形もここで決める）、証拠（テスト結果）の取り込み、SQLの解析。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。
