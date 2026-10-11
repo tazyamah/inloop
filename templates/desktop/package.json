@@ -15,7 +15,8 @@
     "dev:desktop": "tauri dev",
     "build:sidecar": "node scripts/build-sidecar.mjs",
     "build:desktop": "npm run build && npm run build:sidecar",
-    "package": "tauri build"
+    "package": "tauri build",
+    "icon": "node scripts/set-icon.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
