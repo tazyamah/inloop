@@ -176,7 +176,6 @@ test("inloop newは、標準の構成のリポジトリを作って登録する"
   assert.match(run("new", "My App").stderr, /アプリ名「my-app」は .* が使っている/);
   assert.match(run("new", "My App", "--name", "other").stderr, /空ではない/);
   assert.match(run("new", "x", "--db", "postgres").stderr, /--db postgres の雛形は、まだない/);
-  assert.match(run("new", "y", "--desktop").stderr, /Tauri）の雛形は、まだない/);
   assert.equal(run("new").status, 1);
 });
 
@@ -209,4 +208,20 @@ test("inloop waitは、回答が記録されるまで待って回答を出す", 
   const code = await new Promise((r) => child.on("exit", r));
   assert.equal(code, 0);
   assert.equal(out, "R1 ok\n");
+});
+
+test("inloop new --desktopは、サーバー向けの雛形にTauriの外枠を重ねる", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-new-")));
+  const r = spawnSync(process.execPath, [BIN, "new", "desk app", "--desktop"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  assert.equal(r.status, 0, r.stderr);
+  const dir = join(parent, "desk app");
+  for (const f of ["src-tauri/Cargo.toml", "src-tauri/src/lib.rs", "src-tauri/tauri.conf.json", "scripts/build-sidecar.mjs", "web/src/App.tsx", "server/app.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
+  const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  assert.equal(pkg.name, "desk-app");
+  assert.ok(pkg.devDependencies["@tauri-apps/cli"]);
+  assert.match(readFileSync(join(dir, "src-tauri/Cargo.toml"), "utf8"), /name = "desk-app"/);
+  assert.equal(JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"), "utf8")).identifier, "app.inloop.desk-app");
+  assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /src-tauri\/target\//);
+  assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);
 });

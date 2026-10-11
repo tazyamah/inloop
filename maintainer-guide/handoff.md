@@ -242,6 +242,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 コメント欄と「まとめて送信」を外し、承認・保留を押したらすぐ記録、「まとめて承認」を足した。行のクリックは常に位置のコピー。`inloop wait`は既定では使わない。承認・保留の言葉は配列（`approvePhrases`・`holdPhrases`、R7の指摘）。検証: `INLOOP_UI_E2E=1 npm test`で全64件pass。実際のクライアントでは未検証。R7-1は未回答のまま。
 
+### 2026-10-11 手元で動くアプリの雛形（ADR-0019）
+
+`inloop new <dir> --desktop`でTauriの外枠を重ねた雛形を作る（`templates/desktop/`）。サーバーはNodeのSEAにして同梱。SEAのビルドと起動、宛先・送信元の確認は、生成したアプリで確かめた。**Rust側（`src-tauri`のビルドと起動、`tauri build`）は未検証**（このMacにRustがない）。次の一手: Rustを入れて、`npm run dev:desktop`と`npm run package`を通す。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -321,7 +325,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
-2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形（Tauri＋同梱のHono）、PostgreSQLの雛形。
+2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形のRust側の確認（ADR-0019）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. 解析エンジンの次: 信頼境界ルールの記述形式と必須の依頼（inloopの設定ファイルの形もここで決める）、証拠（テスト結果）の取り込み、SQLの解析。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。

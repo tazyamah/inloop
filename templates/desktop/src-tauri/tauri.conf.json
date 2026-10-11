@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "__APP_NAME__",
+  "version": "0.0.0",
+  "identifier": "app.inloop.__APP_NAME__",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build:desktop",
+    "frontendDist": "../dist/web"
+  },
+  "app": {
+    "windows": [],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png"],
+    "externalBin": ["binaries/server"],
+    "resources": { "../dist/web": "dist/web" }
+  }
+}

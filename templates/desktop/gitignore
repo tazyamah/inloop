@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+.inloop/
+*.log
+.DS_Store
+.env
+.env.*
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/
