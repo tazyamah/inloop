@@ -156,6 +156,8 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 
 見つかった問題（未対応）: サーバーが起動し直すと、ポートと鍵が変わり、それまでの画面のURLが使えなくなる。URLのうち`/r/<ID>`は変わらない。
 
+この問題への対処として、画面をマシン全体で1つのサーバーから`http://<アプリ名>.inloop.localhost:4656/r/<ID>`で配り、鍵の代わりにHostとOriginを確かめることにした（ADR-0013、未実装）。`appa.inloop.localhost`がhostsの設定なしに自分のMacへ向くことを、`curl`、Claudeアプリのブラウザペイン、Safari（利用者が確認）で確かめた。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -184,6 +186,7 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 - 当面の主なクライアントはClaude Desktopの通常の会話（ADR-0006）
 - 対象のリポジトリを依頼ごとに決め、記録をリポジトリごとに置く（ADR-0010）。`inloop`コマンドで標準の構成のリポジトリを作る（ADR-0011）
 - MCP Appsを表示できないクライアントでは、同じUIをブラウザで開き、回答はAIが待つ（ADR-0012）
+- 画面はマシン全体で1つのサーバーから`<アプリ名>.inloop.localhost`のURLで配り、鍵は使わずHostとOriginを確かめる（ADR-0013）
 - AIの文脈には参照・差分・短い列挙値だけを返す（ADR-0004）
 - 最初の対象はTypeScript＋SQL。inloop自身もTypeScriptで書き、自分自身でレビューする（ADR-0005）
 
@@ -235,7 +238,7 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 ## 次の一手
 
 1. ADR-0010を実装する: `repo`引数と`--repo`、対象ごとのReviewStore、`.inloop/.gitignore`、UIとブラウザの経路での対象の受け渡し。あわせて、起動ログでrootsへの対応を確かめる。
-2. ADR-0011の`inloop`コマンドを作る: `bin/inloop`、`inloop mcp`（今の`dist/server/main.js`）、`init`、`update`。`new`と雛形は後でよい。
+2. ADR-0011の`inloop`コマンドを作る: `bin/inloop`、`inloop mcp`（今の`dist/server/main.js`）、`init`、`update`。`new`と雛形は後でよい。あわせてADR-0013の画面のサーバーとアプリの登録簿を作り、ADR-0012のプロセスごとのポートと鍵を置き換える。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. TypeScriptのシンボル解析と理解順の並べ替えを、inloop自身のコードを対象に作り始め、固定データを置き換える。シンボルIDの表記もここで決める。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。
