@@ -38,3 +38,4 @@
 | [0015](0015-typescript-analysis-engine-v1.md) | Accepted | 解析エンジンの最初の版をTypeScript 7のAPIで作る。シンボルIDは`パス#名前`、直接の依存を定義が先の順に並べる |
 | [0016](0016-wait-in-background-command.md) | Accepted | ブラウザで開く経路の回答は、AIが`inloop wait`をバックグラウンドで動かして待つ。送信でAIの続きが始まる |
 | [0017](0017-chat-centered-review-and-size-limit.md) | Accepted | 議論は会話で行い、画面は読む場所と記録にする。会話の決まった言葉でAIが承認・保留を記録できる。依頼票の行数に上限（利用者ごとの設定） |
+| [0018](0018-ui-as-reading-and-record.md) | Accepted | 画面からコメント欄と送信を外し、承認・保留は押したらすぐ記録。AIは`inloop wait`を既定では動かさない |

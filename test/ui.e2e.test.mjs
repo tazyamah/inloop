@@ -55,116 +55,57 @@ async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare } =
 
 const line = (view, ref) => view.locator(`.ln[data-ref="${ref}"]`);
 
-test("依頼が複数あると、行クリックで宛先の依頼を選んでから行の直下にコメントを書ける", { skip: !enabled }, async () => {
-  const { browser, page, view, calls, messages, errors } = await setup();
+test("依頼票を表示し、行のクリックで位置をコピーする（コメント欄はない）", { skip: !enabled }, async () => {
+  const { browser, page, view, errors } = await setup();
   try {
+    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
     assert.equal(await view.locator("#title").textContent(), "inloop レビュー依頼 R1", "最初の依頼を表示する");
     assert.equal(await view.locator(".step").count(), 3);
-    assert.equal(await view.locator("textarea").count(), 0, "最初はコメント欄を出さない");
-    assert.ok(await view.locator("#send").isDisabled());
-
-    // 44行目をクリック → 宛先選択（表示中のR1が先頭）
+    assert.equal(await view.locator("textarea").count(), 0, "コメント欄はない（議論は会話で、ADR-0018）");
+    assert.equal(await view.locator("#send").count(), 0, "まとめて送信はない");
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    const choices = view.locator(".composer [data-choose]");
-    assert.deepEqual(await choices.evaluateAll((els) => els.map((e) => e.dataset.choose)), ["R1", "R2"]);
-    await shot(page, "review-choose");
-    await view.locator('.composer [data-choose="R1"]').click();
-
-    // 行の直下にR1宛てのコメント欄。Shift+クリックで範囲にする
-    assert.match(await view.locator(".composer-title").textContent(), /^R1 · cancelOrder L44$/);
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
-    assert.match(await view.locator(".composer-title").textContent(), /^R1 · cancelOrder L44-L46$/);
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
     assert.equal(await view.locator(".ln.sel").count(), 3);
-    const composerFollowsLine = await view.locator(".composer").evaluate((c) => c.previousElementSibling?.dataset.ref);
-    assert.equal(composerFollowsLine, "src/db/orders.ts#cancelOrder#L46");
-    assert.ok(await view.locator("#send").isDisabled(), "書きかけのコメントがある間は送信できない");
-    await view.locator("[data-composer-text]").fill("SQLの組み立てを1行にまとめて");
-    await view.locator(".composer button.primary").click();
-
-    // 吹き出しになり、R1の行には承認/保留の代わりに件数が出る
-    assert.equal(await view.locator('[data-bubble^="R1:"]').count(), 1);
-    assert.match(await view.locator('.item[data-id="R1"] .summary').textContent(), /コメント 1件（修正依頼として送信）/);
-    assert.equal(await view.locator('.item[data-id="R1"] [data-decision]').count(), 0);
-
-    // 同じR1に質問を1行追加（⌘/Ctrl+Enterで追加）
-    await line(view, "src/api/orders.ts#postCancel#L91").click();
-    await view.locator('.composer [data-choose="R1"]').click();
-    await view.locator('.composer input[value="ask"]').check();
-    await view.locator("[data-composer-text]").fill("購読先はどこ?");
-    await view.locator("[data-composer-text]").press("Control+Enter");
-    assert.equal(await view.locator('[data-bubble^="R1:"]').count(), 2);
-
-    // R2は承認
-    await view.locator('.item[data-id="R2"] [data-decision="ok"]').click();
-    assert.equal(await view.locator("#send").textContent(), "まとめて送信（2件の依頼・3行）");
-    await shot(page, "review-answering");
-
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    const submit = calls.find((c) => c.name === "inloop_submit");
-    assert.equal(submit.arguments.from, "R1");
-    assert.deepEqual(submit.arguments.answers, [
-      { id: "R1", verdict: "fix", comment: "SQLの組み立てを1行にまとめて", ref: "src/db/orders.ts#cancelOrder#L44-L46" },
-      { id: "R1", verdict: "ask", comment: "購読先はどこ?", ref: "src/api/orders.ts#postCancel#L91" },
-      { id: "R2", verdict: "ok" },
-    ]);
-    assert.equal(messages.length, 1);
-    assert.equal(messages[0].content[0].text, [
-      HEADER,
-      'R1 fix src/db/orders.ts#cancelOrder#L44-L46 "SQLの組み立てを1行にまとめて"',
-      'R1 ask src/api/orders.ts#postCancel#L91 "購読先はどこ?"',
-      "R2 ok",
-    ].join("\n"));
-    assert.equal(await view.locator('.item[data-id="R1"] .chip.ok').textContent(), "修正待ち");
-    assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "承認済み");
-    assert.equal(await view.locator(".bubble").count(), 0);
-
-    // 回答済みの依頼しかない行をクリックしても、コメント欄は開かず、位置をコピーする（ADR-0017）
-    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    assert.equal(await view.locator(".composer").count(), 0);
-    await view.locator("#status", { hasText: "R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
-
-    await view.locator("#full").click();
-    // 要求はiframeからホストへ非同期に届くので、届くまで待つ。
-    await page.waitForFunction(() => window.__displayMode === "fullscreen", null, { timeout: 5000 });
-    await shot(page, "review-sent");
+    await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
+    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
+    await shot(page, "review-copy");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }
 });
 
-test("依頼が1件なら選択なしでコメント欄が開き、編集・削除と依頼全体へのコメントができる", { skip: !enabled }, async () => {
-  const { browser, view, messages, errors } = await setup({ requests: 1 });
+test("承認・保留は押したらすぐ記録し、会話に届ける。まとめて承認もできる", { skip: !enabled }, async () => {
+  const { browser, page, view, calls, messages, errors } = await setup();
   try {
-    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    assert.equal(await view.locator(".composer [data-choose]").count(), 0);
-    assert.match(await view.locator(".composer-title").textContent(), /^R1 · cancelOrder L44$/);
-    // 空のコメントは追加できない
-    await view.locator(".composer button.primary").click();
-    assert.match(await view.locator("#status").textContent(), /コメントを入力してください/);
-    await view.locator("[data-composer-text]").fill("最初の文");
-    await view.locator(".composer button.primary").click();
-    // 編集
-    await view.locator('[data-bubble^="R1:"] button', { hasText: "編集" }).click();
-    assert.equal(await view.locator("[data-composer-text]").inputValue(), "最初の文");
-    await view.locator("[data-composer-text]").fill("直した文");
-    await view.locator(".composer button.primary", { hasText: "更新" }).click();
-    assert.match(await view.locator('[data-bubble^="R1:"] .bubble-text').textContent(), /^直した文$/);
-    // 削除すると承認/保留に戻る
-    await view.locator('[data-bubble^="R1:"] button', { hasText: "削除" }).click();
-    assert.equal(await view.locator('.item[data-id="R1"] [data-decision]').count(), 2);
-    // Escでキャンセル
-    await line(view, "src/db/orders.ts#cancelOrder#L45").click();
-    await view.locator("[data-composer-text]").press("Escape");
-    assert.equal(await view.locator(".composer").count(), 0);
-    // 依頼全体へのコメント
-    await view.locator('[data-general="R1"]').click();
-    await view.locator("[data-composer-text]").fill("全体として妥当?");
-    await view.locator(".composer button.primary").click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    assert.equal(messages[0].content[0].text, `${HEADER}\nR1 ask "全体として妥当?"`);
+    assert.equal(await view.locator("#approve-all").textContent(), "まとめて承認（2件）");
+    await view.locator('.item[data-id="R2"] [data-decision="hold"]').click();
+    await view.locator("#status", { hasText: "R2を保留として記録しました。" }).waitFor({ timeout: 5000 });
+    assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1", answers: [{ id: "R2", verdict: "hold" }] });
+    assert.equal(messages[0].content[0].text, `${HEADER}\nR2 hold`);
+    assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "保留中");
+    assert.equal(await view.locator("#approve-all").isHidden(), true, "未回答が1件なら、まとめて承認は出さない");
+    await view.locator('.item[data-id="R1"] [data-decision="ok"]').click();
+    await view.locator("#status", { hasText: "R1を承認として記録しました。" }).waitFor({ timeout: 5000 });
+    assert.equal(messages[1].content[0].text, `${HEADER}\nR1 ok`);
+    assert.equal(await view.locator("#kind .state").textContent(), "承認済み");
+    assert.equal(await view.locator("#all-answered").isVisible(), true);
+    await view.locator("#full").click();
+    await page.waitForFunction(() => window.__displayMode === "fullscreen", null, { timeout: 5000 });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("まとめて承認で、画面の未回答の依頼をすべて承認する", { skip: !enabled }, async () => {
+  const { browser, view, messages, errors } = await setup();
+  try {
+    await view.locator("#approve-all").click();
+    await view.locator("#status", { hasText: "2件の依頼を承認として記録しました。" }).waitFor({ timeout: 5000 });
+    assert.equal(messages[0].content[0].text, `${HEADER}\nR1 ok\nR2 ok`);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
@@ -176,8 +117,6 @@ test("ダークテーマのホストでも描画できる", { skip: !enabled }, 
   try {
     const bg = await view.locator("body").evaluate((b) => getComputedStyle(b).backgroundColor);
     assert.equal(bg, "rgb(13, 17, 23)");
-    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await view.locator('.composer [data-choose="R1"]').click();
     await shot(page, "review-dark");
     assert.deepEqual(errors, []);
   } finally {
@@ -186,79 +125,45 @@ test("ダークテーマのホストでも描画できる", { skip: !enabled }, 
 });
 
 test("別の呼び出しで出された依頼は受付箱に出ず、件数だけを知らせる", { skip: !enabled }, async () => {
-  const { browser, page, view, messages, errors } = await setup({ elsewhere: 2 });
+  const { browser, page, view, errors } = await setup({ elsewhere: 2 });
   try {
     assert.deepEqual(await view.locator(".item[data-id]").evaluateAll((els) => els.map((e) => e.dataset.id)), ["R1", "R2"]);
-    assert.match(await view.locator("[data-elsewhere]").textContent(), /ほかに未回答の依頼が2件あります/);
-    // 行コメントの宛先候補にも、別に出された依頼は出ない。
-    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    assert.deepEqual(await view.locator(".composer [data-choose]").evaluateAll((els) => els.map((e) => e.dataset.choose)), ["R1", "R2"]);
-    await view.locator(".composer").getByRole("button", { name: "キャンセル", exact: true }).click();
+    assert.equal(await view.locator("[data-elsewhere]").getAttribute("data-elsewhere"), "2");
     await shot(page, "review-elsewhere");
-    await view.locator('.item[data-id="R1"] [data-decision="ok"]').click();
-    await view.locator('.item[data-id="R2"] [data-decision="ok"]').click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    assert.equal(messages[0].content[0].text, `${HEADER}\nR1 ok\nR2 ok`);
-    // すべて回答した後は、回答の操作とほかの依頼の件数を出さず、回答済みと示す。
-    assert.equal(await view.locator("[data-elsewhere]").count(), 0);
-    assert.equal(await view.locator("#all-answered").isVisible(), true);
-    assert.equal(await view.locator("#send").isHidden(), true);
-    assert.equal(await view.locator("#kind .state").textContent(), "承認済み");
+    await view.locator("#approve-all").click();
+    await view.locator("#status", { hasText: "2件の依頼を承認として記録しました。" }).waitFor({ timeout: 5000 });
+    assert.equal(await view.locator("[data-elsewhere]").count(), 0, "すべて回答した後は、ほかの依頼の件数を出さない");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }
 });
 
-test("保留中・回答待ちの依頼を未回答に戻して回答し直せ、再依頼済みの依頼は引き継ぎ先を示す", { skip: !enabled }, async () => {
+test("保留中の依頼を未回答に戻して答え直せ、再依頼済みの依頼は引き継ぎ先を示す", { skip: !enabled }, async () => {
   const { browser, page, view, calls, messages, errors, client } = await setup();
   try {
-    assert.equal(await view.locator("#history-box").isHidden(), true, "前の依頼がなければ、前の依頼への回答は出さない");
-    assert.equal(await view.locator("#own-box").isHidden(), true, "回答がまだなければ、この依頼への回答は出さない");
     await view.locator('.item[data-id="R1"] [data-decision="hold"]').click();
-    await view.locator('[data-general="R2"]').click();
-    await view.locator("[data-composer-text]").fill("既存APIはどれ?");
-    await view.locator(".composer button.primary").click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    assert.equal(await view.locator('.item[data-id="R1"] .chip.ok').textContent(), "保留中");
-    assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "回答待ち");
-    // 回答した直後から、再読み込みした時と同じ記録を出す。
+    await view.locator("#status", { hasText: "R1を保留として記録しました。" }).waitFor({ timeout: 5000 });
     assert.equal(await view.locator("#kind .state").textContent(), "回答済み（保留）");
     assert.deepEqual(await view.locator("#own li").allTextContents(), ["R1 保留"]);
-    assert.deepEqual(await view.locator("[data-reopen]").evaluateAll((els) => els.map((e) => e.dataset.reopen)), ["R1", "R2"]);
-    await shot(page, "review-reopen");
+    await view.locator('[data-reopen="R1"]').click();
+    await view.locator("#status", { hasText: "R1を未回答に戻しました" }).waitFor({ timeout: 5000 });
+    assert.deepEqual(calls.find((c) => c.name === "inloop_reopen").arguments, { from: "R1", ids: ["R1"] });
+    assert.equal(messages.length, 1, "未回答に戻したことは会話に送らない");
+    await view.locator('.item[data-id="R1"] [data-decision="ok"]').click();
+    await view.locator("#status", { hasText: "R1を承認として記録しました。" }).waitFor({ timeout: 5000 });
+    assert.equal(messages[1].content[0].text, `${HEADER}\nR1 ok`);
 
-    // 回答待ちのR2を未回答に戻す。会話には何も送らない。
-    await view.locator('[data-reopen="R2"]').click();
-    await view.locator("#status", { hasText: "R2を未回答に戻しました" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(calls.find((c) => c.name === "inloop_reopen").arguments, { from: "R1", ids: ["R2"] });
-    assert.equal(messages.length, 1);
-    assert.equal(await view.locator('.item[data-id="R2"] [data-decision]').count(), 2);
-    assert.equal(await view.locator('[data-reopen="R2"]').count(), 0);
-    // R2の依頼票を開くと、戻す前の質問が「この依頼への回答」に記録として残っている。
-    await view.locator('.item[data-id="R2"] .vp').click();
-    await view.locator("#title", { hasText: "R2" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(await view.locator("#own li").allTextContents(), ["R2 質問 依頼全体: 既存APIはどれ?"]);
-    assert.equal(await view.locator("#history-box").isHidden(), true);
-    await view.locator('.item[data-id="R2"] [data-decision="ok"]').click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    assert.equal(messages[1].content[0].text, `${HEADER}\nR2 ok`);
-    assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "承認済み");
-
-    // AIが保留中のR1を再依頼すると、この画面のR1は再依頼済みになり、戻すことも回答することもできない。
-    const again = await client.callTool({ name: "request_review", arguments: { reviews: [{ follows: "R1" }] } });
-    assert.equal(again.content[0].text, "R1-1 pending");
+    // AIが保留中のR2を再依頼すると、この画面のR2は再依頼済みになり、引き継ぎ先を示す。
+    await view.locator('.item[data-id="R2"] [data-decision="hold"]').click();
+    await view.locator("#status", { hasText: "R2を保留として記録しました。" }).waitFor({ timeout: 5000 });
+    const again = await client.callTool({ name: "request_review", arguments: { reviews: [{ follows: "R2" }] } });
+    assert.equal(again.content[0].text, "R2-1 pending");
     await view.locator("body").evaluate(() => window.dispatchEvent(new Event("focus")));
-    await view.locator('.item[data-id="R1"] [data-next="R1-1"]', { hasText: "再依頼済み → R1-1" }).waitFor({ timeout: 5000 });
-    // MCP Appsのホストでは、引き継ぎ先の画面は再依頼した会話にあると案内する。
-    await view.locator('.item[data-id="R1"] [data-next="R1-1"]').click();
-    await view.locator("#status", { hasText: "R1-1は、再依頼した会話の画面から開いてください" }).waitFor({ timeout: 5000 });
+    await view.locator('.item[data-id="R2"] [data-next="R2-1"]', { hasText: "再依頼済み → R2-1" }).waitFor({ timeout: 5000 });
     assert.equal(await view.locator("[data-reopen]").count(), 0);
-    assert.equal(await view.locator('.item[data-id="R1"] [data-decision]').count(), 0);
-    assert.equal(await view.locator(".item[data-id]").count(), 2, "再依頼は、この画面の受付箱には入らない");
+    await view.locator('.item[data-id="R2"] [data-next="R2-1"]').click();
+    await view.locator("#status", { hasText: "R2-1は、再依頼した会話の画面から開いてください" }).waitFor({ timeout: 5000 });
     await shot(page, "review-superseded");
     assert.deepEqual(errors, []);
   } finally {
@@ -288,42 +193,12 @@ test("再依頼の画面には、元の依頼への指摘が出て、枝番のID
     ]);
     assert.deepEqual(await view.locator(".item[data-id]").evaluateAll((els) => els.map((e) => e.dataset.id)), ["R1-1"]);
     await shot(page, "review-rerequest");
-    // 行コメントも枝番のIDに付く。
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    assert.match(await view.locator(".composer-title").textContent(), /^R1-1 · cancelOrder L44$/);
-    await view.locator("[data-composer-text]").press("Escape");
+    await view.locator("#status", { hasText: "コピーしました: R1-1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await view.locator('.item[data-id="R1-1"] [data-decision="ok"]').click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "R1-1を承認として記録しました。" }).waitFor({ timeout: 5000 });
     assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }] });
     assert.equal(messages[0].content[0].text, `${HEADER}\nR1-1 ok`);
-    assert.deepEqual(errors, []);
-  } finally {
-    await browser.close();
-  }
-});
-
-test("位置をコピーでき、回答済みの依頼では行のクリックで位置をコピーする", { skip: !enabled }, async () => {
-  const { browser, page, view, errors } = await setup({ requests: 1 });
-  try {
-    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
-    await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
-    // コメント欄の中から、選んだ範囲の位置をコピーする。
-    await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
-    await view.locator('[data-copy="composer"]').click();
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
-    await view.locator("[data-composer-text]").press("Escape");
-    // 回答した後は、行のクリックで位置をコピーする（会話で「ここの範囲」と話すため）。
-    await view.locator('.item[data-id="R1"] [data-decision="hold"]').click();
-    await view.locator("#send").click();
-    await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
-    await line(view, "src/db/orders.ts#cancelOrder#L42").click();
-    await line(view, "src/db/orders.ts#cancelOrder#L43").click({ modifiers: ["Shift"] });
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L42-L43" }).waitFor({ timeout: 5000 });
-    assert.equal(await view.locator(".ln.sel").count(), 2);
-    await shot(page, "review-copy");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

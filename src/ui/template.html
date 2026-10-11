@@ -28,21 +28,10 @@ h2{font-size:13px;margin:16px 0 6px;color:var(--muted);font-weight:600}
 .ln.chg{background:var(--add)}
 .ln:hover{background:var(--selbg)}
 .ln.sel{background:var(--selbg);box-shadow:inset 3px 0 0 var(--accent)}
-.ln.has-comment .no{color:var(--accent);font-weight:700}
 .ln .no{width:56px;flex:none;text-align:right;padding-right:10px;color:var(--muted);user-select:none;position:relative}
-.ln .plus{position:absolute;left:4px;top:1px;width:16px;height:16px;line-height:16px;text-align:center;border-radius:4px;background:var(--accent);color:#fff;font-weight:700;opacity:0}
-.ln:hover .plus,.ln.sel .plus{opacity:1}
 .ln .tx{white-space:pre;padding-right:10px}
-.composer,.bubble{margin:6px 10px 8px 56px;border:1px solid var(--line);border-radius:6px;padding:8px 10px;background:var(--bg);display:grid;gap:6px;font-size:13px}
-.composer{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
-.composer-title{font-weight:600}
-.choice{text-align:left;white-space:normal}
-.bubble-text{white-space:pre-wrap}
-.item .composer,.item .bubble{margin-left:0}
 .spacer{flex:1}
 button.link{border:0;background:none;color:var(--accent);padding:2px 4px}
-button.toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.summary{font-size:13px}
 ul{margin:4px 0;padding-left:20px}
 .ev-pass{color:var(--ok)} .ev-fail{color:var(--req)} .ev-missing{color:var(--warn)}
 .inbox{border:1px solid var(--line);border-radius:6px}
@@ -90,10 +79,10 @@ button:disabled{opacity:.5;cursor:default}
     <h2>証拠</h2>
     <ul id="evidence"></ul>
   </section>
-  <h2 id="answers-title">回答（未回答の依頼をまとめて送信）</h2>
-  <div class="muted" id="answers-help">コード行をクリックすると、その行の下にコメント欄が開きます。コメントのない依頼は「承認」か「保留」を選びます。保留中・回答待ちの依頼は「未回答に戻す」で回答し直せます。</div>
+  <h2 id="answers-title">回答</h2>
+  <div class="muted" id="answers-help">質問や修正の相談は会話で。コード行をクリックすると位置をコピーできるので（Shift+クリックで範囲）、会話に貼ってください。承認・保留は、ここのボタンか、会話で決まった言葉（既定は「承認」「保留」）を言うと記録されます。</div>
   <div class="inbox" id="inbox"></div>
-  <div class="row" style="margin-top:10px"><button class="primary" id="send" disabled>まとめて送信</button><span id="status"></span></div>
+  <div class="row" style="margin-top:10px"><button class="primary" id="approve-all" hidden>まとめて承認</button><span id="status"></span></div>
   <div class="muted" id="all-answered" hidden>この画面の依頼は、すべて回答済みです。</div>
 </main>
 <!--SCRIPT-->
