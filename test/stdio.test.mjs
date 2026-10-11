@@ -216,7 +216,7 @@ test("inloop new --desktopは、サーバー向けの雛形にTauriの外枠を�
   const r = spawnSync(process.execPath, [BIN, "new", "desk app", "--desktop"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.equal(r.status, 0, r.stderr);
   const dir = join(parent, "desk app");
-  for (const f of ["src-tauri/Cargo.toml", "src-tauri/src/lib.rs", "src-tauri/tauri.conf.json", "scripts/build-sidecar.mjs", "web/src/App.tsx", "server/app.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
+  for (const f of ["src-tauri/Cargo.toml", "src-tauri/src/lib.rs", "src-tauri/tauri.conf.json", "scripts/build-sidecar.mjs", "scripts/prepare-dev.mjs", "web/src/App.tsx", "server/app.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
   assert.equal(pkg.name, "desk-app");
   assert.ok(pkg.devDependencies["@tauri-apps/cli"]);
@@ -225,7 +225,12 @@ test("inloop new --desktopは、サーバー向けの雛形にTauriの外枠を�
   const icon = readFileSync(join(dir, "src-tauri/icons/icon.png"));
   assert.deepEqual([...icon.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.deepEqual(icon, readFileSync(new URL("../templates/desktop/src-tauri/icons/icon.png", import.meta.url)));
-  assert.equal(JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"), "utf8")).identifier, "app.inloop.desk-app");
+  const conf = JSON.parse(readFileSync(join(dir, "src-tauri/tauri.conf.json"), "utf8"));
+  assert.equal(conf.identifier, "app.inloop.desk-app");
+  // 開発中の起動: 同梱するものを先に用意し、画面はTauriが待つ127.0.0.1:5173で待ち受ける。
+  assert.match(conf.build.beforeDevCommand, /^node scripts\/prepare-dev\.mjs && /);
+  assert.equal(conf.build.devUrl, "http://127.0.0.1:5173");
+  assert.match(readFileSync(join(dir, "vite.config.ts"), "utf8"), /host: "127\.0\.0\.1", port: 5173, strictPort: true/);
   assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /src-tauri\/target\//);
   assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);
 });

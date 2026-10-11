@@ -25,6 +25,13 @@ if (process.env.DESKTOP === "1") {
 app.route("/", createApp(openDb()));
 app.use("/*", serveStatic({ root: "./dist/web" }));
 
+// デスクトップアプリでは、親（Tauri）が強制終了などで終了処理をしないまま止まっても残らないよう、
+// 親とつながった標準入力が閉じたら終える。
+if (process.env.DESKTOP === "1") {
+  process.stdin.on("end", () => process.exit(0));
+  process.stdin.resume();
+}
+
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   console.log(`http://127.0.0.1:${port}`);
 });

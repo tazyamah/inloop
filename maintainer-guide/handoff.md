@@ -246,6 +246,20 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 `inloop new <dir> --desktop`でTauriの外枠を重ねた雛形を作る（`templates/desktop/`）。サーバーはNodeのSEAにして同梱。SEAのビルドと起動、宛先・送信元の確認は、生成したアプリで確かめた。Rust 1.99.0を入れて（利用者の許可、rustup）、生成したアプリで`cargo build`と`npm run package -- --bundles app`（118MB）が通り、`.app`を開いてサーバーの自動起動・画面の表示（利用者が目で確認）・終了時のサーバーの停止を確かめた。未検証: `npm run dev:desktop`、dmgなどのインストーラー。`inloop new`が画像を壊すバグを直した。
 
+### 2026-10-12 手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー）
+
+同じMac（arm64、Node.js 22.18.0、Rust 1.99.0）で、`inloop new <dir> --desktop`で作ったアプリを使って確かめた。
+
+- `npm run dev:desktop`: 雛形のままでは起動しなかった。直した3点:
+  - 画面（vite）が`localhost`、つまりこのMacでは`[::1]:5173`だけで待ち受け、Tauriが待つ`http://127.0.0.1:5173`に届かず、180秒で止まった。`templates/server/vite.config.ts`で`host: "127.0.0.1"`、`port: 5173`、`strictPort: true`にした（サーバー向けの雛形のREADMEも元から127.0.0.1と書いていた）。
+  - Tauriのビルドは、開発中でも同梱するもの（`binaries/server-<ターゲット>`と`../dist/web`）がないと止まる。`scripts/prepare-dev.mjs`を足し、`beforeDevCommand`で先に動かす（`dist/web`を作り、sidecarがなければ作る。開発中の画面はvite＋tsxで動き、どちらも使わない）。
+  - 直した後: 新しく作ったアプリ（sidecarと`dist`なし）で`npm run dev:desktop`が通り、`target/debug/dapp`のウィンドウ（960×720）が画面に出て、WebKitがviteにつながり、viteを通した`/api/notes`の読み書きが動いた。プロセスグループへのSIGINT（端末のCtrl+C）で、アプリ・vite・tsxがすべて止まり、ポートも空いた。ウィンドウの中身は目では確かめていない（画面収録の許可がない）。ウィンドウを閉じたときに`tauri dev`が止まるかは未検証。
+  - 補足: `tauri dev`のプロセスだけにSIGINTを送ると、viteとtsxは止まるがアプリのウィンドウは残る（端末のCtrl+Cはグループに送るので問題にならない）。
+- インストーラー: 既定の`npm run package`（`targets: "all"`）で、`.app`（118.05MiB）と`.dmg`（`src-tauri/target/release/bundle/dmg/<名前>_<版>_aarch64.dmg`、37.09MiB）ができた。署名・公証はしていない。`hdiutil verify`が通り、読み取り専用でマウントした`.dmg`の中の`.app`を起動すると、同梱のサーバーが空いているポートで起動し、`/api/health`と画面が返った。アイコンは仮のpng 1枚のまま（`.icns`はTauriが作った）。
+- 直したバグ: アプリをシグナルで止める（強制終了、`kill`）と、Tauriの終了処理が動かず、同梱のサーバーが残っていた。`DESKTOP=1`のサーバーは、親とつながった標準入力が閉じたら終えるようにした（`templates/desktop/server/index.ts`）。直した後、アプリの`kill -9`でもサーバーが止まること、Apple Eventでの通常の終了でも止まること、動いている間はサーバーが止まらないことを確かめた。
+- Windows・Linux: 未検証。このMacからは作れない。sidecarが今動いているNode（`process.execPath`）を写して作るので対象のOSのNodeが要り、TauriもLinuxはWebKitGTK、WindowsはMSVCとWebView2の環境で各OSのビルドを前提にする。CIなら、GitHub ActionsでOSごとのジョブ（`ubuntu-22.04`に`libwebkit2gtk-4.1-dev`などを入れる、`windows-latest`）で`npm ci && npm run package`を動かす。
+- 検証: `npm test`が58 pass・7 skip・fail 0（`inloop new --desktop`のテストに、`prepare-dev.mjs`・`beforeDevCommand`・`devUrl`・viteの待ち受けの確認を足した）。生成したアプリの`npm test`が2 pass。inloopのUIは変えていないので、`INLOOP_UI_E2E=1`は動かしていない。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -304,7 +318,8 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - Claude Desktopの通常の会話で、`claude mcp serve`のツールにより手元のMacのファイルを読み書きできるか。VMより速いか。許可を何回求められるか。
 - Claude Desktopが、ツールの結果の`_meta`をUIに渡すか（ADR-0014）。Claude Codeでrootsにより対象が決まるか（rootsへの対応は起動ログで確認済み: Claude Codeは対応、Claude Desktopは非対応）。
 - Claude Desktopの通常の会話で、AIが毎回`repo`を渡すか（ADR-0010を実装した後）。
-- Tauriにサーバーを同梱した手元のアプリの大きさとメモリ（ADR-0011）。
+- Tauriにサーバーを同梱した手元のアプリのメモリ（ADR-0011）。大きさは`.app`が118MB、`.dmg`が37MB（macOS arm64）。
+- 手元で動くアプリの雛形のWindows・Linuxでのビルドと起動（sidecarの作り方を含む）。署名と公証。`npm run dev:desktop`で、ウィンドウを閉じたときに開発用のプロセスが止まるか。
 
 ## 既知の制約
 
@@ -325,7 +340,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
-2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー、ADR-0019）、PostgreSQLの雛形。
+2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形の残り（Windows・Linuxのビルド、アイコンの生成、署名。macOSの`dev:desktop`と`.dmg`は確認済み）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. 解析エンジンの次: 信頼境界ルールの記述形式と必須の依頼（inloopの設定ファイルの形もここで決める）、証拠（テスト結果）の取り込み、SQLの解析。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "identifier": "app.inloop.__APP_NAME__",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/prepare-dev.mjs && npm run dev",
     "devUrl": "http://127.0.0.1:5173",
     "beforeBuildCommand": "npm run build:desktop",
     "frontendDist": "../dist/web"
