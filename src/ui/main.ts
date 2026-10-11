@@ -2,6 +2,7 @@
 // 画面からは位置をコピーして会話に貼る。承認・保留は、画面のボタンか、会話の決まった言葉で記録する。
 import { App } from "@modelcontextprotocol/ext-apps";
 import type { Answer, AnswerRound, InboxItem, ReviewPacket, ReviewStep } from "../server/types.js";
+import { dependencyGraph, relationsOf } from "./graph.js";
 
 type Decision = "ok" | "hold";
 
@@ -43,6 +44,13 @@ const packets = new Map<string, ReviewPacket>();
 const histories = new Map<string, AnswerRound[]>();
 /** 選んだ行。クリックで位置をコピーし、Shift+クリックで範囲にする。 */
 let picked: { symbol: string; start: number; end: number } | null = null;
+/**
+ * 開いた「変わっていない依存」のコード（`依頼ID シンボル`）。変わっていない依存は既定で畳む（ADR-0020）。
+ * 畳むだけで省かない。見出しと行数は常に出す。
+ */
+const expanded = new Set<string>();
+/** 図や見出しから移った先のシンボル。しばらく枠で示す。 */
+let flashed: string | undefined;
 /** 記録の操作の途中は、ボタンを押せなくする。 */
 let busy = false;
 
@@ -242,10 +250,16 @@ function renderDetail() {
   $("own-box").hidden = own.length === 0;
   $("own").replaceChildren(...own.map((a) => el("li", undefined, answerText(a))));
 
+  const graph = dependencyGraph(p, (symbol) => showStep(p, symbol));
+  $("graph-box").hidden = !graph;
+  $("graph").replaceChildren(...(graph ? [graph] : []));
+  const { uses, usedBy } = relationsOf(p);
+  const requested = new Set(p.requestedSymbols);
   const steps = $("steps");
   steps.replaceChildren();
   for (const s of p.steps) {
-    const box = el("div", "step");
+    const box = el("div", s.symbol === flashed ? "step flash" : "step");
+    box.dataset.symbol = s.symbol;
     const h = el("header");
     h.append(el("span", "n", `${s.order}`), el("code", undefined, s.symbol));
     if (s.layer) h.append(el("span", "chip", s.layer));
@@ -255,7 +269,35 @@ function renderDetail() {
     const copy = button("位置をコピー", () => { void copyText(positionOf(p.id, s.symbol)); }, "link");
     copy.dataset.copy = s.symbol;
     h.append(copy);
+    const lineCount = s.code.split("\n").length;
+    const foldable = s.change === "unchanged" && !requested.has(s.symbol);
+    const folded = foldable && !expanded.has(`${p.id} ${s.symbol}`);
+    if (foldable) {
+      h.append(button(folded ? `コードを表示（${lineCount}行）` : "畳む", () => {
+        const key = `${p.id} ${s.symbol}`;
+        if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+        render();
+      }, "link fold"));
+    }
+    const rel = el("div", "rel muted");
+    const relLinks = (label: string, ids: string[] | undefined) => {
+      if (!ids?.length) return;
+      rel.append(`${label}: `);
+      ids.forEach((id, i) => {
+        if (i > 0) rel.append(", ");
+        rel.append(button(id.slice(id.indexOf("#") + 1), () => showStep(p, id), "link"));
+      });
+      rel.append(" ");
+    };
+    relLinks("使う", uses.get(s.symbol));
+    relLinks("使われる", usedBy.get(s.symbol));
     const code = el("div", "code");
+    if (folded) {
+      box.append(h);
+      if (rel.childNodes.length) box.append(rel);
+      steps.append(box);
+      continue;
+    }
     s.code.split("\n").forEach((line, i) => {
       const abs = s.startLine + i;
       const selected = picked?.symbol === s.symbol && abs >= picked.start && abs <= picked.end;
@@ -268,7 +310,9 @@ function renderDetail() {
       ln.addEventListener("click", (e) => onLineClick(s, abs, e.shiftKey));
       code.append(ln);
     });
-    box.append(h, code);
+    box.append(h);
+    if (rel.childNodes.length) box.append(rel);
+    box.append(code);
     steps.append(box);
   }
   const un = $("unresolved");
@@ -281,6 +325,21 @@ function renderDetail() {
     li.append(el("span", `ev-${e.status}`, mark), ` ${e.kind === "test" ? "テスト" : "静的解析"}: ${e.name}`);
     return li;
   }));
+}
+
+/** 図や見出しから、シンボルのコードへ移る。畳んであれば開く。 */
+function showStep(p: ReviewPacket, symbol: string) {
+  expanded.add(`${p.id} ${symbol}`);
+  // フォーカスでの受付箱の再取得などで描き直されても、移った先の印が消えないよう、状態として持つ。
+  flashed = symbol;
+  render();
+  const box = [...document.querySelectorAll<HTMLElement>(".step")].find((b) => b.dataset.symbol === symbol);
+  box?.scrollIntoView({ behavior: "smooth", block: "start" });
+  setTimeout(() => {
+    if (flashed !== symbol) return;
+    flashed = undefined;
+    document.querySelectorAll(".step.flash").forEach((b) => b.classList.remove("flash"));
+  }, 1500);
 }
 
 function renderAnswers() {

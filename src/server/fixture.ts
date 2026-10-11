@@ -77,6 +77,7 @@ export function buildFixturePacket(
     requestedSymbols,
     range,
     steps: STEPS.map((s) => ({ ...s, boundaries: [...s.boundaries], changedLines: [...s.changedLines] })),
+    edges: [{ from: "src/api/orders.ts#postCancel", to: "src/db/orders.ts#cancelOrder", kind: "call" }],
     unresolved: [
       "src/api/orders.ts:91 events.emit(\"order.cancelled\") の購読先（動的dispatchのため解決できない）",
     ],

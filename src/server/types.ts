@@ -25,6 +25,17 @@ export interface ReviewStep {
   changedLines: number[];
 }
 
+/**
+ * 依頼票に並べたシンボルどうしの「使う」関係（ADR-0020）。fromがtoを使う。
+ * 解析エンジンがコードから決める。両端は必ずstepsのシンボル。
+ */
+export interface ReviewEdge {
+  from: string;
+  to: string;
+  /** 呼び出し、new（コンストラクター）、型としての参照、継承・実装 */
+  kind: "call" | "new" | "type" | "inherit";
+}
+
 export interface Evidence {
   kind: "test" | "static";
   name: string;
@@ -52,6 +63,11 @@ export interface ReviewPacket {
   requestedSymbols: string[];
   range: string;
   steps: ReviewStep[];
+  /**
+   * stepsのシンボルどうしの使う関係（ADR-0020）。画面の依存の図はこれだけから描く。
+   * この項目がない依頼票（ADR-0020より前の記録）は、関係を記録していないので図を出さない。
+   */
+  edges?: ReviewEdge[];
   /** 解析で解決できなかった参照 */
   unresolved: string[];
   evidence: Evidence[];

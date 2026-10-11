@@ -2,7 +2,7 @@
 // AIが書いたもののうち使うのは、観点の文と対象のシンボルIDだけ。構造はすべてここで決める。
 import { baseOf, changedLines, checkBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
-import type { ReviewPacket, ReviewStep } from "../server/types.js";
+import type { ReviewEdge, ReviewPacket, ReviewStep } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
 export const BUDGET_LIMIT = 40;
@@ -78,6 +78,14 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
       if (!all.has(id)) all.set(id, project.find(id)!);
     }
   }
+  // 並べたシンボルどうしの使う関係（ADR-0020）。依存として並べたものの中の呼び出しも含める。
+  // 新しいシンボルは足さない（並べるのは直接の依存まで、ADR-0015）。
+  const edges: ReviewEdge[] = [];
+  for (const d of all.values()) {
+    for (const u of project.references(d).uses) {
+      if (all.has(u.to)) edges.push({ from: d.id, to: u.to, kind: u.kind });
+    }
+  }
   const steps = order([...all.values()], deps).map((d, i): ReviewStep => {
     const lines = changed(d);
     const rel: number[] = [];
@@ -105,6 +113,7 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
     requestedSymbols: review.symbols,
     range,
     steps,
+    edges: sortEdges(edges, steps),
     unresolved: [...new Set(unresolved)],
     evidence: [],
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },
@@ -135,4 +144,12 @@ function order(decls: Declaration[], deps: Map<string, string[]>): Declaration[]
   };
   for (const d of byPos) visit(d);
   return out;
+}
+
+const KIND_ORDER: ReviewEdge["kind"][] = ["call", "new", "inherit", "type"];
+
+/** 同じ入力から同じ並びになるよう、使う側・使われる側の理解順、種類の順に並べる。 */
+function sortEdges(edges: ReviewEdge[], steps: ReviewStep[]): ReviewEdge[] {
+  const pos = new Map(steps.map((s) => [s.symbol, s.order]));
+  return edges.sort((a, b) => pos.get(a.from)! - pos.get(b.from)! || pos.get(a.to)! - pos.get(b.to)! || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
 }

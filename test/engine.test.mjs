@@ -159,3 +159,24 @@ test("行数の上限を超える依頼は、対象のシンボルが2つ以上�
   const single = buildPackets(repo, [{ id: "R8", group: "R8", viewpoint: "q", symbols: ["src/cancel.ts#cancelOrder"] }], "HEAD", { maxLines: 1 });
   assert.equal(single[0].steps.at(-1).symbol, "src/cancel.ts#cancelOrder", "1つのシンボルは、それ以上小さくできないので受け付ける");
 });
+
+test("並べたシンボルどうしの使う関係を、種類とともに依頼票に残す（ADR-0020）", () => {
+  const repo = project();
+  const p = build(repo, ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"]);
+  assert.deepEqual(p.edges.map((e) => `${e.from} ${e.kind} ${e.to}`), [
+    "src/cancel.ts#cancelOrder call src/cancel.ts#canCancel",
+    "src/cancel.ts#cancelOrder call src/order.ts#OrderRepo.find",
+    "src/cancel.ts#cancelOrder call src/order.ts#OrderRepo.save",
+    "src/cancel.ts#setup new src/order.ts#OrderRepo.constructor",
+  ]);
+  // 依存として並べたものどうしの関係も残す。ただし、それをたどって新しいシンボルを並べはしない。
+  const q = build(repo, ["src/cancel.ts#canCancel"]);
+  assert.deepEqual(q.edges, [{ from: "src/cancel.ts#canCancel", to: "src/order.ts#Order", kind: "type" }]);
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + c();\n}\n");
+  const r = build(repo, ["src/chain.ts#a"]);
+  assert.deepEqual(r.steps.map((s) => s.symbol), ["src/chain.ts#c", "src/chain.ts#b", "src/chain.ts#a"]);
+  assert.deepEqual(r.edges.map((e) => `${e.from} ${e.to}`), ["src/chain.ts#b src/chain.ts#c", "src/chain.ts#a src/chain.ts#c", "src/chain.ts#a src/chain.ts#b"]);
+  for (const e of [...p.edges, ...q.edges, ...r.edges]) {
+    assert.ok([p, q, r].some((x) => x.steps.some((s) => s.symbol === e.from) && x.steps.some((s) => s.symbol === e.to)), "両端は依頼票のシンボル");
+  }
+});

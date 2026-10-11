@@ -40,3 +40,4 @@
 | [0017](0017-chat-centered-review-and-size-limit.md) | Accepted | 議論は会話で行い、画面は読む場所と記録にする。会話の決まった言葉でAIが承認・保留を記録できる。依頼票の行数に上限（利用者ごとの設定） |
 | [0018](0018-ui-as-reading-and-record.md) | Accepted | 画面からコメント欄と送信を外し、承認・保留は押したらすぐ記録。AIは`inloop wait`を既定では動かさない |
 | [0019](0019-desktop-template-node-sea-sidecar.md) | Accepted | 手元で動くアプリの雛形は、Tauriの外枠にNodeのSEAにまとめたHonoを同梱する（`.app`まで確認） |
+| [0020](0020-dependency-graph-view.md) | Accepted | 依頼票に並べたシンボルどうしの使う関係（`edges`）を残し、画面の先頭に依存の図を出す。変わっていない依存のコードは畳む |

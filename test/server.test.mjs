@@ -584,6 +584,10 @@ test("依頼票は読み込みで形の全体を確かめ、知らない項目�
     [withStep({ startLine: 0 }), "steps.1.startLine"],
     [withStep({ change: "removed" }), "steps.1.change"],
     [withStep({ changedLines: ["1"] }), "steps.1.changedLines.0"],
+    // 使う関係（ADR-0020）。両端は依頼票に並べたシンボルに限る。
+    [{ ...packet, edges: [{ ...packet.edges[0], kind: "calls" }] }, "edges.0.kind"],
+    [{ ...packet, edges: [{ ...packet.edges[0], to: "src/x.ts#nope" }] }, "edges.0"],
+    [{ ...packet, edges: "なし" }, "edges"],
   ]) {
     assert.throws(() => new ReviewStore({ file: write(bad) }), new RegExp(`:1: 依頼票の形が不正（${where.replaceAll(".", "\\.")}）`), where);
   }
@@ -593,4 +597,6 @@ test("依頼票は読み込みで形の全体を確かめ、知らない項目�
   extra.steps[0].note = "x";
   const store = new ReviewStore({ file: write(extra) });
   assert.deepEqual(store.get("R1"), packet);
+  // 使う関係のない依頼票（ADR-0020より前の記録）も読め、関係は補わない。
+  assert.equal(new ReviewStore({ file: write(without("edges")) }).get("R1").edges, undefined);
 });

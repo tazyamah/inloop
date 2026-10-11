@@ -422,6 +422,11 @@ const packetSchema = z.object({
     code: z.string(),
     changedLines: z.array(lineNumber),
   })),
+  edges: z.array(z.object({
+    from: z.string().min(1),
+    to: z.string().min(1),
+    kind: z.enum(["call", "new", "type", "inherit"]),
+  })).optional(),
   unresolved: z.array(z.string()),
   evidence: z.array(z.object({
     kind: z.enum(["test", "static"]),
@@ -430,6 +435,12 @@ const packetSchema = z.object({
   })),
   budget: z.object({ changedLines: z.number().int().min(0), limit: z.number().int().min(0) }),
   fixture: z.boolean(),
+}).superRefine((p, ctx) => {
+  // 使う関係の両端は、依頼票に並べたシンボルに限る（ADR-0020）。
+  const symbols = new Set(p.steps.map((s) => s.symbol));
+  p.edges?.forEach((e, i) => {
+    if (!symbols.has(e.from) || !symbols.has(e.to)) ctx.addIssue({ code: "custom", path: ["edges", i], message: "依頼票にないシンボル" });
+  });
 });
 
 const answerSchema = z.object({

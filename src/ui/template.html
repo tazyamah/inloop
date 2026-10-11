@@ -54,6 +54,27 @@ button:disabled{opacity:.5;cursor:default}
 #status{font-size:12px;color:var(--muted);white-space:pre-wrap}
 #status.err{color:var(--req)}
 .muted{color:var(--muted);font-size:12px}
+#graph{overflow-x:auto;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--soft)}
+.graph{display:block}
+.g-node{cursor:pointer}
+.g-node rect{fill:var(--bg);stroke:var(--line)}
+.g-node.g-added rect{fill:var(--add)}
+.g-node.g-modified rect{fill:var(--warnbg);stroke:var(--warn)}
+.g-node.g-req rect{stroke:var(--accent);stroke-width:2.5}
+.g-node:hover rect,.g-node:focus rect{stroke:var(--accent)}
+.g-node:focus{outline:none}
+.g-name{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--fg)}
+.g-node.g-unchanged .g-name{font-weight:400}
+.g-sub{font-size:11px;fill:var(--muted)}
+.g-unresolved{fill:var(--req)}
+.g-edge{fill:none;stroke:var(--muted);stroke-width:1.4}
+.g-edge.weak{stroke-dasharray:5 4}
+.g-edge.hot{stroke:var(--accent);stroke-width:2.2}
+.g-head{fill:var(--muted)}
+.rel{padding:4px 10px;border-bottom:1px solid var(--line)}
+.rel button.link{font-size:12px;padding:0 2px}
+.step.flash{box-shadow:0 0 0 2px var(--accent)}
+.step header button.fold{font-size:12px}
 </style>
 </head>
 <body>
@@ -71,6 +92,10 @@ button:disabled{opacity:.5;cursor:default}
     <div id="own-box" hidden>
       <h2>この依頼への回答</h2>
       <ul id="own"></ul>
+    </div>
+    <div id="graph-box" hidden>
+      <h2>依存の図（矢印は使う側 → 使われる側。実線は呼び出し・new、破線は型・継承。太枠はAIの指定）</h2>
+      <div id="graph"></div>
     </div>
     <h2>対象（理解順・定義が先）</h2>
     <div id="steps"></div>

@@ -5,15 +5,20 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
 import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createServer } from "../dist/server/create-server.js";
+import { Targets } from "../dist/server/target.js";
+import { makeRepo } from "./helpers.mjs";
 
 const enabled = process.env.INLOOP_UI_E2E === "1";
 const shot = (page, name) => process.env.INLOOP_SHOT_DIR ? page.screenshot({ path: `${process.env.INLOOP_SHOT_DIR}/${name}.png`, fullPage: true }) : undefined;
 const HEADER = "[inloop] レビュー回答。fixは修正後にrequest_reviewのfollowsで再依頼、askは会話で答える:";
 
-async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare } = {}) {
+async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare, target } = {}) {
   const { chromium } = await import("playwright");
-  const server = createServer();
+  const server = createServer(target);
   const [ct, st] = InMemoryTransport.createLinkedPair();
   await server.connect(st);
   const client = new Client({ name: "e2e", version: "0" });
@@ -199,6 +204,62 @@ test("再依頼の画面には、元の依頼への指摘が出て、枝番のID
     await view.locator("#status", { hasText: "R1-1を承認として記録しました。" }).waitFor({ timeout: 5000 });
     assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }] });
     assert.equal(messages[0].content[0].text, `${HEADER}\nR1-1 ok`);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("依存の図を依頼票の先頭に出し、箱を押すとそのシンボルのコードへ移る（ADR-0020）", { skip: !enabled }, async () => {
+  const { browser, page, view, errors } = await setup({ requests: 1 });
+  try {
+    await view.locator("#graph-box").waitFor({ state: "visible", timeout: 5000 });
+    assert.equal(await view.locator(".g-node").count(), 3, "依頼票のシンボルがすべて箱になる");
+    assert.equal(await view.locator(".g-edge").count(), 1, "記録した関係だけを線にする");
+    assert.match(await view.locator(".g-edge title").textContent(), /postCancel → cancelOrder: 呼び出し/);
+    assert.equal(await view.locator(".g-node.g-req").count(), 1, "AIが指定した対象は太枠");
+    // 使われる側が左、使う側が右。
+    const x = async (sym) => (await view.locator(`.g-node[data-symbol="${sym}"]`).boundingBox()).x;
+    assert.ok(await x("src/db/orders.ts#cancelOrder") < await x("src/api/orders.ts#postCancel"));
+    assert.ok(await view.locator(".g-unresolved").count() === 1, "未解決の参照を含むシンボルに印");
+    await view.locator('.g-node[data-symbol="src/db/orders.ts#cancelOrder"]').click();
+    await view.locator('.step.flash[data-symbol="src/db/orders.ts#cancelOrder"]').waitFor({ timeout: 5000 });
+    assert.match(await view.locator('.step[data-symbol="src/api/orders.ts#postCancel"] .rel').textContent(), /使う: cancelOrder/);
+    await shot(page, "graph-fixture");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("変わっていない依存のコードは畳み、図やボタンから開ける（ADR-0020）", { skip: !enabled }, async () => {
+  const repo = makeRepo("chain", { commit: true });
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + c();\n}\n");
+  execFileSync("git", ["-C", repo, "add", "-A"]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "chain"]);
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + c() + 1;\n}\n");
+  const { browser, page, view, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async () => ({ reviews: [{ viewpoint: "aの戻り値を1増やしてよいか", symbols: ["src/chain.ts#a"] }], range: "HEAD" }),
+  });
+  try {
+    await view.locator("#graph-box").waitFor({ state: "visible", timeout: 5000 });
+    assert.equal(await view.locator(".g-node").count(), 3);
+    assert.equal(await view.locator(".g-edge").count(), 3, "依存どうし（b→c）の関係も線にする");
+    assert.equal(await view.locator(".g-node.g-modified").count(), 1);
+    const step = (name) => view.locator(`.step[data-symbol="src/chain.ts#${name}"]`);
+    assert.equal(await step("b").locator(".ln").count(), 0, "変わっていない依存は畳む");
+    assert.equal(await step("c").locator(".ln").count(), 0);
+    assert.equal(await step("a").locator(".ln").count(), 3, "指定した対象は畳まない");
+    assert.match(await step("b").locator("button.fold").textContent(), /コードを表示（3行）/);
+    await view.locator('.g-node[data-symbol="src/chain.ts#c"]').click();
+    await step("c").locator(".ln").first().waitFor({ timeout: 5000 });
+    assert.equal(await step("c").locator(".ln").count(), 3, "図の箱を押すと開く");
+    await step("b").locator("button.fold").click();
+    assert.equal(await step("b").locator(".ln").count(), 3);
+    await step("b").locator("button.fold", { hasText: "畳む" }).click();
+    assert.equal(await step("b").locator(".ln").count(), 0);
+    await shot(page, "graph-fold");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

@@ -36,6 +36,7 @@ AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列�
 | `requestedSymbols` | AIが指定した対象シンボルIDの列 |
 | `range` | commit範囲 |
 | `steps` | 理解順の対象。`order`、`symbol`、`file`、`startLine`、`layer`、`boundaries`、`change`（`added`・`modified`・`unchanged`）、`code`、`changedLines`（`code`内の相対位置） |
+| `edges` | `steps`のシンボルどうしの使う関係。`from`、`to`、`kind`（`call`・`new`・`type`・`inherit`）。両端は`steps`のシンボル。ADR-0020より前の記録にはない（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)） |
 | `unresolved` | 解析で解決できなかった参照の列 |
 | `evidence` | 証拠の列。`kind`（`test`・`static`）、`name`、`status`（`pass`・`fail`・`missing`） |
 | `budget` | レビュー予算。`changedLines`と`limit` |
@@ -119,13 +120,11 @@ get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 
 ## UIでの回答の操作
 
-GitHubのコードレビューと同じく、行を起点に回答します。
+画面は読む場所と記録で、修正依頼と質問は会話で行います（[ADR-0017](../maintainer-guide/decisions/0017-chat-centered-review-and-size-limit.md)、[ADR-0018](../maintainer-guide/decisions/0018-ui-as-reading-and-record.md)）。
 
-- コード行をクリックすると、その行の直下にコメント欄が開く。Shift+クリックで行範囲にする
-- その行のシンボルを含む、同じ呼び出しの未回答の依頼が複数あれば、先に宛先の依頼を選ぶ（表示中の依頼が先頭）
-- 追加したコメントは行の下に吹き出しとして残り、編集・削除できる
-- コメントのない依頼は「承認」か「保留」を選ぶ。行に紐づかない質問は「依頼全体にコメント」から書く
-- 書きかけのコメントがある間は送信できない
+- 依頼票の先頭に依存の図を出す。箱はシンボル、矢印は使う側から使われる側へ。箱を押すとそのコードへ移る。変わっていない依存のコードは畳み、図や「コードを表示」で開く（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)）
+- コード行をクリックすると位置（`<依頼ID> <参照>`）をコピーする。Shift+クリックで行範囲にする。会話に貼って話す
+- 各依頼の「承認」「保留」は、押したらすぐ記録する。未回答の依頼が2件以上なら「まとめて承認」を出す
 - 保留中・回答待ちの依頼は「未回答に戻す」で未回答に戻し、回答し直す
 - 依頼票には、同じ系列でそれより前の依頼に付いた回答を「前の依頼への回答」、その依頼に付いた回答を「この依頼への回答」として分けて出す。再依頼の画面で、前回の指摘を確かめられる
 - 回答した依頼の画面は記録として残す。上部に状態（「回答済み（修正依頼）」「承認済み」など）を出し、送信した直後から再読み込みした後まで同じ表示にする。後から変わるのは、再依頼されたときの「再依頼済み → R13-1」だけで、押すと引き継ぎ先の画面に移る（ブラウザで開く経路。MCP Appsでは、再依頼した会話の画面を案内する）
