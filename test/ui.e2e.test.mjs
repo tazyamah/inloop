@@ -200,7 +200,11 @@ test("別の呼び出しで出された依頼は受付箱に出ず、件数だ�
     await view.locator("#send").click();
     await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
     assert.equal(messages[0].content[0].text, `${HEADER}\nR1 ok\nR2 ok`);
-    assert.equal(await view.locator("[data-elsewhere]").getAttribute("data-elsewhere"), "2");
+    // すべて回答した後は、回答の操作とほかの依頼の件数を出さず、回答済みと示す。
+    assert.equal(await view.locator("[data-elsewhere]").count(), 0);
+    assert.equal(await view.locator("#all-answered").isVisible(), true);
+    assert.equal(await view.locator("#send").isHidden(), true);
+    assert.equal(await view.locator("#kind .state").textContent(), "承認済み");
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
@@ -210,7 +214,8 @@ test("別の呼び出しで出された依頼は受付箱に出ず、件数だ�
 test("保留中・回答待ちの依頼を未回答に戻して回答し直せ、再依頼済みの依頼は引き継ぎ先を示す", { skip: !enabled }, async () => {
   const { browser, page, view, calls, messages, errors, client } = await setup();
   try {
-    assert.equal(await view.locator("#history-box").isHidden(), true, "回答がまだなければ、これまでの回答は出さない");
+    assert.equal(await view.locator("#history-box").isHidden(), true, "前の依頼がなければ、前の依頼への回答は出さない");
+    assert.equal(await view.locator("#own-box").isHidden(), true, "回答がまだなければ、この依頼への回答は出さない");
     await view.locator('.item[data-id="R1"] [data-decision="hold"]').click();
     await view.locator('[data-general="R2"]').click();
     await view.locator("[data-composer-text]").fill("既存APIはどれ?");
@@ -219,6 +224,9 @@ test("保留中・回答待ちの依頼を未回答に戻して回答し直せ�
     await view.locator("#status", { hasText: "2件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
     assert.equal(await view.locator('.item[data-id="R1"] .chip.ok').textContent(), "保留中");
     assert.equal(await view.locator('.item[data-id="R2"] .chip.ok').textContent(), "回答待ち");
+    // 回答した直後から、再読み込みした時と同じ記録を出す。
+    assert.equal(await view.locator("#kind .state").textContent(), "回答済み（保留）");
+    assert.deepEqual(await view.locator("#own li").allTextContents(), ["R1 保留"]);
     assert.deepEqual(await view.locator("[data-reopen]").evaluateAll((els) => els.map((e) => e.dataset.reopen)), ["R1", "R2"]);
     await shot(page, "review-reopen");
 
@@ -229,10 +237,11 @@ test("保留中・回答待ちの依頼を未回答に戻して回答し直せ�
     assert.equal(messages.length, 1);
     assert.equal(await view.locator('.item[data-id="R2"] [data-decision]').count(), 2);
     assert.equal(await view.locator('[data-reopen="R2"]').count(), 0);
-    // R2の依頼票を開くと、戻す前の質問が「これまでの回答」に出る。
+    // R2の依頼票を開くと、戻す前の質問が「この依頼への回答」に記録として残っている。
     await view.locator('.item[data-id="R2"] .vp').click();
     await view.locator("#title", { hasText: "R2" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(await view.locator("#history li").allTextContents(), ["R2 質問 依頼全体: 既存APIはどれ?"]);
+    assert.deepEqual(await view.locator("#own li").allTextContents(), ["R2 質問 依頼全体: 既存APIはどれ?"]);
+    assert.equal(await view.locator("#history-box").isHidden(), true);
     await view.locator('.item[data-id="R2"] [data-decision="ok"]').click();
     await view.locator("#send").click();
     await view.locator("#status", { hasText: "1件の依頼への回答を送信しました" }).waitFor({ timeout: 5000 });
@@ -243,7 +252,10 @@ test("保留中・回答待ちの依頼を未回答に戻して回答し直せ�
     const again = await client.callTool({ name: "request_review", arguments: { reviews: [{ follows: "R1" }] } });
     assert.equal(again.content[0].text, "R1-1 pending");
     await view.locator("body").evaluate(() => window.dispatchEvent(new Event("focus")));
-    await view.locator('.item[data-id="R1"] .chip', { hasText: "再依頼済み → R1-1" }).waitFor({ timeout: 5000 });
+    await view.locator('.item[data-id="R1"] [data-next="R1-1"]', { hasText: "再依頼済み → R1-1" }).waitFor({ timeout: 5000 });
+    // MCP Appsのホストでは、引き継ぎ先の画面は再依頼した会話にあると案内する。
+    await view.locator('.item[data-id="R1"] [data-next="R1-1"]').click();
+    await view.locator("#status", { hasText: "R1-1は、再依頼した会話の画面から開いてください" }).waitFor({ timeout: 5000 });
     assert.equal(await view.locator("[data-reopen]").count(), 0);
     assert.equal(await view.locator('.item[data-id="R1"] [data-decision]').count(), 0);
     assert.equal(await view.locator(".item[data-id]").count(), 2, "再依頼は、この画面の受付箱には入らない");

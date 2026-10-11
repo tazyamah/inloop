@@ -24,6 +24,10 @@ const VERDICT_LABEL: Record<string, string> = { ok: "承認", fix: "修正依頼
 const STATUS_LABEL: Record<string, string> = {
   pending: "未回答", approved: "承認済み", fixing: "修正待ち", answering: "回答待ち", held: "保留中", superseded: "再依頼済み",
 };
+/** 画面上部に出す、回答した後の状態。 */
+const ANSWERED_LABEL: Record<string, string> = {
+  approved: "承認済み", fixing: "回答済み（修正依頼）", answering: "回答済み（質問）", held: "回答済み（保留）",
+};
 /** 人が同じ依頼票のまま未回答に戻せる状態（ADR-0009）。 */
 const REOPENABLE = new Set(["held", "answering"]);
 
@@ -300,15 +304,27 @@ function renderDetail() {
   const kind = $("kind");
   kind.replaceChildren(el("span", p.kind === "required" ? "chip req" : "chip", p.kind === "required" ? "必須" : "任意"));
   if (p.kind === "required") kind.append(" ", el("span", "muted", `ルール: ${p.triggeredBy.join(", ")}`));
+  // 回答した後の画面は記録として残す。上部に状態を出し、再依頼済みなら引き継ぎ先へ辿れるようにする。
+  const item = inbox.find((i) => i.id === p.id);
+  if (item?.supersededBy) {
+    kind.prepend(nextButton(item.supersededBy), " ");
+  } else if (item && ANSWERED_LABEL[item.status]) {
+    kind.prepend(el("span", "chip ok state", ANSWERED_LABEL[item.status]), " ");
+  }
   $("viewpoint").textContent = p.viewpoint;
   const meta = [`範囲: ${p.range}`, `変更行 ${p.budget.changedLines} / 予算 ${p.budget.limit}`];
   if (p.requestedSymbols.length) meta.push(`AIの指定: ${p.requestedSymbols.join(", ")}`);
   const branch = /^(R\d+)-(\d+)$/.exec(p.id);
   if (branch) meta.unshift(`${branch[1]}の再依頼（${branch[2]}回目）`);
   $("meta").textContent = meta.join(" ・ ");
-  const past = (histories.get(p.id) ?? []).flatMap((round) => round.answers);
+  // 前の依頼（同じ系列）への回答と、この依頼への回答を分けて出す。どちらも記録で、後から変わらない。
+  const rounds = histories.get(p.id) ?? [];
+  const past = rounds.filter((r) => r.id !== p.id).flatMap((r) => r.answers);
+  const own = rounds.filter((r) => r.id === p.id).flatMap((r) => r.answers);
   $("history-box").hidden = past.length === 0;
   $("history").replaceChildren(...past.map((a) => el("li", undefined, answerText(a))));
+  $("own-box").hidden = own.length === 0;
+  $("own").replaceChildren(...own.map((a) => el("li", undefined, answerText(a))));
 
   const allComments = [...drafts.entries()].flatMap(([id, d]) => d.comments.map((c) => ({ id, c, r: parseRef(c.ref) })));
   const steps = $("steps");
@@ -362,9 +378,9 @@ function renderAnswers() {
     const vp = el("span", "vp", `${item.id}: ${item.viewpoint}`);
     vp.title = "この依頼票を表示";
     vp.addEventListener("click", () => { composer = null; load(item.id).catch((e) => setStatus(String((e as Error).message ?? e), true)); });
-    head.append(el("span", item.kind === "required" ? "chip req" : "chip", item.kind === "required" ? "必須" : "任意"),
-      vp, el("span", pending || item.status === "superseded" ? "chip" : "chip ok",
-        (STATUS_LABEL[item.status] ?? item.status) + (item.supersededBy ? ` → ${item.supersededBy}` : "")));
+    head.append(el("span", item.kind === "required" ? "chip req" : "chip", item.kind === "required" ? "必須" : "任意"), vp,
+      item.supersededBy ? nextButton(item.supersededBy)
+        : el("span", pending ? "chip" : "chip ok", STATUS_LABEL[item.status] ?? item.status));
     row.append(head);
     if (REOPENABLE.has(item.status)) {
       const actions = el("div", "row actions");
@@ -401,11 +417,37 @@ function renderAnswers() {
     }
     box.append(row);
   }
-  if (elsewhere > 0) {
+  // この画面の依頼がすべて回答済みなら、回答の操作とほかの依頼の件数は出さない。
+  const open = pendingItems().length > 0;
+  $("answers-title").textContent = open ? "回答（未回答の依頼をまとめて送信）" : "回答";
+  $("answers-help").hidden = !open;
+  $("send").hidden = !open;
+  $("all-answered").hidden = open || inbox.length === 0;
+  if (open && elsewhere > 0) {
     const note = el("div", "item muted", `ほかに未回答の依頼が${elsewhere}件あります。それぞれが出された場所の画面から回答してください。`);
     note.dataset.elsewhere = String(elsewhere);
     box.append(note);
   }
+}
+
+/** 再依頼済みの依頼から、引き継ぎ先の依頼へ辿るボタン。 */
+function nextButton(next: string): HTMLButtonElement {
+  const b = button(`再依頼済み → ${next}`, () => { void goTo(next); }, "next");
+  b.dataset.next = next;
+  b.title = `${next}の画面を開く`;
+  return b;
+}
+
+/**
+ * 引き継ぎ先の依頼の画面を開く。引き継ぎ先は別の呼び出しのまとまりなので、この画面では回答できない。
+ * ブラウザで開く経路では、そのページへ移る。MCP Appsでは、再依頼した会話にある画面を案内する。
+ */
+async function goTo(id: string) {
+  if (app.getHostVersion()?.name === "inloop-browser-host") {
+    const r = await app.openLink({ url: `inloop:review/${id}` }).catch(() => ({ isError: true }));
+    if (!r.isError) return;
+  }
+  setStatus(`${id}は、再依頼した会話の画面から開いてください。`);
 }
 
 function collect(): Answer[] {
@@ -445,6 +487,8 @@ async function send() {
     inbox = data.inbox;
     elsewhere = data.elsewhere ?? 0;
     for (const a of answers) drafts.delete(a.id);
+    // 再読み込みした時と同じ表示にするため、回答した依頼の記録を取り直す。
+    await Promise.all([...new Set(answers.map((a) => a.id))].map((id) => fetchPacket(id).catch(() => undefined)));
     const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: data.message }] });
     if (res.isError) setStatus("回答は記録しましたが、会話への送信をホストが拒否しました。AIにget_review_resultを使うよう伝えてください。", true);
     else setStatus(`${new Set(answers.map((a) => a.id)).size}件の依頼への回答を送信しました。`);

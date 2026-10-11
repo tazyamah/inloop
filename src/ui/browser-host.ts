@@ -14,7 +14,7 @@ document.title = `inloop ${id}`;
 const bridge = new AppBridge(
   null,
   { name: "inloop-browser-host", version: "0.0.0" },
-  { serverTools: {}, message: { text: {} } },
+  { serverTools: {}, message: { text: {} }, openLinks: {} },
   { hostContext: { theme: dark.matches ? "dark" : "light", displayMode: "inline", availableDisplayModes: ["inline"] } },
 );
 
@@ -32,6 +32,14 @@ bridge.onmessage = async () => {
   // 回答は記録済み。AIはget_review_resultで受け取る。
   notice.textContent = "回答を記録しました。AIが待っていなければ、会話で「回答した」と伝えてください。";
   notice.hidden = false;
+  return {};
+};
+
+// 再依頼済みの依頼から、引き継ぎ先の依頼のページへ移る。
+bridge.onopenlink = async ({ url }) => {
+  const m = /^inloop:review\/(R\d+(?:-\d+)?)$/.exec(url);
+  if (m) location.href = `/r/${m[1]}?t=${encodeURIComponent(token)}`;
+  else window.open(url, "_blank", "noopener");
   return {};
 };
 
