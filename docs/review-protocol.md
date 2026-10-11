@@ -22,7 +22,9 @@ AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列�
 
 ### 依頼票の項目
 
-記録に保存し、UIが表示する依頼票の形です（`src/server/types.ts`の`ReviewPacket`）。いまは解析エンジンがないので、中身は固定データです。
+記録に保存し、UIが表示する依頼票の形です（`src/server/types.ts`の`ReviewPacket`）。対象のリポジトリの依頼票は、解析エンジンがコードから組み立てます（[ADR-0015](../maintainer-guide/decisions/0015-typescript-analysis-engine-v1.md)）。`--state-dir`やメモリの記録先では、固定データです。
+
+シンボルIDは`リポジトリからのパス#名前`で、クラスのメンバーは`.`でつなぎます（例: `src/server/target.ts#Targets.resolve`）。
 
 | 項目 | 内容 |
 |---|---|
@@ -33,11 +35,11 @@ AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列�
 | `viewpoint` | AIが書いた問い |
 | `requestedSymbols` | AIが指定した対象シンボルIDの列 |
 | `range` | commit範囲 |
-| `steps` | 理解順の対象。`order`、`symbol`、`file`、`startLine`、`layer`、`boundaries`、`change`（`added`・`modified`）、`code`、`changedLines`（`code`内の相対位置） |
+| `steps` | 理解順の対象。`order`、`symbol`、`file`、`startLine`、`layer`、`boundaries`、`change`（`added`・`modified`・`unchanged`）、`code`、`changedLines`（`code`内の相対位置） |
 | `unresolved` | 解析で解決できなかった参照の列 |
 | `evidence` | 証拠の列。`kind`（`test`・`static`）、`name`、`status`（`pass`・`fail`・`missing`） |
 | `budget` | レビュー予算。`changedLines`と`limit` |
-| `fixture` | 固定データであることの印（常に`true`） |
+| `fixture` | 固定データなら`true`、解析エンジンが作ったなら`false` |
 
 ## AIとのやり取り
 
@@ -172,7 +174,8 @@ R13 ─ AIがfollowsで再依頼 ─► superseded（再依頼済み）
 
 ## 未決事項
 
-- シンボルIDの表記と、revision間で同一性を保つ方法
+- revision間でシンボルの同一性を保つ方法（名前の変更を追うか）
+- 間接の依存、レイヤーの判定、証拠（テスト・静的解析の結果）の取り込み
 - レビュー予算の単位（行数、シンボル数、判断箇所の数など）
 - `required`の依頼を生む信頼境界ルールの記述形式と、再依頼で種別を決め直す方法
 - 再依頼で、承認済みのシンボルとの差分だけを見せる仕組み

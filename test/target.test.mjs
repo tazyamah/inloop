@@ -1,8 +1,9 @@
 // 対象のリポジトリを依頼ごとに決め、記録をリポジトリごとに置く（ADR-0010）。
 import { test } from "node:test";
+import { makeRepo, SYMBOL } from "./helpers.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -10,11 +11,6 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { createServer } from "../dist/server/create-server.js";
 import { Targets } from "../dist/server/target.js";
 
-function gitRepo() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "inloop-repo-")));
-  execFileSync("git", ["init", "-q", dir]);
-  return dir;
-}
 
 /** rootsを渡すと、クライアントがその作業フォルダを知らせる。 */
 async function connect(options = {}, roots) {
@@ -29,12 +25,12 @@ async function connect(options = {}, roots) {
 
 const textOf = (r) => r.content.filter((c) => c.type === "text").map((c) => c.text).join("\n");
 const ask = (client, repo, viewpoint = "q") =>
-  client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint }], ...(repo === undefined ? {} : { repo }) } });
+  client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint, symbols: [SYMBOL] }], ...(repo === undefined ? {} : { repo }) } });
 const lines = (repo) => readFileSync(join(repo, ".inloop", "reviews.jsonl"), "utf8").trimEnd().split("\n");
 
 test("2つのリポジトリへの依頼は、それぞれの.inloop/に記録され、IDが独立する", async () => {
-  const a = gitRepo();
-  const b = gitRepo();
+  const a = makeRepo();
+  const b = makeRepo();
   const client = await connect();
   assert.equal(textOf(await ask(client, a)), "R1 pending");
   assert.equal(textOf(await ask(client, b)), "R1 pending");
@@ -50,7 +46,7 @@ test("2つのリポジトリへの依頼は、それぞれの.inloop/に記録�
 });
 
 test("作業ツリーの中の下位のパスは最上位に正規化し、UIには_metaで対象を渡す", async () => {
-  const a = gitRepo();
+  const a = makeRepo();
   mkdirSync(join(a, "src", "db"), { recursive: true });
   const client = await connect();
   const r = await ask(client, join(a, "src", "db"));
@@ -82,8 +78,8 @@ test("対象を決められない依頼、gitの作業ツリーの外、相対�
 });
 
 test("--repoで固定した対象と違うrepoは拒否し、省略すれば固定した対象を使う", async () => {
-  const a = gitRepo();
-  const b = gitRepo();
+  const a = makeRepo();
+  const b = makeRepo();
   const client = await connect({ repo: a });
   assert.equal(textOf(await ask(client, undefined)), "R1 pending");
   assert.equal(textOf(await ask(client, a)), "R2 pending");
@@ -95,9 +91,8 @@ test("--repoで固定した対象と違うrepoは拒否し、省略すれば固�
 
 test("--allowの外の対象は拒否する", async () => {
   const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-allow-")));
-  const inside = join(parent, "app");
-  execFileSync("git", ["init", "-q", inside]);
-  const outside = gitRepo();
+  const inside = makeRepo(undefined, { dir: join(parent, "app") });
+  const outside = makeRepo();
   const client = await connect({ allow: [parent] });
   assert.equal(textOf(await ask(client, inside)), "R1 pending");
   const r = await ask(client, outside);
@@ -105,8 +100,8 @@ test("--allowの外の対象は拒否する", async () => {
 });
 
 test("クライアントの作業フォルダ（roots）が1つなら、repoを省略できる。外の対象は拒否する", async () => {
-  const a = gitRepo();
-  const b = gitRepo();
+  const a = makeRepo();
+  const b = makeRepo();
   const client = await connect({}, [a]);
   assert.equal(textOf(await ask(client, undefined)), "R1 pending");
   assert.equal(lines(a).length, 1);
@@ -122,10 +117,30 @@ test("クライアントの作業フォルダ（roots）が1つなら、repoを�
 
 test("記録先を固定した場合（--state-dir）は、対象が決まらなくてもそこに記録する", async () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "inloop-state-")));
-  const a = gitRepo();
+  const a = makeRepo();
   const client = await connect({ stateFile: join(dir, "reviews.jsonl") });
   assert.equal(textOf(await ask(client, undefined)), "R1 pending");
   assert.equal(textOf(await ask(client, a)), "R2 pending");
   assert.equal(readFileSync(join(dir, "reviews.jsonl"), "utf8").trimEnd().split("\n").length, 2);
   assert.ok(!existsSync(join(a, ".inloop")));
+});
+
+test("依頼票は対象のリポジトリのコードから作り、再依頼では今のコードで作り直す", async () => {
+  const a = makeRepo();
+  const client = await connect();
+  await ask(client, a);
+  const first = await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo: a } });
+  const steps = first.structuredContent.packet.steps;
+  assert.deepEqual(steps.map((s) => s.symbol), ["src/app.ts#greet", "src/app.ts#hello"]);
+  assert.equal(first.structuredContent.packet.fixture, false);
+  writeFileSync(join(a, "src", "app.ts"), readFileSync(join(a, "src", "app.ts"), "utf8").replace("`hello ${name}`", "`hi ${name}`"));
+  const again = await client.callTool({ name: "request_review", arguments: { reviews: [{ follows: "R1" }], repo: a } });
+  assert.equal(textOf(again), "R1-1 pending");
+  const second = await client.callTool({ name: "inloop_get_request", arguments: { id: "R1-1", repo: a } });
+  assert.match(second.structuredContent.packet.steps[0].code, /hi \$\{name\}/);
+  assert.deepEqual(second.structuredContent.packet.requestedSymbols, [SYMBOL]);
+  // 見つからないシンボルの依頼は、記録しない。
+  const bad = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q", symbols: ["src/app.ts#nope"] }], repo: a } });
+  assert.equal(textOf(bad), "src/app.ts#nope: 見つからないシンボル");
+  assert.equal(lines(a).length, 2);
 });

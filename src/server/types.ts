@@ -10,7 +10,7 @@ export type RequestStatus = "pending" | "approved" | "fixing" | "answering" | "h
 export interface ReviewStep {
   /** 理解順の並び（定義が使用より先） */
   order: number;
-  /** シンボルID（file#name 形式の仮表記） */
+  /** シンボルID。`リポジトリからのパス#名前`、クラスのメンバーは`.`でつなぐ（ADR-0015） */
   symbol: string;
   file: string;
   startLine: number;
@@ -18,7 +18,8 @@ export interface ReviewStep {
   layer: string;
   /** 信頼境界ルールに該当した場合のルールID */
   boundaries: string[];
-  change: "added" | "modified";
+  /** 範囲の基点から、追加・変更されたか。依存として並べた変わっていないシンボルはunchanged（ADR-0015）。 */
+  change: "added" | "modified" | "unchanged";
   code: string;
   /** code内で変更された行（1始まり、code内の相対位置） */
   changedLines: number[];
@@ -55,8 +56,8 @@ export interface ReviewPacket {
   unresolved: string[];
   evidence: Evidence[];
   budget: { changedLines: number; limit: number };
-  /** 解析エンジン未実装のため固定データであることを示す */
-  fixture: true;
+  /** 固定データ（解析エンジンを使わない記録先）ならtrue。解析エンジンが作った依頼票はfalse（ADR-0015） */
+  fixture: boolean;
 }
 
 /**

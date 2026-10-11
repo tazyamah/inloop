@@ -313,6 +313,7 @@ function renderDetail() {
   } else if (item && ANSWERED_LABEL[item.status]) {
     kind.prepend(el("span", "chip ok state", ANSWERED_LABEL[item.status]), " ");
   }
+  $("fixture").hidden = !p.fixture;
   $("viewpoint").textContent = p.viewpoint;
   const meta = [`範囲: ${p.range}`, `変更行 ${p.budget.changedLines} / 予算 ${p.budget.limit}`];
   if (p.requestedSymbols.length) meta.push(`AIの指定: ${p.requestedSymbols.join(", ")}`);
@@ -334,8 +335,9 @@ function renderDetail() {
   for (const s of p.steps) {
     const box = el("div", "step");
     const h = el("header");
-    h.append(el("span", "n", `${s.order}`), el("code", undefined, s.symbol), el("span", "chip", s.layer),
-      el("span", "chip", s.change === "added" ? "追加" : "変更"));
+    h.append(el("span", "n", `${s.order}`), el("code", undefined, s.symbol));
+    if (s.layer) h.append(el("span", "chip", s.layer));
+    h.append(el("span", "chip", s.change === "added" ? "追加" : s.change === "modified" ? "変更" : "変更なし"));
     for (const b of s.boundaries) h.append(el("span", "chip req", b));
     const code = el("div", "code");
     s.code.split("\n").forEach((line, i) => {
@@ -361,6 +363,7 @@ function renderDetail() {
   const un = $("unresolved");
   un.replaceChildren(...(p.unresolved.length ? p.unresolved.map((u) => el("li", undefined, u)) : [el("li", "muted", "なし")]));
   const ev = $("evidence");
+  if (p.evidence.length === 0) { ev.replaceChildren(el("li", "muted", "なし（テストや静的解析の結果はまだ取り込んでいない）")); return; }
   ev.replaceChildren(...p.evidence.map((e) => {
     const li = el("li");
     const mark = e.status === "pass" ? "✓ 成功" : e.status === "fail" ? "✗ 失敗" : "! 未作成";

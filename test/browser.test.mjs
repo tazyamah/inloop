@@ -1,5 +1,6 @@
 // ブラウザで開く経路（ADR-0012）と、マシン全体の画面のサーバー（ADR-0013）。
 import { test } from "node:test";
+import { makeRepo, SYMBOL } from "./helpers.mjs";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, realpathSync } from "node:fs";
@@ -12,17 +13,12 @@ import { createServer } from "../dist/server/create-server.js";
 import { Targets, TargetError } from "../dist/server/target.js";
 import { appOrigin, startUiServer } from "../dist/server/ui-server.js";
 
-function gitRepo(name = "app") {
-  const dir = join(realpathSync(mkdtempSync(join(tmpdir(), "inloop-repo-"))), name);
-  execFileSync("git", ["init", "-q", dir]);
-  return dir;
-}
 
 /** 登録簿・画面のサーバー・ブラウザの経路のMCPサーバーを、一時的な場所で用意する。 */
 async function setup() {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
   const registry = new AppRegistry(home);
-  const repo = gitRepo("appa");
+  const repo = makeRepo("appa");
   registry.register(repo);
   const ui = await startUiServer({ port: 0, registry });
   const server = createServer(new Targets({ repo }), {
@@ -66,7 +62,7 @@ const call = (port, name, args, { origin = `http://appa.inloop.localhost:${port}
 test("request_reviewは、アプリ名の固定のURLを返す", async () => {
   const { ui, client, close } = await setup();
   try {
-    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1" }, { viewpoint: "q2" }] } });
+    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1", symbols: [SYMBOL] }, { viewpoint: "q2", symbols: [SYMBOL] }] } });
     const url = `http://appa.inloop.localhost:${ui.port}/r/R1`;
     assert.deepEqual(r.structuredContent, { ids: ["R1", "R2"], url });
     assert.equal(textOf(r), `R1 R2 pending ${url}`);
@@ -77,7 +73,7 @@ test("request_reviewは、アプリ名の固定のURLを返す", async () => {
 
 test("登録していないリポジトリへの依頼は、記録せずに拒否する", async () => {
   const { home, ui } = await setup();
-  const other = gitRepo("other");
+  const other = makeRepo("other");
   const registry = new AppRegistry(home);
   const server = createServer(new Targets({ repo: other }), {
     browserBase: async (r) => {
@@ -91,7 +87,7 @@ test("登録していないリポジトリへの依頼は、記録せずに拒�
   const client = new Client({ name: "test", version: "0" });
   await client.connect(ct);
   try {
-    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q" }] } });
+    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q", symbols: [SYMBOL] }] } });
     assert.equal(r.isError, true);
     assert.equal(textOf(r), `${other}: inloop init で登録されていない`);
     assert.ok(!existsSync(join(other, ".inloop", "reviews.jsonl")));
@@ -105,7 +101,7 @@ test("画面のサーバーは、登録したアプリのHostと、同じ画面�
   const { ui, client, close } = await setup();
   const port = ui.port;
   try {
-    await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1" }] } });
+    await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1", symbols: [SYMBOL] }] } });
     const page = await http(port, "/r/R1");
     assert.equal(page.status, 200);
     assert.match(page.headers["content-type"], /^text\/html/);
@@ -141,7 +137,7 @@ test("画面のサーバーは、MCPサーバーが書いた記録をその都�
   const { ui, client, close } = await setup();
   const port = ui.port;
   try {
-    await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1" }, { viewpoint: "q2" }] } });
+    await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q1", symbols: [SYMBOL] }, { viewpoint: "q2", symbols: [SYMBOL] }] } });
     const timedOut = await client.callTool({ name: "get_review_result", arguments: { ids: ["R1", "R2"], wait: 1 } });
     assert.equal(textOf(timedOut), "R1 pending\nR2 pending");
 
@@ -171,8 +167,8 @@ test("画面のサーバーは、MCPサーバーが書いた記録をその都�
 test("登録簿は名前の重なりを拒否し、同じリポジトリの登録し直しで古い名前を消す", () => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
   const registry = new AppRegistry(home);
-  const a = gitRepo("My App");
-  const b = gitRepo("my-app");
+  const a = makeRepo("My App");
+  const b = makeRepo("my-app");
   assert.deepEqual(registry.register(a), { name: "my-app", repo: a });
   assert.throws(() => registry.register(b), /アプリ名「my-app」は .* が使っている/);
   assert.equal(registry.register(b, "other").name, "other");

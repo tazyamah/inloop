@@ -43,7 +43,17 @@ export interface StoreOptions {
   file?: string;
   /** 記録に付ける時刻（ISO 8601）。テストで固定するために差し替えられる。 */
   now?: () => string;
+  /**
+   * 依頼票の作り方。1回の呼び出しの依頼をまとめて受け取る。例外を投げれば、何も記録しない。
+   * 省略すると固定データの依頼票を作る（解析エンジンを使わない記録先、ADR-0015）。
+   */
+  build?: PacketBuilder;
 }
+
+export type PacketBuilder = (reviews: { id: string; group: string; viewpoint: string; symbols: string[] }[], range: string) => ReviewPacket[];
+
+const fixtureBuilder: PacketBuilder = (reviews, range) =>
+  reviews.map((r) => buildFixturePacket(r.id, r.group, r.viewpoint, r.symbols, range));
 
 /**
  * 依頼と回答を保持する。fileを指定すると、追記専用のJSON Linesに保存し、
@@ -66,6 +76,7 @@ export class ReviewStore {
   private readonly successors = new Map<string, string>();
   private readonly file: string | undefined;
   private readonly now: () => string;
+  private readonly build: PacketBuilder;
   /** 記録ファイルのうち、読み込み済みのバイト数と行数 */
   private loadedBytes = 0;
   private loadedLines = 0;
@@ -75,6 +86,7 @@ export class ReviewStore {
   constructor(options: StoreOptions = {}) {
     this.file = options.file;
     this.now = options.now ?? (() => new Date().toISOString());
+    this.build = options.build ?? fixtureBuilder;
     if (this.file) {
       mkdirSync(dirname(this.file), { recursive: true });
       appendFileSync(this.file, "");
@@ -120,12 +132,9 @@ export class ReviewStore {
     if (errors.length > 0) throw new Error(errors.join("\n"));
     const group = planned[0]!.id;
     const at = this.now();
-    const events: LogEvent[] = planned.map((p) => ({
-      v: LOG_VERSION,
-      type: "request",
-      at,
-      packet: buildFixturePacket(p!.id, group, p!.viewpoint, p!.symbols, range),
-    }));
+    // 依頼票を作れなければ（見つからないシンボルなど）、ここで例外になり、何も記録しない。
+    const packets = this.build(planned.map((p) => ({ id: p!.id, group, viewpoint: p!.viewpoint, symbols: p!.symbols })), range);
+    const events: LogEvent[] = packets.map((packet) => ({ v: LOG_VERSION, type: "request", at, packet }));
     this.record(events);
     return planned.map((p) => this.packets.get(p!.id)!);
   }
@@ -395,7 +404,7 @@ const packetSchema = z.object({
     startLine: lineNumber,
     layer: z.string(),
     boundaries: z.array(z.string()),
-    change: z.enum(["added", "modified"]),
+    change: z.enum(["added", "modified", "unchanged"]),
     code: z.string(),
     changedLines: z.array(lineNumber),
   })),
@@ -406,7 +415,7 @@ const packetSchema = z.object({
     status: z.enum(["pass", "fail", "missing"]),
   })),
   budget: z.object({ changedLines: z.number().int().min(0), limit: z.number().int().min(0) }),
-  fixture: z.literal(true),
+  fixture: z.boolean(),
 });
 
 const answerSchema = z.object({

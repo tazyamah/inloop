@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { makeRepo, SYMBOL } from "./helpers.mjs";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
@@ -10,14 +11,9 @@ import { createServer as createNetServer } from "node:net";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
-function gitRepo() {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), "inloop-repo-")));
-  execFileSync("git", ["init", "-q", dir]);
-  return dir;
-}
 
 test("実プロセスとしてstdioで起動し、依頼を受け付ける", async () => {
-  const repo = gitRepo();
+  const repo = makeRepo();
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [fileURLToPath(new URL("../dist/server/main.js", import.meta.url)), "--repo", repo],
@@ -28,7 +24,7 @@ test("実プロセスとしてstdioで起動し、依頼を受け付ける", asy
   const client = new Client({ name: "stdio-test", version: "0" });
   await client.connect(transport);
   try {
-    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q" }] } });
+    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q", symbols: [SYMBOL] }] } });
     assert.equal(r.content[0].text, "R1 pending");
   } finally {
     await client.close();
@@ -65,7 +61,7 @@ async function requestOnce({ args = [], env = {}, cwdRepo }) {
   const client = new Client({ name: "stdio-test", version: "0" });
   await client.connect(transport);
   try {
-    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q" }] } });
+    const r = await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "q", symbols: [SYMBOL] }] } });
     return { text: r.content[0].text, logs };
   } finally {
     await client.close();
@@ -113,7 +109,7 @@ test("--ui browserで、画面のサーバーを起動し、MCPサーバーが�
   const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
   const port = await freePort();
   const env = { INLOOP_HOME: home, INLOOP_PORT: String(port) };
-  const repo = gitRepo();
+  const repo = makeRepo();
   const init = spawnSync(process.execPath, [BIN, "init", repo, "--name", "appa"], { encoding: "utf8", env: { ...process.env, ...env } });
   assert.equal(init.status, 0, init.stderr);
   assert.match(init.stdout, new RegExp(`登録しました: appa → ${repo}`));
@@ -185,7 +181,7 @@ test("inloop newは、標準の構成のリポジトリを作って登録する"
 
 test("inloop initは、既存の.mcp.jsonのほかのサーバーを残してinloopを足す", () => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
-  const repo = gitRepo();
+  const repo = makeRepo();
   writeFileSync(join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { other: { command: "x" } } }));
   const run = () => spawnSync(process.execPath, [BIN, "init", repo], { encoding: "utf8", env: { ...process.env, INLOOP_HOME: home } });
   assert.match(run().stdout, /\.mcp\.json に inloop を書きました/);

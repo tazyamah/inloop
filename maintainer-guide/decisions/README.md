@@ -35,3 +35,4 @@
 | [0012](0012-browser-ui-path.md) | Accepted | MCP AppsのUIを表示できないクライアント向けに、同じUIをブラウザで開き、回答はAIが待って受け取る（ポート・鍵・URLの形はADR-0013で更新） |
 | [0013](0013-machine-wide-ui-server.md) | Accepted | 画面をマシン全体で1つのサーバーから`<アプリ名>.inloop.localhost`のURLで配り、鍵の代わりにHostとOriginを確かめる |
 | [0014](0014-target-path-not-in-record.md) | Accepted | 対象のリポジトリのパスは記録に書かず、記録の置き場所で表す。`--state-dir`では対象が決まらなくても記録する |
+| [0015](0015-typescript-analysis-engine-v1.md) | Accepted | 解析エンジンの最初の版をTypeScript 7のAPIで作る。シンボルIDは`パス#名前`、直接の依存を定義が先の順に並べる |
