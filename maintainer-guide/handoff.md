@@ -168,6 +168,8 @@ Claude Desktopから手元のMacを直接扱う試み: 利用者が`claude_deskt
 
 検証: macOS（Node.js 22.18.0）で`npm test`が38 pass・6 skip・fail 0。追加したのは対象のテスト7件、stdio1件。`playwright@1.56.0`（`--no-save`）とChromium 149で`INLOOP_UI_E2E=1 npm test`が全44件pass。実際のクライアントでは未検証。
 
+Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11）: `--state-dir`なしで`--ui browser`の登録に直して開き直すと、起動ログは`state=repo`になった。AIが`repo`を渡さずに依頼すると、作業フォルダ（roots）からinloopリポジトリが対象に決まり、記録が`.inloop/reviews.jsonl`に入り、`.inloop/.gitignore`（`*`）ができ、記録に対象のパスは入らなかった。利用者がブラウザペインで承認すると、`get_review_result`の`wait`に`R1 ok`が届いた。このとき、AIの側で読み込んだツール定義は再登録前の古い説明（`repo`なし）のままだった。Claude Codeがツール定義を取り直すのはいつかは確かめていない。
+
 ADR-0010との差異: ADR-0010は「依頼票に対象を記録し、UIの上部に表示する」としていたが、実装では記録に書かず、表示もしない。理由と決定はADR-0014に記録した。
 
 ## クライアント検証の結果
@@ -249,7 +251,7 @@ ADR-0010との差異: ADR-0010は「依頼票に対象を記録し、UIの上部
 
 ## 次の一手
 
-1. ADR-0010の実装を実際のクライアントで確かめる。Claude Codeは`--state-dir`なしで登録し直し、rootsで対象が決まるか。Claude Desktopは、AIが`repo`を渡すか、UIに`_meta`が届くか（`--state-dir`を外した場合）。
+1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
 2. ADR-0011の`inloop`コマンドを作る: `bin/inloop`、`inloop mcp`（今の`dist/server/main.js`）、`init`、`update`。`new`と雛形は後でよい。あわせてADR-0013の画面のサーバーとアプリの登録簿を作り、ADR-0012のプロセスごとのポートと鍵を置き換える。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. TypeScriptのシンボル解析と理解順の並べ替えを、inloop自身のコードを対象に作り始め、固定データを置き換える。シンボルIDの表記もここで決める。
