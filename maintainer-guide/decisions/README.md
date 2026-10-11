@@ -30,3 +30,6 @@
 | [0007](0007-append-only-review-log.md) | Accepted | 依頼と回答を、状態ディレクトリの追記専用JSON Linesに保存する |
 | [0008](0008-group-requests-per-call.md) | Accepted | 1回の呼び出しで出された依頼を、回答のまとまりにする |
 | [0009](0009-request-lifecycle-and-branch-ids.md) | Accepted | 再依頼を枝番のIDで表し、保留と質問は同じ依頼のまま未回答に戻す。依頼票の構造は現在の形で確定し、記録の版は上げない |
+| [0010](0010-target-repository-per-request.md) | Accepted | 対象のリポジトリを依頼ごとに決め、記録をリポジトリごとの`.inloop/`に置く |
+| [0011](0011-inloop-command-and-app-templates.md) | Accepted | inloopコマンドでアプリのリポジトリを作り、標準の構成（React＋Hono＋SQLite、手元はTauriにHonoを同梱）を固定する |
+| [0012](0012-browser-ui-path.md) | Accepted | MCP AppsのUIを表示できないクライアント向けに、同じUIをブラウザで開き、回答はAIが待って受け取る |
