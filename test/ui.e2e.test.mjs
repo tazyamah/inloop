@@ -265,3 +265,29 @@ test("変わっていない依存のコードは畳み、図やボタンから�
     await browser.close();
   }
 });
+
+test("呼び出し元を図の右の列に点線の枠で出し、コードは畳んで別に並べる（ADR-0021）", { skip: !enabled }, async () => {
+  const repo = makeRepo("callers", { commit: true });
+  writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + 1;\n}\n");
+  const { browser, page, view, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async () => ({ reviews: [{ viewpoint: "bを足してよいか", symbols: ["src/chain.ts#b"] }], range: "HEAD" }),
+  });
+  try {
+    await view.locator("#graph-box").waitFor({ state: "visible", timeout: 5000 });
+    assert.equal(await view.locator(".g-node").count(), 3);
+    assert.equal(await view.locator(".g-node.g-caller").count(), 1);
+    const x = async (sym) => (await view.locator(`.g-node[data-symbol="${sym}"]`).boundingBox()).x;
+    assert.ok(await x("src/chain.ts#b") < await x("src/chain.ts#a"), "呼び出し元は右の列");
+    const caller = view.locator('#callers .step[data-symbol="src/chain.ts#a"]');
+    assert.equal(await caller.locator(".ln").count(), 0, "呼び出し元のコードは畳む");
+    assert.match(await caller.locator(".rel").textContent(), /使う: b/);
+    await view.locator('.g-node[data-symbol="src/chain.ts#a"]').click();
+    await caller.locator(".ln").first().waitFor({ timeout: 5000 });
+    assert.equal(await caller.locator(".ln").count(), 3);
+    await shot(page, "graph-callers");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});

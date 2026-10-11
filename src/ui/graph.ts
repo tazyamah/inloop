@@ -79,8 +79,16 @@ export function dependencyGraph(p: ReviewPacket, onPick: (symbol: string) => voi
   const { uses } = relationsOf(p);
   const unresolved = unresolvedBySymbol(p);
   const lv = levels(p.steps, uses);
+  // 呼び出し元（ADR-0021）は、並べたシンボルの右に1列で置く。
+  const callerSet = new Set((p.callers ?? []).map((c) => c.symbol));
+  const callerColumn = Math.max(...p.steps.map((s) => lv.get(s.symbol)!)) + 1;
+  const nodes: ReviewStep[] = [
+    ...p.steps,
+    ...(p.callers ?? []).map((c, i): ReviewStep => ({ ...c, order: p.steps.length + 1 + i, layer: "", boundaries: [], change: "unchanged", changedLines: [] })),
+  ];
+  for (const c of callerSet) lv.set(c, callerColumn);
   const columns: ReviewStep[][] = [];
-  for (const s of p.steps) (columns[lv.get(s.symbol)!] ??= []).push(s);
+  for (const s of nodes) (columns[lv.get(s.symbol)!] ??= []).push(s);
   // 列の中は理解順。2列目からは、使う先の行の平均が上のものから置き、線の交差を減らす（同じ入力からは同じ並び）。
   const row = new Map<string, number>();
   columns.forEach((col, c) => {
@@ -137,18 +145,19 @@ export function dependencyGraph(p: ReviewPacket, onPick: (symbol: string) => voi
   root.append(edgeLayer);
 
   const requested = new Set(p.requestedSymbols);
-  for (const s of p.steps) {
+  for (const s of nodes) {
     const { x, y } = pos.get(s.symbol)!;
-    const g = svg("g", { class: `g-node g-${s.change}${requested.has(s.symbol) ? " g-req" : ""}`, transform: `translate(${x},${y})`, tabindex: 0 });
+    const caller = callerSet.has(s.symbol);
+    const g = svg("g", { class: `g-node g-${caller ? "caller" : s.change}${requested.has(s.symbol) ? " g-req" : ""}`, transform: `translate(${x},${y})`, tabindex: 0 });
     g.dataset.symbol = s.symbol;
     const lines = s.code.split("\n").length;
-    const change = s.change === "unchanged" ? "変更なし" : `${s.change === "added" ? "追加" : "変更"} ${s.changedLines.length}行`;
+    const change = caller ? `呼び出し元 ${lines}行` : s.change === "unchanged" ? "変更なし" : `${s.change === "added" ? "追加" : "変更"} ${s.changedLines.length}行`;
     const un = unresolved.get(s.symbol)?.length ?? 0;
     g.append(
       svg("title", {}, `${s.symbol}（${lines}行）${requested.has(s.symbol) ? "\nAIが指定した対象" : ""}${un ? `\n未解決の参照 ${un}件` : ""}\n押すとコードへ移る`),
       svg("rect", { width: W, height: H, rx: 6 }),
       svg("text", { x: 8, y: 17, class: "g-name" }, clip(nameOf(s.symbol))),
-      svg("text", { x: 8, y: 33, class: "g-sub" }, `${s.order}. ${change}${un ? ` ・未解決 ${un}` : ""}`),
+      svg("text", { x: 8, y: 33, class: "g-sub" }, `${caller ? "" : `${s.order}. `}${change}${un ? ` ・未解決 ${un}` : ""}`),
     );
     if (un) g.append(svg("circle", { cx: W - 9, cy: 9, r: 4, class: "g-unresolved" }));
     const pick = () => onPick(s.symbol);

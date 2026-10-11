@@ -255,66 +255,11 @@ function renderDetail() {
   $("graph").replaceChildren(...(graph ? [graph] : []));
   const { uses, usedBy } = relationsOf(p);
   const requested = new Set(p.requestedSymbols);
-  const steps = $("steps");
-  steps.replaceChildren();
-  for (const s of p.steps) {
-    const box = el("div", s.symbol === flashed ? "step flash" : "step");
-    box.dataset.symbol = s.symbol;
-    const h = el("header");
-    h.append(el("span", "n", `${s.order}`), el("code", undefined, s.symbol));
-    if (s.layer) h.append(el("span", "chip", s.layer));
-    h.append(el("span", "chip", s.change === "added" ? "追加" : s.change === "modified" ? "変更" : "変更なし"));
-    for (const b of s.boundaries) h.append(el("span", "chip req", b));
-    h.append(el("span", "spacer"));
-    const copy = button("位置をコピー", () => { void copyText(positionOf(p.id, s.symbol)); }, "link");
-    copy.dataset.copy = s.symbol;
-    h.append(copy);
-    const lineCount = s.code.split("\n").length;
-    const foldable = s.change === "unchanged" && !requested.has(s.symbol);
-    const folded = foldable && !expanded.has(`${p.id} ${s.symbol}`);
-    if (foldable) {
-      h.append(button(folded ? `コードを表示（${lineCount}行）` : "畳む", () => {
-        const key = `${p.id} ${s.symbol}`;
-        if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
-        render();
-      }, "link fold"));
-    }
-    const rel = el("div", "rel muted");
-    const relLinks = (label: string, ids: string[] | undefined) => {
-      if (!ids?.length) return;
-      rel.append(`${label}: `);
-      ids.forEach((id, i) => {
-        if (i > 0) rel.append(", ");
-        rel.append(button(id.slice(id.indexOf("#") + 1), () => showStep(p, id), "link"));
-      });
-      rel.append(" ");
-    };
-    relLinks("使う", uses.get(s.symbol));
-    relLinks("使われる", usedBy.get(s.symbol));
-    const code = el("div", "code");
-    if (folded) {
-      box.append(h);
-      if (rel.childNodes.length) box.append(rel);
-      steps.append(box);
-      continue;
-    }
-    s.code.split("\n").forEach((line, i) => {
-      const abs = s.startLine + i;
-      const selected = picked?.symbol === s.symbol && abs >= picked.start && abs <= picked.end;
-      const ln = el("div", "ln" + (s.changedLines.includes(i + 1) ? " chg" : "") + (selected ? " sel" : ""));
-      ln.dataset.ref = `${s.symbol}#L${abs}`;
-      ln.title = "クリックで位置をコピー、Shift+クリックで範囲";
-      const no = el("span", "no");
-      no.append(String(abs));
-      ln.append(no, el("span", "tx", line));
-      ln.addEventListener("click", (e) => onLineClick(s, abs, e.shiftKey));
-      code.append(ln);
-    });
-    box.append(h);
-    if (rel.childNodes.length) box.append(rel);
-    box.append(code);
-    steps.append(box);
-  }
+  $("steps").replaceChildren(...p.steps.map((s) => symbolBox(p, s, false, uses, usedBy, requested)));
+  // 呼び出し元（ADR-0021）。理解順の対象ではなく影響範囲なので、別に並べ、既定で畳む。
+  const callers = (p.callers ?? []).map((c): ReviewStep => ({ ...c, order: 0, layer: "", boundaries: [], change: "unchanged", changedLines: [] }));
+  $("callers-box").hidden = p.callers === undefined;
+  $("callers").replaceChildren(...(callers.length ? callers.map((c) => symbolBox(p, c, true, uses, usedBy, requested)) : [el("div", "muted", "なし（このリポジトリに、対象を呼び出している別のシンボルはない）")]));
   const un = $("unresolved");
   un.replaceChildren(...(p.unresolved.length ? p.unresolved.map((u) => el("li", undefined, u)) : [el("li", "muted", "なし")]));
   const ev = $("evidence");
@@ -325,6 +270,65 @@ function renderDetail() {
     li.append(el("span", `ev-${e.status}`, mark), ` ${e.kind === "test" ? "テスト" : "静的解析"}: ${e.name}`);
     return li;
   }));
+}
+
+/** シンボル1つの見出しとコード。callerは呼び出し元（ADR-0021）で、番号と変更の印の代わりに「呼び出し元」と出す。 */
+function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<string, string[]>, usedBy: Map<string, string[]>, requested: Set<string>): HTMLElement {
+  const box = el("div", (caller ? "step caller" : "step") + (s.symbol === flashed ? " flash" : ""));
+  box.dataset.symbol = s.symbol;
+  const h = el("header");
+  if (caller) h.append(el("span", "chip", "呼び出し元"), el("code", undefined, s.symbol));
+  else {
+    h.append(el("span", "n", `${s.order}`), el("code", undefined, s.symbol));
+    if (s.layer) h.append(el("span", "chip", s.layer));
+    h.append(el("span", "chip", s.change === "added" ? "追加" : s.change === "modified" ? "変更" : "変更なし"));
+  }
+  for (const b of s.boundaries) h.append(el("span", "chip req", b));
+  h.append(el("span", "spacer"));
+  const copy = button("位置をコピー", () => { void copyText(positionOf(p.id, s.symbol)); }, "link");
+  copy.dataset.copy = s.symbol;
+  h.append(copy);
+  const lineCount = s.code.split("\n").length;
+  // 変わっていない依存と呼び出し元は既定で畳む（ADR-0020）。畳むだけで省かない。
+  const foldable = caller || (s.change === "unchanged" && !requested.has(s.symbol));
+  const folded = foldable && !expanded.has(`${p.id} ${s.symbol}`);
+  if (foldable) {
+    h.append(button(folded ? `コードを表示（${lineCount}行）` : "畳む", () => {
+      const key = `${p.id} ${s.symbol}`;
+      if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
+      render();
+    }, "link fold"));
+  }
+  const rel = el("div", "rel muted");
+  const relLinks = (label: string, ids: string[] | undefined) => {
+    if (!ids?.length) return;
+    rel.append(`${label}: `);
+    ids.forEach((id, i) => {
+      if (i > 0) rel.append(", ");
+      rel.append(button(id.slice(id.indexOf("#") + 1), () => showStep(p, id), "link"));
+    });
+    rel.append(" ");
+  };
+  relLinks("使う", uses.get(s.symbol));
+  relLinks("使われる", usedBy.get(s.symbol));
+  box.append(h);
+  if (rel.childNodes.length) box.append(rel);
+  if (folded) return box;
+  const code = el("div", "code");
+  s.code.split("\n").forEach((line, i) => {
+    const abs = s.startLine + i;
+    const selected = picked?.symbol === s.symbol && abs >= picked.start && abs <= picked.end;
+    const ln = el("div", "ln" + (s.changedLines.includes(i + 1) ? " chg" : "") + (selected ? " sel" : ""));
+    ln.dataset.ref = `${s.symbol}#L${abs}`;
+    ln.title = "クリックで位置をコピー、Shift+クリックで範囲";
+    const no = el("span", "no");
+    no.append(String(abs));
+    ln.append(no, el("span", "tx", line));
+    ln.addEventListener("click", (e) => onLineClick(s, abs, e.shiftKey));
+    code.append(ln);
+  });
+  box.append(code);
+  return box;
 }
 
 /** 図や見出しから、シンボルのコードへ移る。畳んであれば開く。 */

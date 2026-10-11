@@ -115,6 +115,11 @@ export class TsProject {
     return out;
   }
 
+  /** リポジトリのファイル（node_modulesを除く）。リポジトリからのパスの順。 */
+  repoFiles(): string[] {
+    return [...this.files.values()].map((f) => this.rel(f)).sort();
+  }
+
   /** シンボルIDから宣言を探す。なければundefined。 */
   find(id: string): Declaration | undefined {
     const i = id.indexOf("#");

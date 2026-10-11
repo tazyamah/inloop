@@ -75,6 +75,9 @@ button:disabled{opacity:.5;cursor:default}
 .rel button.link{font-size:12px;padding:0 2px}
 .step.flash{box-shadow:0 0 0 2px var(--accent)}
 .step header button.fold{font-size:12px}
+.step.caller{border-style:dashed}
+.g-node.g-caller rect{fill:var(--bg);stroke-dasharray:4 3}
+.g-node.g-caller .g-name{font-weight:400}
 </style>
 </head>
 <body>
@@ -94,11 +97,15 @@ button:disabled{opacity:.5;cursor:default}
       <ul id="own"></ul>
     </div>
     <div id="graph-box" hidden>
-      <h2>依存の図（矢印は使う側 → 使われる側。実線は呼び出し・new、破線は型・継承。太枠はAIの指定）</h2>
+      <h2>依存の図（矢印は使う側 → 使われる側。実線は呼び出し・new、破線は型・継承。太枠はAIの指定、点線の枠は呼び出し元）</h2>
       <div id="graph"></div>
     </div>
     <h2>対象（理解順・定義が先）</h2>
     <div id="steps"></div>
+    <div id="callers-box" hidden>
+      <h2>呼び出し元（対象と変わったシンボルを呼び出している、別のシンボル。1段だけ）</h2>
+      <div id="callers"></div>
+    </div>
     <h2>未解決の参照</h2>
     <ul id="unresolved"></ul>
     <h2>証拠</h2>

@@ -36,7 +36,8 @@ AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列�
 | `requestedSymbols` | AIが指定した対象シンボルIDの列 |
 | `range` | commit範囲 |
 | `steps` | 理解順の対象。`order`、`symbol`、`file`、`startLine`、`layer`、`boundaries`、`change`（`added`・`modified`・`unchanged`）、`code`、`changedLines`（`code`内の相対位置） |
-| `edges` | `steps`のシンボルどうしの使う関係。`from`、`to`、`kind`（`call`・`new`・`type`・`inherit`）。両端は`steps`のシンボル。ADR-0020より前の記録にはない（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)） |
+| `edges` | `steps`のシンボルどうしの使う関係。`from`、`to`、`kind`（`call`・`new`・`type`・`inherit`）。`to`は`steps`、`from`は`steps`か`callers`のシンボル。ADR-0020より前の記録にはない（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)） |
+| `callers` | 呼び出し元。AIが指定したシンボルと変わったシンボルを呼び出す、`steps`にないシンボル（1段だけ）。`symbol`、`file`、`startLine`、`code`。ADR-0021より前の記録にはない（[ADR-0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)） |
 | `unresolved` | 解析で解決できなかった参照の列 |
 | `evidence` | 証拠の列。`kind`（`test`・`static`）、`name`、`status`（`pass`・`fail`・`missing`） |
 | `budget` | レビュー予算。`changedLines`と`limit` |
@@ -122,7 +123,7 @@ get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 
 画面は読む場所と記録で、修正依頼と質問は会話で行います（[ADR-0017](../maintainer-guide/decisions/0017-chat-centered-review-and-size-limit.md)、[ADR-0018](../maintainer-guide/decisions/0018-ui-as-reading-and-record.md)）。
 
-- 依頼票の先頭に依存の図を出す。箱はシンボル、矢印は使う側から使われる側へ。箱を押すとそのコードへ移る。変わっていない依存のコードは畳み、図や「コードを表示」で開く（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)）
+- 依頼票の先頭に依存の図を出す。箱はシンボル、矢印は使う側から使われる側へ。箱を押すとそのコードへ移る。変わっていない依存と呼び出し元のコードは畳み、図や「コードを表示」で開く。呼び出し元は図の右の列に点線の枠で出す（[ADR-0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)、[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)）
 - コード行をクリックすると位置（`<依頼ID> <参照>`）をコピーする。Shift+クリックで行範囲にする。会話に貼って話す
 - 各依頼の「承認」「保留」は、押したらすぐ記録する。未回答の依頼が2件以上なら「まとめて承認」を出す
 - 保留中・回答待ちの依頼は「未回答に戻す」で未回答に戻し、回答し直す

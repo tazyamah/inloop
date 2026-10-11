@@ -2,7 +2,7 @@
 // AIが書いたもののうち使うのは、観点の文と対象のシンボルIDだけ。構造はすべてここで決める。
 import { baseOf, changedLines, checkBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
-import type { ReviewEdge, ReviewPacket, ReviewStep } from "../server/types.js";
+import type { ReviewCaller, ReviewEdge, ReviewPacket, ReviewStep } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
 export const BUDGET_LIMIT = 40;
@@ -103,6 +103,7 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
       changedLines: rel,
     };
   });
+  const callers = callersOf(project, review, steps, [...all.values()], edges);
   return {
     id: review.id,
     group: review.group,
@@ -113,7 +114,8 @@ function packetOf(project: TsProject, review: PlannedReview, range: string, chan
     requestedSymbols: review.symbols,
     range,
     steps,
-    edges: sortEdges(edges, steps),
+    edges: sortEdges(edges, steps, callers),
+    callers,
     unresolved: [...new Set(unresolved)],
     evidence: [],
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },
@@ -148,8 +150,41 @@ function order(decls: Declaration[], deps: Map<string, string[]>): Declaration[]
 
 const KIND_ORDER: ReviewEdge["kind"][] = ["call", "new", "inherit", "type"];
 
-/** 同じ入力から同じ並びになるよう、使う側・使われる側の理解順、種類の順に並べる。 */
-function sortEdges(edges: ReviewEdge[], steps: ReviewStep[]): ReviewEdge[] {
-  const pos = new Map(steps.map((s) => [s.symbol, s.order]));
+/**
+ * 呼び出し元（ADR-0021）。AIが指定したシンボルと、変わったシンボルを呼び出す（newを含む）、リポジトリの宣言を1段だけ探す。
+ * 並べたシンボル（steps）と、それを含む・それに含まれる宣言（クラスとそのメソッド）は除く。
+ * 使う関係はedgesに足す（fromが呼び出し元）。数の上限は設けない（画面の側で省かない、R4）。
+ */
+function callersOf(project: TsProject, review: PlannedReview, steps: ReviewStep[], shown: Declaration[], edges: ReviewEdge[]): ReviewCaller[] {
+  const targets = new Set([...review.symbols, ...steps.filter((s) => s.change !== "unchanged").map((s) => s.symbol)]);
+  // 名前が本文に現れない宣言は、使っていないので解析しない。コンストラクターはクラス名で現れる。
+  const names = [...targets].map((id) => {
+    const parts = id.slice(id.indexOf("#") + 1).split(".");
+    return parts.at(-1) === "constructor" ? parts[0]! : parts.at(-1)!;
+  });
+  const out: ReviewCaller[] = [];
+  for (const file of project.repoFiles()) {
+    const decls = project.declarationsOf(file);
+    for (const d of decls) {
+      if (shown.some((x) => x.id === d.id || overlaps(x, d))) continue;
+      // クラスのように、ほかの宣言を含む宣言は、中のメンバーの側で数える。
+      if (decls.some((x) => x !== d && inside(x, d))) continue;
+      if (!names.some((n) => d.code.includes(n))) continue;
+      // 呼び出しとnewだけを数える。型として参照しているだけの宣言まで入れると、型を変えたときに数が膨らむ。
+      const uses = project.references(d).uses.filter((u) => targets.has(u.to) && (u.kind === "call" || u.kind === "new"));
+      if (uses.length === 0) continue;
+      out.push({ symbol: d.id, file: d.file, startLine: d.startLine, code: d.code });
+      for (const u of uses) edges.push({ from: d.id, to: u.to, kind: u.kind });
+    }
+  }
+  return out;
+}
+
+const inside = (a: Declaration, b: Declaration) => a.file === b.file && a.start >= b.start && a.end <= b.end;
+const overlaps = (a: Declaration, b: Declaration) => inside(a, b) || inside(b, a);
+
+/** 同じ入力から同じ並びになるよう、使う側・使われる側の理解順、種類の順に並べる。呼び出し元は並べたシンボルの後、見つけた順。 */
+function sortEdges(edges: ReviewEdge[], steps: ReviewStep[], callers: ReviewCaller[]): ReviewEdge[] {
+  const pos = new Map([...steps.map((s) => [s.symbol, s.order] as const), ...callers.map((c, i) => [c.symbol, steps.length + 1 + i] as const)]);
   return edges.sort((a, b) => pos.get(a.from)! - pos.get(b.from)! || pos.get(a.to)! - pos.get(b.to)! || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
 }

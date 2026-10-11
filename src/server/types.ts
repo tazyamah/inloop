@@ -27,13 +27,24 @@ export interface ReviewStep {
 
 /**
  * 依頼票に並べたシンボルどうしの「使う」関係（ADR-0020）。fromがtoを使う。
- * 解析エンジンがコードから決める。両端は必ずstepsのシンボル。
+ * 解析エンジンがコードから決める。toは必ずstepsのシンボル、fromはstepsか呼び出し元（callers）のシンボル。
  */
 export interface ReviewEdge {
   from: string;
   to: string;
   /** 呼び出し、new（コンストラクター）、型としての参照、継承・実装 */
   kind: "call" | "new" | "type" | "inherit";
+}
+
+/**
+ * 依頼票に並べたシンボルを使っている、リポジトリの別のシンボル（呼び出し元、ADR-0021）。1段だけ。
+ * stepsには入れない（理解順の対象ではなく、影響範囲として見せる）。使う関係はedgesにfromとして入る。
+ */
+export interface ReviewCaller {
+  symbol: string;
+  file: string;
+  startLine: number;
+  code: string;
 }
 
 export interface Evidence {
@@ -68,6 +79,11 @@ export interface ReviewPacket {
    * この項目がない依頼票（ADR-0020より前の記録）は、関係を記録していないので図を出さない。
    */
   edges?: ReviewEdge[];
+  /**
+   * 呼び出し元（ADR-0021）。AIが指定したシンボルと変わったシンボルを使っている、stepsにないシンボル。
+   * この項目がない依頼票（ADR-0021より前の記録）は、呼び出し元を調べていない。
+   */
+  callers?: ReviewCaller[];
   /** 解析で解決できなかった参照 */
   unresolved: string[];
   evidence: Evidence[];
