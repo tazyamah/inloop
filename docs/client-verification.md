@@ -60,6 +60,8 @@ inloop update                      # inloopを更新してビルドし直す（�
 claude mcp add inloop -- <node> <repo>/dist/server/main.js --state-dir <state>
 ```
 
+`inloop init`と`inloop new`は、リポジトリに`.mcp.json`（`inloop mcp --ui browser`を`PATH`の`inloop`で起動する登録）を書きます。Claude Codeでそのリポジトリを開けば、上の登録をしなくても使えます（初回は、このサーバーを使ってよいかを聞かれる）。Claude CodeはMCPサーバーにシェルの`PATH`を渡すので（2026-10-11に確認）、シェルの設定で`<repo>/bin`に`PATH`を通しておきます。
+
 Claudeデスクトップアプリの中のClaude Codeは、レビューUIを会話に表示しない（2026-10-11）。ブラウザで開く経路（[ADR-0012](../maintainer-guide/decisions/0012-browser-ui-path.md)）を使います。Claude Desktopの設定にも`inloop`がある場合は、そちらが呼ばれるので、別の名前で登録します。
 
 ```sh

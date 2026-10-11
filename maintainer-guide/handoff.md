@@ -196,6 +196,15 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 検証: `npm test`が41 pass・6 skip・fail 0（追加はstdio2件の拡張と`inloop new`1件）。`INLOOP_UI_E2E=1`で全47件pass。`inloop new demo-app`で作ったリポジトリで、`npm install`、`npm test`（2 pass）、`npm run build`（型検査と画面のビルド）が通り、`npm start`相当でサーバーを起動して`/api/health`・メモの追加と一覧・ビルドした画面の表示（ブラウザペインでReactの描画とメモの表示）を確かめた。`npm run dev`は確かめていない。
 
+### 2026-10-11 .mcp.jsonの作成
+
+- `inloop init`と`inloop new`が、リポジトリの`.mcp.json`に`inloop`（`command: "inloop"`、`args: ["mcp", "--ui", "browser"]`）を書く。ほかのサーバーの登録は残し、同じ内容なら書き直さない。端末固有のパスを含めないので、commitしてよい。
+- Claudeデスクトップアプリの中のClaude Codeは、MCPサーバーにシェルの`PATH`（nvmのnodeや`~/.local/bin`を含む）を渡していた。`inloop`を使うには、シェルの設定で`<inloopのclone>/bin`に`PATH`を通す。
+- inloopリポジトリ自身にも`bin/inloop init .`で`.mcp.json`を置いた。
+- 名前の重なり: Claude Desktopの設定に`inloop`があると、Claudeデスクトップアプリの中のClaude Codeでは、そちらが呼ばれる（2026-10-11）。`.mcp.json`の`inloop`を使うには、Claude Desktopの設定の`inloop`を外す必要がある。
+
+検証: `npm test`が42 pass・6 skip・fail 0（`.mcp.json`のテストを追加）。実際のクライアントで`.mcp.json`から起動することは未検証。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -275,7 +284,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 ## 次の一手
 
 1. Claude Desktopで、ADR-0010の実装を確かめる。`--state-dir`を外したときに、AIが`repo`を渡すか、UIに`_meta`が届くか。
-2. `inloop`コマンドの残り: `.mcp.json`の作成、inloopの設定ファイルの形式、手元で動くアプリの雛形（Tauri＋同梱のHono）、PostgreSQLの雛形。
+2. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形（Tauri＋同梱のHono）、PostgreSQLの雛形。
 3. Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業を確かめる。あわせて、`follows`での再依頼と「未回答に戻す」を確かめる。
 4. TypeScriptのシンボル解析と理解順の並べ替えを、inloop自身のコードを対象に作り始め、固定データを置き換える。シンボルIDの表記もここで決める。
 5. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。`required`の依頼の再依頼で、AIが種別を外せないことをサーバーで保証する。

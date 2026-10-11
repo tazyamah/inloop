@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "inloop": {
+      "command": "inloop",
+      "args": [
+        "mcp",
+        "--ui",
+        "browser"
+      ]
+    }
+  }
+}

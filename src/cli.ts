@@ -29,7 +29,18 @@ function option(args: string[], name: string): string | undefined {
   return v;
 }
 
-/** リポジトリを登録し、記録の置き場所を用意する（ADR-0011、ADR-0013）。 */
+/** Claude Code向けに、そのリポジトリでinloopを使う登録（.mcp.json）を書く。ほかのサーバーの登録は残す。 */
+function writeMcpJson(repo: string): boolean {
+  const file = join(repo, ".mcp.json");
+  const data = existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as { mcpServers?: Record<string, unknown> }) : {};
+  const want = { command: "inloop", args: ["mcp", "--ui", "browser"] };
+  if (JSON.stringify(data.mcpServers?.inloop) === JSON.stringify(want)) return false;
+  data.mcpServers = { ...(data.mcpServers ?? {}), inloop: want };
+  writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+  return true;
+}
+
+/** リポジトリを登録し、記録の置き場所とClaude Code向けの登録を用意する（ADR-0011、ADR-0013）。 */
 function init(args: string[]): void {
   const name = option(args, "--name");
   if (args.length > 1) throw new Error(`知らない引数 ${args.slice(1).join(" ")}`);
@@ -37,7 +48,8 @@ function init(args: string[]): void {
   const dir = join(repo, ".inloop");
   mkdirSync(dir, { recursive: true });
   if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
-  process.stdout.write(`登録しました: ${n} → ${repo}\n画面: ${appOrigin(n, uiPort())}/r/<依頼ID>\n`);
+  const wrote = writeMcpJson(repo);
+  process.stdout.write(`登録しました: ${n} → ${repo}\n画面: ${appOrigin(n, uiPort())}/r/<依頼ID>\n${wrote ? ".mcp.json に inloop を書きました（Claude Code がこのリポジトリで inloop を使う）\n" : ""}`);
 }
 
 /** 雛形を写す。`__APP_NAME__`をアプリ名に置き換え、`gitignore`は`.gitignore`にする。 */

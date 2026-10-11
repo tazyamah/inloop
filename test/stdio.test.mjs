@@ -173,10 +173,22 @@ test("inloop newは、標準の構成のリポジトリを作って登録する"
   assert.equal(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).name, "my-app");
   assert.ok(!readFileSync(join(dir, "web/index.html"), "utf8").includes("__APP_NAME__"));
   assert.deepEqual(JSON.parse(readFileSync(join(home, "apps.json"), "utf8")).apps, { "my-app": dir });
+  // Claude Code向けの登録。端末固有のパスを含めない（PATHのinloopを使う）。
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")), { mcpServers: { inloop: { command: "inloop", args: ["mcp", "--ui", "browser"] } } });
 
   assert.match(run("new", "My App").stderr, /アプリ名「my-app」は .* が使っている/);
   assert.match(run("new", "My App", "--name", "other").stderr, /空ではない/);
   assert.match(run("new", "x", "--db", "postgres").stderr, /--db postgres の雛形は、まだない/);
   assert.match(run("new", "y", "--desktop").stderr, /Tauri）の雛形は、まだない/);
   assert.equal(run("new").status, 1);
+});
+
+test("inloop initは、既存の.mcp.jsonのほかのサーバーを残してinloopを足す", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const repo = gitRepo();
+  writeFileSync(join(repo, ".mcp.json"), JSON.stringify({ mcpServers: { other: { command: "x" } } }));
+  const run = () => spawnSync(process.execPath, [BIN, "init", repo], { encoding: "utf8", env: { ...process.env, INLOOP_HOME: home } });
+  assert.match(run().stdout, /\.mcp\.json に inloop を書きました/);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(repo, ".mcp.json"), "utf8")).mcpServers), ["other", "inloop"]);
+  assert.doesNotMatch(run().stdout, /\.mcp\.json/, "同じ内容なら書き直さない");
 });
