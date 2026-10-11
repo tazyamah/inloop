@@ -30,13 +30,7 @@ export function checkBase(repo: string, base: string): void {
  * 基点にないファイル（新しいファイル、gitが追跡していないファイル）は、すべての行が追加。
  */
 export function changedLines(repo: string, base: string, file: string, lineCount: number): Set<number> {
-  let existed = true;
-  try {
-    git(repo, ["cat-file", "-e", `${base}:${file}`]);
-  } catch {
-    existed = false;
-  }
-  if (!existed) return new Set(Array.from({ length: lineCount }, (_, i) => i + 1));
+  if (fileAtBase(repo, base, file) === undefined) return new Set(Array.from({ length: lineCount }, (_, i) => i + 1));
   const out = git(repo, ["diff", "--no-color", "--no-ext-diff", "-U0", base, "--", file]);
   const lines = new Set<number>();
   for (const m of out.matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
@@ -45,6 +39,34 @@ export function changedLines(repo: string, base: string, file: string, lineCount
     for (let i = 0; i < count; i++) lines.add(start + i);
   }
   return lines;
+}
+
+/**
+ * 基点から作業ツリーまでに変わったファイル（ADR-0020）。追跡していない新しいファイルを含む。
+ * 名前の変更は、消したファイルと追加したファイルとして扱う。パスの順。
+ */
+export function changedFiles(repo: string, base: string): { path: string; deleted: boolean }[] {
+  const out = new Map<string, boolean>();
+  const list = (args: string[]) => git(repo, args).split("\0").filter((p) => p !== "");
+  if (base === "HEAD" && !hasCommits(repo)) {
+    for (const p of list(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])) out.set(p, false);
+  } else {
+    const entries = list(["diff", "--no-color", "--no-ext-diff", "--no-renames", "--name-status", "-z", base]);
+    for (let i = 0; i + 1 < entries.length; i += 2) out.set(entries[i + 1]!, entries[i]!.startsWith("D"));
+    for (const p of list(["ls-files", "-z", "--others", "--exclude-standard"])) out.set(p, false);
+  }
+  return [...out].map(([path, deleted]) => ({ path, deleted })).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+/** 基点のファイルの中身。基点にない（コミットがない場合を含む）ならundefined。 */
+export function fileAtBase(repo: string, base: string, file: string): Buffer | undefined {
+  if (base === "HEAD" && !hasCommits(repo)) return undefined;
+  try {
+    git(repo, ["cat-file", "-e", `${base}:${file}`]);
+  } catch {
+    return undefined;
+  }
+  return execFileSync("git", ["-C", repo, "cat-file", "blob", `${base}:${file}`], { stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024 });
 }
 
 function hasCommits(repo: string): boolean {

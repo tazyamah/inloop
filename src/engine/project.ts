@@ -5,7 +5,7 @@ import { join, relative, sep } from "node:path";
 import { SyntaxKind } from "typescript/unstable/ast";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import { API, SymbolFlags } from "typescript/unstable/sync";
-import type { Checker, Project } from "typescript/unstable/sync";
+import type { Checker, Project, Symbol as TsSymbol } from "typescript/unstable/sync";
 
 /** シンボルの宣言。IDは`リポジトリからのパス#名前`、クラスのメンバーは`.`でつなぐ（ADR-0015）。 */
 export interface Declaration {
@@ -28,6 +28,24 @@ export interface References {
   internal: string[];
   /** 解決できなかった呼び出し（`file:line 式`） */
   unresolved: string[];
+}
+
+/** importした名前と、リポジトリの外の名前の使用（信頼境界ルールの判定に使う、ADR-0020）。 */
+export interface Uses {
+  /**
+   * importした名前。名前付きimportは元の名前。名前空間・既定のimportは、`x.名前`と使えばその名前、
+   * そのまま使えば`*`・`default`。動的import（`import("m")`）は`*`。
+   */
+  imports: { module: string; name: string }[];
+  /** リポジトリの外で宣言された、または宣言までたどれない名前。プロパティの連なりは`.`でつなぐ（`process.env`）。 */
+  globals: string[];
+}
+
+/** ファイルの最上位の文のうち、宣言でもimport・exportの宣言でもないもの（ADR-0020）。 */
+export interface TopLevel {
+  nodes: Node[];
+  /** 文が占める行（1始まり） */
+  lines: Set<number>;
 }
 
 export class TsProject {
@@ -64,12 +82,16 @@ export class TsProject {
     return relative(this.repo, file).split(sep).join("/");
   }
 
+  /** プロジェクトに含まれる、リポジトリのファイルか。 */
+  has(relFile: string): boolean {
+    return this.files.has(join(this.repo, relFile).toLowerCase());
+  }
+
   /** リポジトリのファイルの宣言の一覧。トップレベルの宣言と、クラスのメンバー。 */
   declarationsOf(relFile: string): Declaration[] {
     const cached = this.declarations.get(relFile);
     if (cached) return cached;
-    const abs = this.files.get(join(this.repo, relFile).toLowerCase());
-    const sf = abs ? this.project.program.getSourceFile(abs) : undefined;
+    const sf = this.sourceOf(relFile);
     const out: Declaration[] = [];
     if (sf) {
       const add = (name: string, node: Node) => {
@@ -110,6 +132,26 @@ export class TsProject {
     return out;
   }
 
+  /**
+   * ファイルの最上位の文のうち、宣言として一覧に出ないもの（`serve(...)`、`export default app`など）。
+   * import・exportの宣言（`export { a } from`）は、それ自体では何も実行しないので含めない。
+   */
+  topLevel(relFile: string): TopLevel {
+    const sf = this.sourceOf(relFile);
+    const out: TopLevel = { nodes: [], lines: new Set() };
+    if (!sf) return out;
+    const decls = this.declarationsOf(relFile);
+    sf.forEachChild((n) => {
+      if (n.kind === SyntaxKind.EndOfFile || NOT_CODE.has(n.kind)) return;
+      if (decls.some((d) => d.node === n || (n.kind === SyntaxKind.VariableStatement && d.node.pos >= n.pos && d.end <= n.end))) return;
+      out.nodes.push(n);
+      const first = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+      const last = sf.getLineAndCharacterOfPosition(n.end).line + 1;
+      for (let l = first; l <= last; l++) out.lines.add(l);
+    });
+    return out;
+  }
+
   /** シンボルIDから宣言を探す。なければundefined。 */
   find(id: string): Declaration | undefined {
     const i = id.indexOf("#");
@@ -132,6 +174,11 @@ export class TsProject {
    * リポジトリの外（node_modules、標準ライブラリ）の宣言は、どちらにも含めない。
    */
   references(decl: Declaration): References {
+    return this.referencesIn(decl.file, [decl.node], decl);
+  }
+
+  /** 最上位の文（topLevel）など、宣言ではないノードの中の参照。 */
+  referencesIn(relFile: string, nodes: Node[], self?: Declaration): References {
     // nodeは宣言をたどる名前、shownは未解決のときに示す式。
     const sites: { node: Node; shown: Node; call: boolean; construct?: boolean }[] = [];
     const walk = (n: Node) => {
@@ -147,10 +194,13 @@ export class TsProject {
       }
       n.forEachChild(walk);
     };
-    decl.node.forEachChild(walk);
+    for (const node of nodes) {
+      if (self) node.forEachChild(walk);
+      else walk(node);
+    }
     const targets = sites.map((s) => (s.node.kind === SyntaxKind.QualifiedName ? (s.node as unknown as { right: Node }).right : s.node));
     const symbols = targets.length > 0 ? this.checker.getSymbolAtLocation(targets) : [];
-    const sf = this.sourceOf(decl.file)!;
+    const sf = this.sourceOf(relFile)!;
     const internal = new Set<string>();
     const unresolved: string[] = [];
     symbols.forEach((sym, i) => {
@@ -161,7 +211,7 @@ export class TsProject {
         if (sites[i]!.call) {
           const at = sites[i]!.shown.getStart(sf);
           const text = sf.text.slice(at, sites[i]!.shown.end).replace(/\s+/g, " ");
-          unresolved.push(`${decl.file}:${sf.getLineAndCharacterOfPosition(at).line + 1} ${text.length > 60 ? `${text.slice(0, 60)}…` : text}`);
+          unresolved.push(`${relFile}:${sf.getLineAndCharacterOfPosition(at).line + 1} ${text.length > 60 ? `${text.slice(0, 60)}…` : text}`);
         }
         return;
       }
@@ -170,7 +220,7 @@ export class TsProject {
       const node = handle.resolve();
       if (!node) return;
       let target = this.enclosing(this.rel(abs), node.pos + 1);
-      if (!target || target.id === decl.id || inside(target, decl)) return;
+      if (!target || (self && (target.id === self.id || inside(target, self)))) return;
       if (target.node.kind === SyntaxKind.ClassDeclaration) {
         // クラスは大きいので、丸ごとは並べない。newならコンストラクター、型としての参照なら並べない。
         // 使うメソッドは、呼び出しから個別に並ぶ。
@@ -180,13 +230,69 @@ export class TsProject {
       }
       internal.add(target.id);
     });
-    // 出てきた順（同じ入力からは同じ順）。上限で省くときは、後に出てきたものから省く。
+    // 出てきた順（同じ入力からは同じ順）。
     return { internal: [...internal], unresolved: [...new Set(unresolved)] };
+  }
+
+  /**
+   * ノードの中で使っている、importした名前と、リポジトリの外の名前（ADR-0020）。
+   * importかどうかは型の解決でたどり、同じ名前の別の変数とは区別する。
+   */
+  uses(nodes: Node[]): Uses {
+    const roots: { id: Node; chain: string[] }[] = [];
+    const imports: { module: string; name: string }[] = [];
+    const walk = (n: Node) => {
+      if (n.kind === SyntaxKind.CallExpression) {
+        const c = n as unknown as { expression: Node; arguments: Node[] };
+        const arg = c.arguments[0];
+        if (c.expression.kind === SyntaxKind.ImportKeyword && arg && stringOf(arg) !== undefined) imports.push({ module: stringOf(arg)!, name: "*" });
+      }
+      if (n.kind === SyntaxKind.Identifier || n.kind === SyntaxKind.PropertyAccessExpression || n.kind === SyntaxKind.ElementAccessExpression || n.kind === SyntaxKind.QualifiedName) {
+        const c = chainOf(n);
+        if (c) roots.push(c);
+        // プロパティの名前（a.fetchのfetch）は、それだけでは名前の使用として数えない。
+        if (n.kind === SyntaxKind.PropertyAccessExpression) { walk((n as unknown as { expression: Node }).expression); return; }
+        if (n.kind === SyntaxKind.QualifiedName) { walk((n as unknown as { left: Node }).left); return; }
+        if (n.kind === SyntaxKind.Identifier) return;
+      }
+      n.forEachChild(walk);
+    };
+    for (const node of nodes) walk(node);
+    const ids = [...new Set(roots.map((r) => r.id))];
+    const symbols = ids.length > 0 ? this.checker.getSymbolAtLocation(ids) : [];
+    const symbolOf = new Map(ids.map((id, i) => [id, symbols[i]]));
+    const globals = new Set<string>();
+    // 同じ名前の位置からは、連なりの長さの違うもの（fs.readFileSyncとfs）が出る。importには最も長いものを使う。
+    const longest = new Map<Node, number>();
+    for (const r of roots) longest.set(r.id, Math.max(longest.get(r.id) ?? 0, r.chain.length));
+    for (const r of roots) {
+      const s = symbolOf.get(r.id);
+      if (s && s.flags & SymbolFlags.Alias) {
+        if (r.chain.length < longest.get(r.id)!) continue;
+        const imp = importOf(s);
+        if (imp) imports.push({ module: imp.module, name: imp.name ?? r.chain[1] ?? imp.whole });
+        continue;
+      }
+      const handle = s?.declarations?.[0];
+      // リポジトリの中で宣言された名前（ローカル変数、引数、自分の関数）は、外の名前ではない。
+      if (handle && this.files.has(String(handle.path).toLowerCase())) continue;
+      globals.add(r.chain.join("."));
+    }
+    const seen = new Set<string>();
+    return {
+      imports: imports.filter((i) => { const k = `${i.module}\0${i.name}`; if (seen.has(k)) return false; seen.add(k); return true; }),
+      globals: [...globals],
+    };
   }
 
   /** ファイルの行数。 */
   lineCount(relFile: string): number {
     return (this.sourceOf(relFile)?.text.split("\n").length) ?? 0;
+  }
+
+  /** ファイルの中身。プロジェクトにないファイルならundefined。 */
+  text(relFile: string): string | undefined {
+    return this.sourceOf(relFile)?.text;
   }
 
   private sourceOf(relFile: string): SourceFile | undefined {
@@ -209,6 +315,15 @@ const MEMBER_KINDS = new Set<SyntaxKind>([
   SyntaxKind.GetAccessor,
   SyntaxKind.SetAccessor,
 ]);
+/** 最上位の文のうち、コードとして扱わないもの（ADR-0020）。 */
+const NOT_CODE = new Set<SyntaxKind>([
+  SyntaxKind.ImportDeclaration,
+  SyntaxKind.ImportEqualsDeclaration,
+  SyntaxKind.ExportDeclaration,
+  SyntaxKind.InterfaceDeclaration,
+  SyntaxKind.TypeAliasDeclaration,
+  SyntaxKind.EmptyStatement,
+]);
 
 function nameOf(n: Node): string | undefined {
   const name = (n as unknown as { name?: { kind: SyntaxKind; text?: string } }).name;
@@ -218,4 +333,55 @@ function nameOf(n: Node): string | undefined {
 /** aがbの中にある（クラスの中のメソッドなど）。 */
 function inside(a: Declaration, b: Declaration): boolean {
   return a.file === b.file && a.start >= b.start && a.end <= b.end;
+}
+
+/** 文字列のリテラルなら、その値。 */
+function stringOf(n: Node): string | undefined {
+  return n.kind === SyntaxKind.StringLiteral || n.kind === SyntaxKind.NoSubstitutionTemplateLiteral ? (n as unknown as { text: string }).text : undefined;
+}
+
+/** `a.b["c"]`の形なら、根の名前と連なり。そうでなければundefined。 */
+function chainOf(n: Node): { id: Node; chain: string[] } | undefined {
+  if (n.kind === SyntaxKind.Identifier) return { id: n, chain: [(n as unknown as { text: string }).text] };
+  if (n.kind === SyntaxKind.PropertyAccessExpression) {
+    const p = n as unknown as { expression: Node; name: Node };
+    const inner = chainOf(p.expression);
+    return inner && p.name.kind === SyntaxKind.Identifier ? { id: inner.id, chain: [...inner.chain, (p.name as unknown as { text: string }).text] } : inner;
+  }
+  if (n.kind === SyntaxKind.ElementAccessExpression) {
+    const e = n as unknown as { expression: Node; argumentExpression: Node };
+    const inner = chainOf(e.expression);
+    const key = stringOf(e.argumentExpression);
+    return inner && key !== undefined ? { id: inner.id, chain: [...inner.chain, key] } : inner;
+  }
+  if (n.kind === SyntaxKind.QualifiedName) {
+    const q = n as unknown as { left: Node; right: Node };
+    const inner = chainOf(q.left);
+    return inner ? { id: inner.id, chain: [...inner.chain, (q.right as unknown as { text: string }).text] } : undefined;
+  }
+  return undefined;
+}
+
+/** importの宣言にたどれる名前なら、モジュールと元の名前。 */
+function importOf(s: TsSymbol): { module: string; name?: string; whole: string } | undefined {
+  const node = s.declarations?.[0]?.resolve();
+  if (!node) return undefined;
+  let name: string | undefined;
+  let whole = "*";
+  if (node.kind === SyntaxKind.ImportSpecifier) {
+    const sp = node as unknown as { propertyName?: Node; name: Node };
+    name = ((sp.propertyName ?? sp.name) as unknown as { text: string }).text;
+  } else if (node.kind === SyntaxKind.ImportClause) {
+    whole = "default";
+  } else if (node.kind === SyntaxKind.ImportEqualsDeclaration) {
+    const ref = (node as unknown as { moduleReference: Node }).moduleReference;
+    const m = ref.kind === SyntaxKind.ExternalModuleReference ? stringOf((ref as unknown as { expression: Node }).expression) : undefined;
+    return m === undefined ? undefined : { module: m, whole };
+  } else if (node.kind !== SyntaxKind.NamespaceImport) {
+    return undefined;
+  }
+  let p: Node | undefined = node;
+  while (p && p.kind !== SyntaxKind.ImportDeclaration) p = p.parent;
+  const m = p ? stringOf((p as unknown as { moduleSpecifier: Node }).moduleSpecifier) : undefined;
+  return m === undefined ? undefined : { module: m, name, whole };
 }

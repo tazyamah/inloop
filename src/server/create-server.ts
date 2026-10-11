@@ -164,14 +164,15 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
   // 1回の呼び出しで渡された依頼は、1つのUIからまとめて回答できる（ADR-0008）。
   // followsを付けた依頼は再依頼で、元のIDに枝番を足したIDになる（ADR-0009）。
   // ブラウザで開く経路では、画面のURLも返す（ADR-0010）。
+  // 信頼境界ルールに当たった変更の必須の依頼は、エンジンが同じ呼び出しに加え、末尾に`required:`で示す（ADR-0020）。
   registerAppTool(
     server,
     "request_review",
     {
       title: "Request human review",
       description: browserUrl
-        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns IDs and a url: open it in a browser for the human, then end your turn and continue in chat."
-        : "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns only IDs. Answers arrive later as a user message.",
+        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Rule-required reviews are added automatically (required:); reviews may be empty to get only those. Returns IDs and a url: open it in a browser for the human, then end your turn and continue in chat."
+        : "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Rule-required reviews are added automatically (required:); reviews may be empty to get only those. Returns only IDs. Answers arrive later as a user message.",
       inputSchema: z.object({
         reviews: z
           .array(
@@ -181,7 +182,6 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
               follows: z.string().max(30).optional(),
             }),
           )
-          .min(1)
           .max(10),
         range: z.string().max(100).optional(),
         repo: repoParam,
@@ -209,23 +209,28 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
       // 画面を出せることを確かめてから、記録の置き場所を開く。
       const { store } = targets.open(t);
       let ids: string[];
+      let required: string[];
       try {
-        ids = store.create(reviews, range ?? "HEAD").map((p) => p.id);
+        const packets = store.create(reviews, range ?? "HEAD");
+        ids = packets.map((p) => p.id);
+        required = packets.filter((p) => p.kind === "required" && !p.fixture).map((p) => p.id);
       } catch (e) {
         // 観点も元の依頼もない、元の依頼が存在しない、など。何も記録していない。
         const t = (e as Error).message;
         logModelBound("request_review_error", t);
         return error(t);
       }
+      const req = required.length > 0 ? ` required:${required.join(",")}` : "";
+      const reqContent = required.length > 0 ? { required } : {};
       if (base !== undefined) {
         const url = `${base}/r/${ids[0]}`;
-        const out = `${ids.join(" ")} pending ${url}`;
+        const out = `${ids.join(" ")} pending ${url}${req}`;
         logModelBound("request_review", out);
-        return { ...text(out), structuredContent: { ids, url }, ...meta };
+        return { ...text(out), structuredContent: { ids, url, ...reqContent }, ...meta };
       }
-      const out = `${ids.join(" ")} pending`;
+      const out = `${ids.join(" ")} pending${req}`;
       logModelBound("request_review", out);
-      return { ...text(out), structuredContent: { ids }, ...meta };
+      return { ...text(out), structuredContent: { ids, ...reqContent }, ...meta };
     },
   );
 

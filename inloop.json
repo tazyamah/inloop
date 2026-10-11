@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "boundaries": [
+    {
+      "id": "env",
+      "question": "環境変数の値を、AIの文脈、ログ、記録に出していないか",
+      "match": [
+        {
+          "global": "process.env"
+        }
+      ]
+    },
+    {
+      "id": "fs-write",
+      "question": "書き込む場所は決まっているか（対象のリポジトリの.inloop/、~/.inloop/、雛形の写し先）。追記専用の記録を書き換えていないか",
+      "match": [
+        {
+          "import": "node:fs",
+          "names": [
+            "writeFileSync",
+            "appendFileSync",
+            "renameSync",
+            "copyFileSync",
+            "mkdirSync",
+            "rmSync",
+            "unlinkSync",
+            "writeFile",
+            "appendFile"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "http-server",
+      "question": "画面のサーバーは、宛先（Host）と送信元（Origin）を確かめているか。AIが呼ぶツールをHTTPから呼べないか（ADR-0013）",
+      "match": [
+        {
+          "import": "node:http"
+        }
+      ]
+    },
+    {
+      "id": "process",
+      "question": "外部コマンド（git、npmなど）に渡す引数に、AIやUIからの値が混ざらないか",
+      "match": [
+        {
+          "import": "node:child_process"
+        }
+      ]
+    },
+    {
+      "id": "review-gate",
+      "question": "AIの判断で必須の依頼を省ける経路を作っていないか（ADR-0001、ADR-0020）。ルールの当て方を弱めていないか",
+      "match": [
+        {
+          "files": [
+            "src/engine/rules.ts",
+            "src/engine/boundaries.ts",
+            "src/server/check.ts"
+          ]
+        },
+        {
+          "symbols": [
+            "src/server/store.ts#ReviewStore.create",
+            "src/server/store.ts#ReviewStore.submit",
+            "src/server/store.ts#ReviewStore.apply",
+            "src/server/store.ts#ReviewStore.requiredHead"
+          ]
+        }
+      ]
+    }
+  ]
+}
