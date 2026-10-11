@@ -30,7 +30,7 @@ export interface References {
   unresolved: string[];
 }
 
-/** importした名前と、リポジトリの外の名前の使用（信頼境界ルールの判定に使う、ADR-0020）。 */
+/** importした名前と、リポジトリの外の名前の使用（信頼境界ルールの判定に使う、ADR-0022）。 */
 export interface Uses {
   /**
    * importした名前。名前付きimportは元の名前。名前空間・既定のimportは、`x.名前`と使えばその名前、
@@ -41,7 +41,7 @@ export interface Uses {
   globals: string[];
 }
 
-/** ファイルの最上位の文のうち、宣言でもimport・exportの宣言でもないもの（ADR-0020）。 */
+/** ファイルの最上位の文のうち、宣言でもimport・exportの宣言でもないもの（ADR-0022）。 */
 export interface TopLevel {
   nodes: Node[];
   /** 文が占める行（1始まり） */
@@ -235,7 +235,7 @@ export class TsProject {
   }
 
   /**
-   * ノードの中で使っている、importした名前と、リポジトリの外の名前（ADR-0020）。
+   * ノードの中で使っている、importした名前と、リポジトリの外の名前（ADR-0022）。
    * importかどうかは型の解決でたどり、同じ名前の別の変数とは区別する。
    */
   uses(nodes: Node[]): Uses {
@@ -315,7 +315,7 @@ const MEMBER_KINDS = new Set<SyntaxKind>([
   SyntaxKind.GetAccessor,
   SyntaxKind.SetAccessor,
 ]);
-/** 最上位の文のうち、コードとして扱わないもの（ADR-0020）。 */
+/** 最上位の文のうち、コードとして扱わないもの（ADR-0022）。 */
 const NOT_CODE = new Set<SyntaxKind>([
   SyntaxKind.ImportDeclaration,
   SyntaxKind.ImportEqualsDeclaration,

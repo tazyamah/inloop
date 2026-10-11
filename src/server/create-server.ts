@@ -164,7 +164,7 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
   // 1回の呼び出しで渡された依頼は、1つのUIからまとめて回答できる（ADR-0008）。
   // followsを付けた依頼は再依頼で、元のIDに枝番を足したIDになる（ADR-0009）。
   // ブラウザで開く経路では、画面のURLも返す（ADR-0010）。
-  // 信頼境界ルールに当たった変更の必須の依頼は、エンジンが同じ呼び出しに加え、末尾に`required:`で示す（ADR-0020）。
+  // 信頼境界ルールに当たった変更の必須の依頼は、エンジンが同じ呼び出しに加え、末尾に`required:`で示す（ADR-0022）。
   registerAppTool(
     server,
     "request_review",

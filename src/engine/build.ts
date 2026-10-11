@@ -1,6 +1,6 @@
 // 依頼票を、対象のリポジトリのコードから決定的に組み立てる（ADR-0002、ADR-0015）。
 // AIが書いたもののうち使うのは、観点の文と対象のシンボルIDだけ。構造はすべてここで決める。
-// 必須の依頼の観点は、AIではなく信頼境界ルールの問いから作る（ADR-0020）。
+// 必須の依頼の観点は、AIではなく信頼境界ルールの問いから作る（ADR-0022）。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BoundaryHit, evaluate, fileCode, loadRules } from "./boundaries.js";
@@ -17,7 +17,7 @@ export interface PlannedReview {
   group: string;
   viewpoint: string;
   symbols: string[];
-  /** 省略するとoptional。requiredは、信頼境界ルールによる必須の依頼（ADR-0020）。 */
+  /** 省略するとoptional。requiredは、信頼境界ルールによる必須の依頼（ADR-0022）。 */
   kind?: ReviewKind;
   triggeredBy?: string[];
 }
@@ -29,7 +29,7 @@ export interface BuildOptions {
    */
   maxLines?: number;
   /**
-   * 信頼境界ルールを範囲の変更に当て、当たった単位を渡して、必須の依頼を決めてもらう（ADR-0020）。
+   * 信頼境界ルールを範囲の変更に当て、当たった単位を渡して、必須の依頼を決めてもらう（ADR-0022）。
    * 返した依頼も、同じ解析で依頼票を作る。省略するとルールを当てない。
    */
   required?: (hits: BoundaryHit[]) => PlannedReview[];
@@ -93,7 +93,7 @@ interface Context {
   boundaries: Map<string, string[]>;
 }
 
-/** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0020）。 */
+/** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0022）。 */
 function exists(project: TsProject, repo: string, base: string, symbol: string): boolean {
   if (symbol.includes("#")) return project.find(symbol) !== undefined;
   return symbol !== "" && !symbol.startsWith("/") && !symbol.split("/").includes("..") &&
@@ -155,7 +155,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
 }
 
 /**
- * ファイルを指すシンボル（`#`のないID）の依頼票の並び（ADR-0020）。今のファイル全体を示す。
+ * ファイルを指すシンボル（`#`のないID）の依頼票の並び（ADR-0022）。今のファイル全体を示す。
  * 消したファイルと、inloop.jsonは、基点の中身も`<基点>:<パス>`として先に示す（変わった行だけでは、消した行が見えない）。
  */
 function fileSteps(ctx: Context, file: string): Omit<ReviewStep, "order">[] {

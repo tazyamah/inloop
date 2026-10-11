@@ -1,4 +1,4 @@
-// 信頼境界ルールを、範囲の変更に当てる（ADR-0001、ADR-0020）。同じコード・範囲・ルールからは、同じ結果になる。
+// 信頼境界ルールを、範囲の変更に当てる（ADR-0001、ADR-0022）。同じコード・範囲・ルールからは、同じ結果になる。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
@@ -40,7 +40,7 @@ export function fileCode(content: Buffer): string {
 }
 
 /**
- * 範囲の基点から作業ツリーまでの変更に、ルールを当てる（ADR-0020）。
+ * 範囲の基点から作業ツリーまでの変更に、ルールを当てる（ADR-0022）。
  * TypeScriptのファイルは宣言ごと（内側の宣言に含まれない変わった行を持つもの）に`import`・`global`・`symbols`で判定し、
  * `files`に当たったファイルと、最上位の文が変わってルールに当たったファイルは、ファイル全体を1つの単位にする。
  * TypeScript以外のファイルと消したファイルは、ファイルを1つの単位として`files`の当て方だけで判定する。

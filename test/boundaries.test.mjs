@@ -1,4 +1,4 @@
-// 信頼境界ルールと必須の依頼（ADR-0001、ADR-0020）。
+// 信頼境界ルールと必須の依頼（ADR-0001、ADR-0022）。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";

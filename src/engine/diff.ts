@@ -42,7 +42,7 @@ export function changedLines(repo: string, base: string, file: string, lineCount
 }
 
 /**
- * 基点から作業ツリーまでに変わったファイル（ADR-0020）。追跡していない新しいファイルを含む。
+ * 基点から作業ツリーまでに変わったファイル（ADR-0022）。追跡していない新しいファイルを含む。
  * 名前の変更は、消したファイルと追加したファイルとして扱う。パスの順。
  */
 export function changedFiles(repo: string, base: string): { path: string; deleted: boolean }[] {

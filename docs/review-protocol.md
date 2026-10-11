@@ -110,7 +110,7 @@ get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 
 ## 信頼境界ルールと必須の依頼
 
-信頼境界ルールは、対象のリポジトリ直下の`inloop.json`に書き、commitします（[ADR-0020](../maintainer-guide/decisions/0020-trust-boundary-rules.md)）。
+信頼境界ルールは、対象のリポジトリ直下の`inloop.json`に書き、commitします（[ADR-0022](../maintainer-guide/decisions/0022-trust-boundary-rules.md)）。
 
 ```json
 {
@@ -213,5 +213,5 @@ R13 ─ AIがfollowsで再依頼 ─► superseded（再依頼済み）
 - 間接の依存、レイヤーの判定、証拠（テスト・静的解析の結果）の取り込み
 - レビュー予算の単位（行数、シンボル数、判断箇所の数など）
 - 再依頼で、承認済みのシンボルとの差分だけを見せる仕組み
-- 承認後に対象シンボルの本文が変わったことの検出（検出したときは、系列の新しい依頼として表す）。必須の依頼は、`inloop check`と次の`request_review`で検出する（ADR-0020）
+- 承認後に対象シンボルの本文が変わったことの検出（検出したときは、系列の新しい依頼として表す）。必須の依頼は、`inloop check`と次の`request_review`で検出する（ADR-0022）
 - 記録ファイルの整理（古い記録の退避）と、複数プロセスからの同時の依頼作成

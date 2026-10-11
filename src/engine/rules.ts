@@ -1,4 +1,4 @@
-// 信頼境界ルール（ADR-0020）。リポジトリ直下のinloop.jsonに書き、commitする。
+// 信頼境界ルール（ADR-0022）。リポジトリ直下のinloop.jsonに書き、commitする。
 import { z } from "zod";
 
 /** inloopの設定ファイル。リポジトリ直下に置く。 */
@@ -60,7 +60,7 @@ export function parseConfig(text: string, where: string): Rule[] {
 }
 
 /**
- * 範囲の基点と作業ツリーのルールの和（ADR-0020）。同じidなら当て方を合わせ、問いは先に渡したほう（基点）を使う。
+ * 範囲の基点と作業ツリーのルールの和（ADR-0022）。同じidなら当て方を合わせ、問いは先に渡したほう（基点）を使う。
  * AIがルールを消したり弱めたりしても、その範囲では消す前のルールも働く。idの順に並べる。
  */
 export function mergeRules(...lists: Rule[][]): Rule[] {

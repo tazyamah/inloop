@@ -142,7 +142,7 @@ export class Targets {
       if (!existsSync(ignore)) writeFileSync(ignore, "*\n");
       // 依頼票は、このリポジトリのコードから解析エンジンで作る（ADR-0015）。
       // 行数の上限は利用者ごとの設定で、依頼のたびに読む（ADR-0017）。
-      // 信頼境界ルール（<対象>/inloop.json）に当たった変更には、必須の依頼が加わる（ADR-0020）。
+      // 信頼境界ルール（<対象>/inloop.json）に当たった変更には、必須の依頼が加わる（ADR-0022）。
       store = new ReviewStore({
         file: join(dir, LOG_FILE_NAME),
         build: (reviews, range, required) => buildPackets(top, reviews, range, { maxLines: userConfig().maxReviewLines, required }),

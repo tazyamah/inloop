@@ -55,7 +55,7 @@ export interface StoreOptions {
 }
 
 /**
- * 依頼票の作り方。requiredは、信頼境界ルールに当たった単位から必須の依頼を決める（ADR-0020）。
+ * 依頼票の作り方。requiredは、信頼境界ルールに当たった単位から必須の依頼を決める（ADR-0022）。
  * 解析エンジンは、ルールを当てた結果を渡して呼び、返った依頼の依頼票も作る。固定データでは使わない。
  * 返す依頼票のまとまり（group）は、ReviewStoreが決め直す。
  */
@@ -111,7 +111,7 @@ export class ReviewStore {
   /**
    * 1回の呼び出しで渡された依頼をまとめて作る。同じ呼び出しの依頼は同じまとまりになり、
    * 1つのUIからまとめて回答できる。別の呼び出しの依頼と同じまとまりにする手段はない。
-   * 信頼境界ルールに当たった変更の必須の依頼も、同じまとまりに加わる（ADR-0020）。itemsは空でもよい。
+   * 信頼境界ルールに当たった変更の必須の依頼も、同じまとまりに加わる（ADR-0022）。itemsは空でもよい。
    * followsのある依頼は再依頼で、元の依頼の系列に枝番を足したIDになり、それまでの
    * 最新の依頼は再依頼済みになる。不正な依頼が1つでもあれば何も記録しない。
    */
@@ -134,7 +134,7 @@ export class ReviewStore {
       const head = this.packets.get(idOf(root, branch))!;
       const id = idOf(root, branch + 1);
       if (head.kind === "required" && !head.fixture) {
-        // 必須の依頼は、種別・根拠のルール・対象・観点を引き継ぎ、AIは変えられない（ADR-0020）。
+        // 必須の依頼は、種別・根拠のルール・対象・観点を引き継ぎ、AIは変えられない（ADR-0022）。
         if (item.symbols !== undefined && !sameList(item.symbols, head.requestedSymbols)) errors.push(`${item.follows}: 必須の依頼の対象は変えられない`);
         if (item.viewpoint?.trim() && item.viewpoint !== head.viewpoint) errors.push(`${item.follows}: 必須の依頼の観点は変えられない`);
         return { id, group: "", viewpoint: head.viewpoint, symbols: head.requestedSymbols, kind: "required", triggeredBy: head.triggeredBy };
@@ -147,7 +147,7 @@ export class ReviewStore {
       };
     });
     if (errors.length > 0) throw new Error(errors.join("\n"));
-    // 信頼境界ルールに当たった単位ごとの必須の依頼（ADR-0020）。同じ単位の必須の系列があり、
+    // 信頼境界ルールに当たった単位ごとの必須の依頼（ADR-0022）。同じ単位の必須の系列があり、
     // 最新の依頼票のコードが今と同じなら作らない。違えば、その系列の再依頼にする。
     const required = (hits: BoundaryHit[]): PlannedReview[] => hits.flatMap((h): PlannedReview[] => {
       const head = this.requiredHead(h.symbol);
@@ -171,7 +171,7 @@ export class ReviewStore {
     return packets.map((p) => this.packets.get(p.id)!);
   }
 
-  /** そのシンボルだけを対象にした、必須の系列の最新の依頼（ADR-0020）。なければundefined。 */
+  /** そのシンボルだけを対象にした、必須の系列の最新の依頼（ADR-0022）。なければundefined。 */
   requiredHead(symbol: string): ReviewPacket | undefined {
     this.sync();
     let found: ReviewPacket | undefined;
@@ -540,7 +540,7 @@ function sameList(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
 
-/** 依頼票の、そのシンボルのコード。なければ空（消したファイル、ADR-0020）。 */
+/** 依頼票の、そのシンボルのコード。なければ空（消したファイル、ADR-0022）。 */
 export function codeOf(packet: ReviewPacket, symbol: string): string {
   return packet.steps.find((s) => s.symbol === symbol)?.code ?? "";
 }

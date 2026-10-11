@@ -1,4 +1,4 @@
-// 必須の依頼がすべて承認されているかを確かめる（ADR-0001、ADR-0020）。マージの前に、人やCIが動かす。記録は書かない。
+// 必須の依頼がすべて承認されているかを確かめる（ADR-0001、ADR-0022）。マージの前に、人やCIが動かす。記録は書かない。
 import { evaluate, loadRules } from "../engine/boundaries.js";
 import { baseOf, checkBase } from "../engine/diff.js";
 import { TsProject } from "../engine/project.js";
