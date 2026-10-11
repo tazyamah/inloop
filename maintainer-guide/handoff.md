@@ -180,7 +180,9 @@ ADR-0010との差異: ADR-0010は「依頼票に対象を記録し、UIの上部
 - ADR-0012のプロセスごとのポートと鍵（`src/server/browser.ts`）はなくした。`--ui browser`と`--state-dir`は併用できない。
 - 登録していないリポジトリへの依頼は、記録の置き場所を作る前に拒否する。
 
-検証: `npm test`が40 pass・6 skip・fail 0。`INLOOP_UI_E2E=1`（`playwright@1.56.0`、Chromium 149）で全46件pass。実プロセスのテストで、2つ目のMCPサーバーが動いている画面のサーバーを使い、URLが変わらないことを確かめた。inloopリポジトリを`bin/inloop init`で登録した（アプリ名`inloop`、URLは`http://inloop.inloop.localhost:4656/r/<ID>`）。実際のクライアントでは未検証。
+検証: `npm test`が40 pass・6 skip・fail 0。`INLOOP_UI_E2E=1`（`playwright@1.56.0`、Chromium 149）で全46件pass。実プロセスのテストで、2つ目のMCPサーバーが動いている画面のサーバーを使い、URLが変わらないことを確かめた。inloopリポジトリを`bin/inloop init`で登録した（アプリ名`inloop`、URLは`http://inloop.inloop.localhost:4656/r/<ID>`）。
+
+Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11）: 開き直すとMCPサーバーが画面のサーバーを別のプロセスとして起動し、`127.0.0.1`と`::1`の4656で待ち受けた。依頼R2のURL`http://inloop.inloop.localhost:4656/r/R2`をブラウザペインで開いて利用者が承認し、`wait`に`R2 ok`が届いた。もう一度アプリを開き直すと、MCPサーバーは新しいプロセスになったが、画面のサーバーは同じプロセスのまま残り、同じURLでR2の画面（承認済み）が開けた。
 
 未対応: 画面のサーバーを止める・作り直す手段がない（`inloop update`の後は、プロセスを手で終了する）。ログイン時の自動起動はない。
 
