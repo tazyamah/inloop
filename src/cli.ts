@@ -6,14 +6,14 @@ import { fileURLToPath } from "node:url";
 import { AppRegistry, uiPort } from "./server/apps.js";
 import { runMcp } from "./server/mcp.js";
 import { gitTopLevel } from "./server/target.js";
-import { appOrigin, probeUiServer, startUiServer } from "./server/ui-server.js";
+import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const USAGE = `使い方: inloop <コマンド>
 
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
-  server                                             画面のサーバーを前面で動かす
+  server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   update                                             inloopを更新してビルドし直す
@@ -46,11 +46,27 @@ function update(): void {
   run("git", ["pull", "--ff-only"]);
   run("npm", ["ci"]);
   run("npm", ["run", "build"]);
-  process.stdout.write("更新しました。動いている画面のサーバーとMCPサーバーは、起動し直すと新しい版になります。\n");
+  process.stdout.write("更新しました。画面のサーバーは、次の依頼か inloop server restart で新しい版になります。MCPサーバーは、AIクライアントで起動し直すと新しい版になります。\n");
 }
 
-async function server(): Promise<void> {
+async function server(args: string[]): Promise<void> {
   const port = uiPort();
+  const sub = args[0];
+  if (sub === "status") {
+    const running = await probeUiServer(port);
+    process.stdout.write(running ? `動いています（ポート${port}、pid ${running.pid}）\n` : `動いていません（ポート${port}）\n`);
+    return;
+  }
+  if (sub === "stop" || sub === "restart") {
+    if (!(await stopUiServer(port))) throw new Error("画面のサーバーを止められない");
+    if (sub === "stop") { process.stdout.write("止めました。\n"); return; }
+  }
+  if (sub === "start" || sub === "restart") {
+    await ensureUiServer(port);
+    process.stdout.write(`動いています（ポート${port}、pid ${(await probeUiServer(port))?.pid}）\n`);
+    return;
+  }
+  if (sub !== undefined) throw new Error(`知らない引数 ${sub}`);
   const running = await probeUiServer(port);
   if (running) {
     process.stdout.write(`画面のサーバーはすでに動いています（ポート${port}、pid ${running.pid}）\n`);
@@ -68,7 +84,7 @@ export async function main(argv: string[]): Promise<void> {
         await runMcp(args);
         return;
       case "server":
-        await server();
+        await server(args);
         return;
       case "init":
         init(args);

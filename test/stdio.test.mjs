@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +44,7 @@ test("実プロセスとしてstdioで起動し、依頼を受け付ける", asy
 
 const MAIN = fileURLToPath(new URL("../dist/server/main.js", import.meta.url));
 const BIN = fileURLToPath(new URL("../bin/inloop", import.meta.url));
+const UI_SERVER_JS = fileURLToPath(new URL("../dist/server/ui-server.js", import.meta.url));
 
 function freePort() {
   return new Promise((resolve) => {
@@ -129,6 +130,25 @@ test("--ui browserで、画面のサーバーを起動し、MCPサーバーが�
     assert.equal(second.text, `R2 pending http://appa.inloop.localhost:${port}/r/R2`);
     const again = await (await fetch(`http://127.0.0.1:${port}/_inloop/health`)).json();
     assert.equal(again.pid, pid, "2つ目のMCPサーバーは、動いている画面のサーバーを使う");
+
+    // ビルドし直した後（inloop update など）は、次の依頼で新しい版に作り直す。
+    const later = new Date(Date.now() + 5000);
+    utimesSync(UI_SERVER_JS, later, later);
+    const third = await requestOnce({ args: ["--ui", "browser", "--repo", repo], env: { ...env } });
+    assert.equal(third.text, `R3 pending http://appa.inloop.localhost:${port}/r/R3`);
+    const rebuilt = await (await fetch(`http://127.0.0.1:${port}/_inloop/health`)).json();
+    assert.notEqual(rebuilt.pid, pid, "古い版の画面のサーバーは作り直す");
+    pid = rebuilt.pid;
+
+    // inloop server で状態を見て、止めて、起動し直せる。
+    const cli = (...a) => spawnSync(process.execPath, [BIN, "server", ...a], { encoding: "utf8", env: { ...process.env, ...env } });
+    assert.match(cli("status").stdout, new RegExp(`動いています（ポート${port}、pid ${pid}）`));
+    assert.match(cli("stop").stdout, /止めました/);
+    pid = undefined;
+    assert.match(cli("status").stdout, /動いていません/);
+    assert.match(cli("start").stdout, /動いています/);
+    pid = (await (await fetch(`http://127.0.0.1:${port}/_inloop/health`)).json()).pid;
+    assert.equal((await httpGet(port, "/r/R3", `appa.inloop.localhost:${port}`)).status, 200, "起動し直しても同じURLで開ける");
   } finally {
     if (pid) process.kill(pid);
   }

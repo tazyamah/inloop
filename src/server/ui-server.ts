@@ -3,6 +3,7 @@
 // ブラウザ側の小さなホスト（src/ui/browser-host.ts）がMCP Appsのホストの役を務め（ADR-0012）、
 // UI専用のツールだけをHTTPで呼ぶ。鍵は使わず、HostとOriginを確かめる。
 import { spawn } from "node:child_process";
+import { statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
@@ -13,6 +14,14 @@ import { Targets } from "./target.js";
 const HOST_FILE = fileURLToPath(new URL("../ui/browser.html", import.meta.url));
 const UI_MAIN = fileURLToPath(new URL("./ui-main.js", import.meta.url));
 const MAX_BODY = 256 * 1024;
+const SELF = fileURLToPath(import.meta.url);
+
+/** ビルドの印。このファイルの更新時刻。動いている画面のサーバーが古い版かを見分ける。 */
+function currentBuild(): number {
+  return Math.floor(statSync(SELF).mtimeMs);
+}
+/** このプロセスが読み込んだビルド。 */
+const LOADED_BUILD = currentBuild();
 export const HEALTH_PATH = "/_inloop/health";
 
 export interface UiServer {
@@ -54,7 +63,7 @@ export async function startUiServer(options: { port: number; registry?: AppRegis
     if (url.pathname === HEALTH_PATH && req.method === "GET") {
       // ほかのinloopのプロセスが、このサーバーが動いているかを確かめるため。記録の中身は返さない。
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && host !== `[::1]:${port}`) return text(res, 403, "forbidden");
-      return send(res, 200, "application/json; charset=utf-8", JSON.stringify({ inloop: VERSION, pid: process.pid }));
+      return send(res, 200, "application/json; charset=utf-8", JSON.stringify({ inloop: VERSION, pid: process.pid, build: LOADED_BUILD }));
     }
     // 宛先の名前が、登録したアプリの<名前>.inloop.localhost:<ポート>であること（DNS rebinding対策）。
     const m = /^([a-z0-9-]+)\.inloop\.localhost:(\d+)$/.exec(host);
@@ -125,24 +134,46 @@ export async function startUiServer(options: { port: number; registry?: AppRegis
   };
 }
 
+export interface RunningUiServer { inloop: string; pid: number; build?: number }
+
 /** 画面のサーバーが動いていれば、そのプロセスの情報を返す。 */
-export async function probeUiServer(port: number): Promise<{ inloop: string; pid: number } | undefined> {
+export async function probeUiServer(port: number): Promise<RunningUiServer | undefined> {
   try {
     const res = await fetch(`http://127.0.0.1:${port}${HEALTH_PATH}`, { signal: AbortSignal.timeout(1000) });
     if (!res.ok) return undefined;
-    const data = (await res.json()) as { inloop?: unknown; pid?: unknown };
-    return typeof data.inloop === "string" && typeof data.pid === "number" ? { inloop: data.inloop, pid: data.pid } : undefined;
+    const data = (await res.json()) as { inloop?: unknown; pid?: unknown; build?: unknown };
+    if (typeof data.inloop !== "string" || typeof data.pid !== "number") return undefined;
+    return { inloop: data.inloop, pid: data.pid, ...(typeof data.build === "number" ? { build: data.build } : {}) };
   } catch {
     return undefined;
   }
 }
 
+/** 動いている画面のサーバーを止める。止まったら（もともと動いていなければ）trueを返す。 */
+export async function stopUiServer(port: number): Promise<boolean> {
+  const running = await probeUiServer(port);
+  if (!running) return true;
+  try {
+    process.kill(running.pid, "SIGTERM");
+  } catch {
+    return false;
+  }
+  for (let i = 0; i < 50; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    if (!(await probeUiServer(port))) return true;
+  }
+  return false;
+}
+
 /**
  * 画面のサーバーが動いていなければ、別のプロセスとして起動する（MCPサーバーが終わっても残る）。
- * すでに動いていれば、それを使う。ポートをinloop以外が使っていれば、エラーにする。
+ * 動いているのが今のビルドより古い版なら、止めて起動し直す（inloop updateやビルドの後）。
+ * ポートをinloop以外が使っていれば、エラーにする。
  */
 export async function ensureUiServer(port: number, env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  if (await probeUiServer(port)) return;
+  const running = await probeUiServer(port);
+  if (running && (running.build ?? 0) >= currentBuild()) return;
+  if (running && !(await stopUiServer(port))) throw new Error(`古い版の画面のサーバー（pid ${running.pid}）を止められない`);
   const child = spawn(process.execPath, [UI_MAIN], { detached: true, stdio: "ignore", env: { ...env, INLOOP_PORT: String(port) } });
   child.unref();
   for (let i = 0; i < 50; i++) {
