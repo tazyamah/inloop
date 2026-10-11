@@ -5,6 +5,7 @@ import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@model
 import { z } from "zod";
 import { formatAnswerLine, formatAnswerMessage, logModelBound, VERDICTS } from "./format.js";
 import { ReviewStore } from "./store.js";
+import { answersOf } from "./wait.js";
 import { TargetError, Targets } from "./target.js";
 
 export const UI_URI = "ui://inloop/review.html";
@@ -14,7 +15,6 @@ export const VERSION = "0.0.0";
 
 /** get_review_resultで待てる最長の秒数 */
 export const MAX_WAIT_SECONDS = 1800;
-const POLL_MS = 300;
 
 export type ToolResult = {
   content: { type: "text"; text: string }[];
@@ -143,13 +143,6 @@ export function appTools(targets: Targets) {
 
 export type AppTools = ReturnType<typeof appTools>;
 
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => { clearTimeout(t); resolve(); }, { once: true });
-  });
-}
-
 /**
  * MCPサーバーを作る。ReviewStoreを渡すと、対象に関係なくその記録を使う（テストと互換のため）。
  * Targetsを渡すと、依頼ごとに対象のリポジトリを決める（ADR-0010）。
@@ -176,7 +169,7 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
     {
       title: "Request human review",
       description: browserUrl
-        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns IDs and a url: open it in a browser for the human, then get_review_result with wait."
+        ? "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns IDs and a url: open it in a browser for the human. To wait without blocking, run `inloop wait <ids>` as a background command; its exit brings the answers."
         : "Ask the human to review a change. Put all your current questions in one call: only reviews from the same call can be answered together. Each needs a concrete question and symbol IDs; never pass code. repo: absolute path of the git repo you work in. To re-request after a fix, pass follows: the earlier ID (viewpoint optional). Returns only IDs. Answers arrive later as a user message.",
       inputSchema: z.object({
         reviews: z
@@ -253,27 +246,7 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
       if (isError(t)) return t;
       const { store } = t;
       // IDを必須にしている。絞り込みなしでは、別の会話の回答まで返してしまう。
-      const pending = () => ids.filter((id) => store.statusOf(id) === "pending");
-      if (wait) {
-        const until = Date.now() + wait * 1000;
-        const signal = (extra as { signal?: AbortSignal } | undefined)?.signal;
-        // 保留・回答待ちの依頼は、人が未回答に戻して答え直しうる。待ち始めにそれらしかなければ、
-        // すでに受け取った回答を返さず、新しい回答が記録されるまで待つ。
-        const reopenable = (id: string) => store.statusOf(id) === "held" || store.statusOf(id) === "answering";
-        const rounds = () => ids.reduce((n, id) => n + store.history(id).length, 0);
-        const before = rounds();
-        const awaitingNew = pending().length === 0 && ids.some(reopenable);
-        const done = () => pending().length === 0 && (!awaitingNew || rounds() > before);
-        while (!done() && Date.now() < until && !signal?.aborted) await sleep(POLL_MS, signal);
-        if (awaitingNew && rounds() === before) {
-          logModelBound("get_review_result", "no change");
-          return text("no change");
-        }
-      }
-      const lines = store.answered(ids).map(formatAnswerLine);
-      // 待った場合は、まだ回答のない依頼も示す。待ち直すかどうかをAIが決められるように。
-      if (wait) lines.push(...pending().map((id) => `${id} pending`));
-      const out = lines.length > 0 ? lines.join("\n") : "none";
+      const out = await answersOf(store, ids, wait, (extra as { signal?: AbortSignal } | undefined)?.signal);
       logModelBound("get_review_result", out);
       return text(out);
     },

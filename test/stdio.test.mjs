@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import { makeRepo, SYMBOL } from "./helpers.mjs";
 import assert from "node:assert/strict";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, realpathSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { request } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { Client } from "@modelcontextprotocol/client";
+import { ReviewStore } from "../dist/server/store.js";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
 
@@ -187,4 +188,25 @@ test("inloop initは、既存の.mcp.jsonのほかのサーバーを残してinl
   assert.match(run().stdout, /\.mcp\.json に inloop を書きました/);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(repo, ".mcp.json"), "utf8")).mcpServers), ["other", "inloop"]);
   assert.doesNotMatch(run().stdout, /\.mcp\.json/, "同じ内容なら書き直さない");
+});
+
+test("inloop waitは、回答が記録されるまで待って回答を出す", async () => {
+  const repo = makeRepo();
+  // 依頼を1件作る（記録はリポジトリの.inloop/）。
+  const made = await requestOnce({ args: ["--repo", repo] });
+  assert.equal(made.text, "R1 pending");
+  const bin = (...a) => spawnSync(process.execPath, [BIN, "wait", ...a], { encoding: "utf8", cwd: repo });
+  assert.match(bin().stderr, /依頼IDを1つ以上指定する/);
+  assert.match(bin("R9").stderr, /R9: 存在しない依頼/);
+  assert.match(bin("R1", "--timeout", "1").stdout, /^R1 pending$/m);
+  // 待っている間に回答を記録すると、すぐに回答を出して終わる。
+  const child = spawn(process.execPath, [BIN, "wait", "R1"], { cwd: repo });
+  let out = "";
+  child.stdout.on("data", (d) => (out += d));
+  await new Promise((r) => setTimeout(r, 500));
+  const store = new ReviewStore({ file: join(repo, ".inloop", "reviews.jsonl") });
+  store.submit([{ id: "R1", verdict: "ok" }], "R1");
+  const code = await new Promise((r) => child.on("exit", r));
+  assert.equal(code, 0);
+  assert.equal(out, "R1 ok\n");
 });

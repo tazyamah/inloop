@@ -5,7 +5,9 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppRegistry, defaultName, NAME_PATTERN, uiPort } from "./server/apps.js";
 import { runMcp } from "./server/mcp.js";
+import { LOG_FILE_NAME, ReviewStore } from "./server/store.js";
 import { gitTopLevel } from "./server/target.js";
+import { answersOf } from "./server/wait.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -17,6 +19,7 @@ const USAGE = `使い方: inloop <コマンド>
   new <dir> [--name <名前>] [--db sqlite]            新しいアプリを標準の構成（React＋Hono＋SQLite）で作る
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
+  wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
   update                                             inloopを更新してビルドし直す
 `;
 
@@ -120,6 +123,25 @@ async function server(args: string[]): Promise<void> {
   process.stderr.write(`[inloop] UI server on 127.0.0.1:${s.port}\n`);
 }
 
+/**
+ * 回答が記録されるまで待つ（ADR-0016）。AIがバックグラウンドで動かし、終わったときに続きを始める。
+ * 対象は--repo、なければ今いるディレクトリのリポジトリ。
+ */
+async function wait(args: string[]): Promise<void> {
+  const repoArg = option(args, "--repo");
+  const timeout = Number(option(args, "--timeout") ?? 86400);
+  if (!Number.isInteger(timeout) || timeout <= 0) throw new Error("--timeout は1以上の秒数");
+  const ids = args;
+  if (ids.length === 0 || ids.some((id) => !/^R\d+(-\d+)?$/.test(id))) throw new Error("依頼IDを1つ以上指定する（例: inloop wait R4 R5）");
+  const repo = gitTopLevel(resolve(repoArg ?? "."));
+  const file = join(repo, ".inloop", LOG_FILE_NAME);
+  if (!existsSync(file)) throw new Error(`${repo}: 依頼の記録がない`);
+  const store = new ReviewStore({ file });
+  const unknown = ids.filter((id) => !store.get(id));
+  if (unknown.length > 0) throw new Error(`${unknown.join(" ")}: 存在しない依頼`);
+  process.stdout.write(`${await answersOf(store, ids, timeout)}\n`);
+}
+
 export async function main(argv: string[]): Promise<void> {
   const [command, ...args] = argv;
   try {
@@ -143,6 +165,9 @@ export async function main(argv: string[]): Promise<void> {
       }
       case "update":
         update();
+        return;
+      case "wait":
+        await wait(args);
         return;
       case undefined:
       case "help":

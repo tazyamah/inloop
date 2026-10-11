@@ -36,3 +36,4 @@
 | [0013](0013-machine-wide-ui-server.md) | Accepted | 画面をマシン全体で1つのサーバーから`<アプリ名>.inloop.localhost`のURLで配り、鍵の代わりにHostとOriginを確かめる |
 | [0014](0014-target-path-not-in-record.md) | Accepted | 対象のリポジトリのパスは記録に書かず、記録の置き場所で表す。`--state-dir`では対象が決まらなくても記録する |
 | [0015](0015-typescript-analysis-engine-v1.md) | Accepted | 解析エンジンの最初の版をTypeScript 7のAPIで作る。シンボルIDは`パス#名前`、直接の依存を定義が先の順に並べる |
+| [0016](0016-wait-in-background-command.md) | Accepted | ブラウザで開く経路の回答は、AIが`inloop wait`をバックグラウンドで動かして待つ。送信でAIの続きが始まる |

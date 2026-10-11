@@ -25,6 +25,7 @@ inloop new <ディレクトリ>          # 新しいアプリを標準の構成�
 inloop init <アプリのリポジトリ>   # 既存のリポジトリを登録する（ブラウザで開く経路で使う）
 inloop apps                        # 登録したアプリと画面のURL
 inloop server status|stop|restart  # 画面のサーバーの状態を見る、止める、起動し直す
+inloop wait R4 R5                  # 回答が記録されるまで待つ（AIがバックグラウンドで動かす）
 inloop update                      # inloopを更新してビルドし直す（画面のサーバーは次の依頼で新しい版になる）
 ```
 

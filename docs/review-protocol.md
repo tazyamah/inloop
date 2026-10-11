@@ -105,7 +105,7 @@ request_review(reviews: [...]) -> "R12 R13 pending http://<アプリ名>.inloop.
 get_review_result(ids: ["R12", "R13"], wait: 600) -> "R12 ok\nR13 fix ..."
 ```
 
-- ブラウザからは会話へ送れないので、AIは`wait`で回答を待つ。時間切れなら、未回答の依頼を`R13 pending`として返す
+- ブラウザからは会話へ送れないので、AIは`inloop wait R12 R13`をバックグラウンドのコマンドとして動かして手番を終え、コマンドが終わったら（人が送信したら）続きを始める（[ADR-0016](../maintainer-guide/decisions/0016-wait-in-background-command.md)）。バックグラウンドで動かせなければ、`get_review_result`の`wait`で待つ。時間切れなら、未回答の依頼を`R13 pending`として返す
 - 保留・質問の回答を受け取った後に待つと、人が未回答に戻して答え直すまで待つ。新しい回答がなければ`no change`を返す
 
 ## UIでの回答の操作
