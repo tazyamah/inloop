@@ -74,7 +74,7 @@ test("依頼票を表示し、行のクリックで位置をコピーする（�
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44 ", "R1 src/db/orders.ts#cancelOrder#L44-L46 "], "位置は会話に入れる（ADR-0032）");
+    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44\n", "R1 src/db/orders.ts#cancelOrder#L44-L46\n"], "位置は会話に入れる（ADR-0032）");
     assert.equal(await view.locator(".ln.sel").count(), 3);
     await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
@@ -318,9 +318,33 @@ test("ファイル全体を3段目として開き、ファイル名#行の位置
     assert.equal(await step.locator(".code.whole .ln").count(), 9, "末尾の改行の後ろの空行は出さない");
     await view.locator('.ln[data-ref="src/whole.ts#L1"]').click();
     await view.locator("#status", { hasText: "R1 src/whole.ts#L1" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/whole.ts#L1 "]);
+    assert.deepEqual(positions, ["R1 src/whole.ts#L1\n"]);
     await step.locator("button.whole").click();
     assert.equal(await step.locator(".code.whole").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("差分が複数あるファイルは、どの差分からもファイル全体を開ける（ADR-0034）", { skip: !enabled }, async () => {
+  const repo = makeRepo("whole2", { commit: true });
+  const base = "export function a(): number {\n  return 1;\n}\n\nexport function b(): number {\n  return 2;\n}\n";
+  writeFileSync(join(repo, "src", "two.ts"), base);
+  execFileSync("git", ["-C", repo, "add", "-A"]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "w"]);
+  writeFileSync(join(repo, "src", "two.ts"), base.replace("return 1", "return 10").replace("return 2", "return 20"));
+  const { browser, view, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async () => ({ reviews: [{ viewpoint: "a・bでよいか", symbols: ["src/two.ts#a", "src/two.ts#b"] }], range: "HEAD" }),
+  });
+  try {
+    assert.equal(await view.locator("button.whole").count(), 2);
+    await view.locator('.step[data-symbol="src/two.ts#b"] button.whole').click();
+    await view.locator('.step[data-symbol="src/two.ts#b"] .code.whole .ln').first().waitFor({ timeout: 5000 });
+    assert.equal(await view.locator('.step[data-symbol="src/two.ts#a"] .code.whole').count(), 0, "開いたシンボルの下にだけ出す");
+    await view.locator('.step[data-symbol="src/two.ts#a"] button.whole').click();
+    await view.locator('.step[data-symbol="src/two.ts#a"] .code.whole .ln').first().waitFor({ timeout: 5000 });
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

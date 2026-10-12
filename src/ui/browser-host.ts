@@ -31,7 +31,7 @@ bridge.oncalltool = async (params) => {
 bridge.onmessage = async ({ content }) => {
   // 行クリックの位置は、会話に入れる先がない。画面はコピーに切り替える（ADR-0032）。
   const first = content?.[0];
-  if (first?.type === "text" && /^R\d+(?:-\d+)? \S+ ?$/.test(first.text)) return { isError: true };
+  if (first?.type === "text" && /^R\d+(?:-\d+)? \S+\n?$/.test(first.text)) return { isError: true };
   // 回答は記録済み。AIはget_review_resultで受け取る。
   notice.textContent = "回答を記録しました。AIが待っていなければ、会話で「回答した」と伝えてください。";
   notice.hidden = false;
