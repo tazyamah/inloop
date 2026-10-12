@@ -174,12 +174,13 @@ export class ReviewStore {
 
   /**
    * 再依頼で、前の依頼票のうち人が読み終えたシンボルのコード（ADR-0029）。
-   * 前の依頼に回答があり、保留でも、シンボルの分からない修正・質問でもないときだけ、
-   * 修正・質問の対象になったシンボルを除いた全シンボルのコードを返す。それ以外は何も返さない（全部を見せる）。
+   * 前の依頼に回答がなければ（修正を会話で伝えた場合。ADR-0033）全シンボルのコードを返す。回答があるときは、
+   * 保留でも、シンボルの分からない修正・質問でもないときだけ、修正・質問の対象になったシンボルを除いて返す。
+   * それ以外は何も返さない（全部を見せる）。
    */
   private priorOf(head: ReviewPacket): { prior: NonNullable<PlannedReview["prior"]> } | undefined {
     const answers = (this.rounds.get(head.id) ?? []).flat();
-    if (answers.length === 0 || answers.some((a) => a.verdict === "hold" || ((a.verdict === "fix" || a.verdict === "ask") && !a.ref))) return undefined;
+    if (answers.some((a) => a.verdict === "hold" || ((a.verdict === "fix" || a.verdict === "ask") && !a.ref))) return undefined;
     const flagged = new Set(answers.filter((a) => a.verdict === "fix" || a.verdict === "ask").map((a) => a.ref!.replace(/#L\d+(?:-L\d+)?$/, "")));
     return { prior: { id: head.id, codes: Object.fromEntries(head.steps.filter((s) => !flagged.has(s.symbol)).map((s) => [s.symbol, s.code])) } };
   }
@@ -571,15 +572,20 @@ function statusAfter(list: Answer[]): RequestStatus {
   return "approved";
 }
 
+/** ファイル全体の行の指定に使える行番号の上限 */
+const MAX_FILE_LINES = 100_000;
+
 /** 参照が依頼票のシンボルと、その表示範囲内の行を指しているか。 */
 export function refInPacket(packet: ReviewPacket, ref: string): boolean {
   const m = /^(.*)#L(\d+)(?:-L(\d+))?$/.exec(ref);
   const symbol = m ? m[1] : ref;
   const step = packet.steps.find((s) => s.symbol === symbol);
+  const start = m ? Number(m[2]) : 0;
+  const end = m ? (m[3] ? Number(m[3]) : start) : 0;
+  // 依頼票に出ているファイルの、ファイル全体の行（ADR-0034）。ファイルの長さはここでは分からないので、行の下限だけ見る。
+  if (!step && m && packet.steps.some((s) => s.file === symbol && !s.symbol.startsWith("HEAD:"))) return start >= 1 && start <= end && end <= MAX_FILE_LINES;
   if (!step) return false;
   if (!m) return true;
-  const start = Number(m[2]);
-  const end = m[3] ? Number(m[3]) : start;
   const last = step.startLine + step.code.split("\n").length - 1;
   return start >= step.startLine && end <= last && start <= end;
 }

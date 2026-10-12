@@ -74,7 +74,7 @@ test("依頼票を表示し、行のクリックで位置をコピーする（�
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44", "R1 src/db/orders.ts#cancelOrder#L44-L46"], "位置は会話に入れる（ADR-0032）");
+    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44 ", "R1 src/db/orders.ts#cancelOrder#L44-L46 "], "位置は会話に入れる（ADR-0032）");
     assert.equal(await view.locator(".ln.sel").count(), 3);
     await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
@@ -227,7 +227,7 @@ test("依存の図を依頼票の先頭に出し、箱を押すとそのシン�
     assert.ok(await view.locator(".g-unresolved").count() === 1, "未解決の参照を含むシンボルに印");
     await view.locator('.g-node[data-symbol="src/db/orders.ts#cancelOrder"]').click();
     await view.locator('.step.flash[data-symbol="src/db/orders.ts#cancelOrder"]').waitFor({ timeout: 5000 });
-    assert.match(await view.locator('.step[data-symbol="src/api/orders.ts#postCancel"] .rel').textContent(), /使う: cancelOrder/);
+    assert.match(await view.locator('.step[data-symbol="src/api/orders.ts#postCancel"] .rel').textContent(), /uses: cancelOrder/);
     await shot(page, "graph-fixture");
     assert.deepEqual(errors, []);
   } finally {
@@ -269,6 +269,62 @@ test("変わっていない依存のコードは畳み、図やボタンから�
   }
 });
 
+test("再依頼の画面は、前回と同じコードで指摘のなかったシンボルに「R1から変更なし」を付けて畳む（ADR-0029）", { skip: !enabled }, async () => {
+  const repo = makeRepo("again", { commit: true });
+  const src = (m) => `export function a(): number {\n  return 1;\n}\nexport function b(): number {\n  return ${m};\n}\n`;
+  writeFileSync(join(repo, "src", "two.ts"), src(2));
+  const { browser, page, view, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async (client) => {
+      await client.callTool({ name: "request_review", arguments: { reviews: [{ viewpoint: "a・bの戻り値でよいか", symbols: ["src/two.ts#a", "src/two.ts#b"] }], range: "HEAD" } });
+      await client.callTool({ name: "inloop_submit", arguments: { from: "R1", answers: [{ id: "R1", verdict: "fix", ref: "src/two.ts#b#L5", comment: "3にして" }] } });
+      writeFileSync(join(repo, "src", "two.ts"), src(3));
+      return { reviews: [{ follows: "R1" }], range: "HEAD" };
+    },
+  });
+  try {
+    const step = (name) => view.locator(`.step[data-symbol="src/two.ts#${name}"]`);
+    assert.equal(await step("a").locator("header .chip", { hasText: "R1から変更なし" }).count(), 1);
+    assert.equal(await step("a").locator(".ln").count(), 0, "同じコードは畳む");
+    assert.equal(await step("b").locator("header .chip", { hasText: "から変更なし" }).count(), 0, "指摘したbには付けない");
+    assert.equal(await step("b").locator(".ln").count(), 3, "指摘したbは開いたまま");
+    await step("a").locator("button.fold").click();
+    assert.equal(await step("a").locator(".ln").count(), 3, "押せば開く");
+    await shot(page, "review-same");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("ファイル全体を3段目として開き、ファイル名#行の位置を入れられる（ADR-0034）", { skip: !enabled }, async () => {
+  const repo = makeRepo("whole", { commit: true });
+  const base = "import { x } from \"./x.js\";\n\nexport function a(): number {\n  return 1;\n}\n";
+  writeFileSync(join(repo, "src", "whole.ts"), base);
+  execFileSync("git", ["-C", repo, "add", "-A"]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "w"]);
+  writeFileSync(join(repo, "src", "whole.ts"), base.replace("return 1", "return 2"));
+  const { browser, view, positions, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async () => ({ reviews: [{ viewpoint: "aの戻り値でよいか", symbols: ["src/whole.ts#a"] }], range: "HEAD" }),
+  });
+  try {
+    const step = view.locator('.step[data-symbol="src/whole.ts#a"]');
+    assert.equal(await step.locator(".code.whole").count(), 0);
+    await step.locator("button.whole").click();
+    await step.locator(".code.whole .ln").first().waitFor({ timeout: 5000 });
+    assert.equal(await step.locator(".code.whole .ln").count(), 5, "末尾の改行の後ろの空行は出さない");
+    await view.locator('.ln[data-ref="src/whole.ts#L1"]').click();
+    await view.locator("#status", { hasText: "R1 src/whole.ts#L1" }).waitFor({ timeout: 5000 });
+    assert.deepEqual(positions, ["R1 src/whole.ts#L1 "]);
+    await step.locator("button.whole").click();
+    assert.equal(await step.locator(".code.whole").count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
 test("呼び出し元を図の右の列に点線の枠で出し、コードは畳んで別に並べる（ADR-0021）", { skip: !enabled }, async () => {
   const repo = makeRepo("callers", { commit: true });
   writeFileSync(join(repo, "src", "chain.ts"), "export function c(): number {\n  return 1;\n}\nexport function b(): number {\n  return c();\n}\nexport function a(): number {\n  return b() + 1;\n}\n");
@@ -284,7 +340,7 @@ test("呼び出し元を図の右の列に点線の枠で出し、コードは�
     assert.ok(await x("src/chain.ts#b") < await x("src/chain.ts#a"), "呼び出し元は右の列");
     const caller = view.locator('#callers .step[data-symbol="src/chain.ts#a"]');
     assert.equal(await caller.locator(".ln").count(), 0, "呼び出し元のコードは畳む");
-    assert.match(await caller.locator(".rel").textContent(), /使う: b/);
+    assert.match(await caller.locator(".rel").textContent(), /uses: b/);
     await view.locator('.g-node[data-symbol="src/chain.ts#a"]').click();
     await caller.locator(".ln").first().waitFor({ timeout: 5000 });
     assert.equal(await caller.locator(".ln").count(), 3);

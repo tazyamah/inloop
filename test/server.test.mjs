@@ -28,11 +28,12 @@ test("AIから見えるツールとUI専用ツールが分かれている", asyn
   const client = await connect();
   const { tools } = await client.listTools();
   const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
-  assert.deepEqual(Object.keys(byName).sort(), ["answer_review", "get_review_result", "inloop_get_request", "inloop_reopen", "inloop_submit", "request_review"]);
+  assert.deepEqual(Object.keys(byName).sort(), ["answer_review", "get_review_result", "inloop_get_file", "inloop_get_request", "inloop_reopen", "inloop_submit", "request_review"]);
   for (const t of tools) assert.equal(t._meta?.ui?.resourceUri, UI_URI, t.name);
   assert.deepEqual(visibility(byName.inloop_get_request), ["app"]);
   assert.deepEqual(visibility(byName.inloop_submit), ["app"]);
   assert.deepEqual(visibility(byName.inloop_reopen), ["app"]);
+  assert.deepEqual(visibility(byName.inloop_get_file), ["app"]);
   assert.ok(visibility(byName.request_review) === undefined || visibility(byName.request_review).includes("model"));
   assert.deepEqual(visibility(byName.get_review_result), ["model"]);
   assert.deepEqual(visibility(byName.answer_review), ["model"]);
@@ -605,4 +606,27 @@ test("依頼票は読み込みで形の全体を確かめ、知らない項目�
   assert.equal(new ReviewStore({ file: write(without("edges")) }).get("R1").edges, undefined);
   const withCaller = { ...packet, callers: [{ symbol: "src/x.ts#y", file: "src/x.ts", startLine: 3, code: "y()" }], edges: [...packet.edges, { from: "src/x.ts#y", to: packet.steps[1].symbol, kind: "call" }] };
   assert.deepEqual(new ReviewStore({ file: write(withCaller) }).get("R1"), withCaller);
+});
+
+// ファイル全体の取得とファイル名#行の参照（ADR-0034）。
+test("ファイル全体は依頼票に出たファイルだけ読め、ファイル名#行の回答を受け付ける", async () => {
+  const { makeRepo } = await import("./helpers.mjs");
+  const { buildPackets } = await import("../dist/engine/build.js");
+  const { appTools } = await import("../dist/server/create-server.js");
+  const { Targets } = await import("../dist/server/target.js");
+  const repo = makeRepo("whole-file", { commit: true });
+  const store = new ReviewStore({ build: (reviews, range, required) => buildPackets(repo, reviews, range, { required }) });
+  const [p] = store.create([{ viewpoint: "q", symbols: ["src/app.ts#hello"] }], "HEAD");
+  const tools = appTools(new Targets({ repo, store }));
+  const get = (file) => tools.inloop_get_file.handler({ id: p.id, file, repo });
+  const ok = await get("src/app.ts");
+  assert.equal(ok.isError, undefined);
+  assert.match(ok.structuredContent.text, /export function greet/);
+  assert.equal(ok.structuredContent.stale, false);
+  for (const file of ["tsconfig.json", "../etc/passwd", "/etc/passwd"]) assert.equal((await get(file)).isError, true, file);
+  assert.deepEqual(store.submit([{ id: p.id, verdict: "fix", ref: "src/app.ts#L1", comment: "importを直す" }], p.id).map((a) => a.ref), ["src/app.ts#L1"]);
+  const [q] = store.create([{ viewpoint: "q2", symbols: ["src/app.ts#hello"] }], "HEAD");
+  for (const ref of ["tsconfig.json#L1", "src/app.ts#L0", "src/app.ts#L5-L2", "nowhere.ts#L1"]) {
+    assert.throws(() => store.submit([{ id: q.id, verdict: "fix", ref, comment: "c" }], q.id), undefined, ref);
+  }
 });

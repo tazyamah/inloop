@@ -234,6 +234,29 @@ test("必須の系列への再依頼は、種別・対象・観点を引き継�
   assert.equal(said.isError, true);
 });
 
+test("承認済みの必須の依頼の再依頼は、コードが同じで指摘のなかったシンボルをpriorで畳む（ADR-0029）", async () => {
+  const repo = ruled();
+  const file = (a) => [`export function one() { return fmt(process.env.${a}); }`, "export function fmt(v: string | undefined) { return String(v); }"];
+  write(repo, "src/env.ts", file("A"));
+  const client = await connect();
+  const call = (args) => client.callTool({ name: "request_review", arguments: { repo, ...args } });
+  assert.equal(textOf(await call({ reviews: [] })), "R1 pending required:R1");
+  const first = (await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo } })).structuredContent.packet;
+  assert.equal(first.prior, undefined);
+  // 回答の前の再依頼も、同じコードは畳む（ADR-0033）。
+  write(repo, "src/env.ts", file("A2"));
+  assert.equal(textOf(await call({ reviews: [] })), "R1-1 pending required:R1-1");
+  const unanswered = (await client.callTool({ name: "inloop_get_request", arguments: { id: "R1-1", repo } })).structuredContent.packet;
+  assert.deepEqual(unanswered.prior, { id: "R1", same: ["src/env.ts#fmt"] });
+  // R1-1を承認してから、oneだけ変える（fmtは同じ）。
+  await client.callTool({ name: "inloop_submit", arguments: { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }], repo } });
+  write(repo, "src/env.ts", file("A3"));
+  assert.equal(textOf(await call({ reviews: [{ follows: "R1-1" }] })), "R1-2 pending required:R1-2");
+  const again = (await client.callTool({ name: "inloop_get_request", arguments: { id: "R1-2", repo } })).structuredContent.packet;
+  assert.equal(again.kind, "required");
+  assert.deepEqual(again.prior, { id: "R1-1", same: ["src/env.ts#fmt"] });
+});
+
 test("必須の依頼は、行数の上限で断らない", async () => {
   const repo = ruled();
   const body = Array.from({ length: 80 }, (_, i) => `  const v${i} = process.env.K${i};`);

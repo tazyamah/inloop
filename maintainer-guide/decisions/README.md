@@ -53,3 +53,5 @@
 | [0030](0030-indirect-sql-tables.md) | Accepted | SQLを実行する宣言を、呼び出しを2段までたどって探し、`tables`に`via`つきで出す。`table`の当て方も2段先まで当てる |
 | [0031](0031-sql-columns.md) | Accepted | `tables`に読み取れた列`columns`を足し、`table`の当て方にも`columns`を足す。決められない列は`*`にして当たる側に倒す |
 | [0032](0032-send-position-to-chat.md) | Accepted | 行クリックの位置を`sendMessage`で会話の入力欄に入れる（クリップボードにも写す）。入れられないホストはコピーだけ |
+| [0033](0033-fold-same-without-answer.md) | Accepted | 前の依頼に回答がなくても、再依頼で同じコードのシンボルを畳む（ADR-0029の1項目だけを変える） |
+| [0034](0034-whole-file-view.md) | Accepted | コードの3段目としてファイル全体を開き、`ファイル名#L行`の位置を受け付ける |

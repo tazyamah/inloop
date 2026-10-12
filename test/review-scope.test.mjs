@@ -232,13 +232,13 @@ test("再依頼で、前の依頼と同じコードで指摘の対象でもな�
   assert.deepEqual(again.prior, { id: "R1", same: ["src/two.ts#a"] });
 });
 
-test("指摘の対象だったシンボルは、コードが同じでも同じ扱いにしない。保留、参照のない指摘、回答なしは全部を見せる", () => {
+test("指摘の対象だったシンボルは、コードが同じでも同じ扱いにしない。保留、参照のない指摘は全部を見せる。回答がなければ修正を会話で伝えたものとして、同じコードを畳む（ADR-0033）", () => {
   for (const [answer, expected] of [
     [{ verdict: "fix", ref: "src/two.ts#a", comment: "c" }, ["src/two.ts#b"]],
     [{ verdict: "fix", comment: "c" }, undefined],
     [{ verdict: "hold" }, undefined],
     [{ verdict: "ok" }, ["src/two.ts#a", "src/two.ts#b"]],
-    [undefined, undefined],
+    [undefined, ["src/two.ts#a", "src/two.ts#b"]],
   ]) {
     const { repo, store } = followRepo();
     write(repo, "src/two.ts", body(1, 2));

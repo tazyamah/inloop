@@ -1,4 +1,6 @@
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/server";
 import { RESOURCE_MIME_TYPE, registerAppResource, registerAppTool } from "@modelcontextprotocol/ext-apps/server";
@@ -13,6 +15,9 @@ export const UI_URI = "ui://inloop/review.html";
 export const UI_FILE = fileURLToPath(new URL("../ui/review.html", import.meta.url));
 
 export const VERSION = "0.0.0";
+
+/** 画面でファイル全体を開けるファイルの大きさの上限 */
+const MAX_FILE_BYTES = 1_000_000;
 
 /** get_review_resultで待てる最長の秒数 */
 export const MAX_WAIT_SECONDS = 1800;
@@ -88,6 +93,31 @@ export function appTools(targets: Targets) {
             history: store.history(id),
           },
         };
+      },
+    },
+    // 依頼票のファイルの全体（行番号つきのコメントのための、3段目の表示）。依頼票に出ているファイルだけ読む。
+    inloop_get_file: {
+      description: "UI only: fetch a whole file shown in a review packet.",
+      inputSchema: z.object({ id: z.string(), file: z.string().max(500), repo: z.string().optional() }),
+      handler: async ({ id, file, repo }: { id: string; file: string; repo?: string }): Promise<ToolResult> => {
+        const t = await storeFor(targets, repo);
+        if (isError(t)) return t;
+        const packet = t.store.get(id);
+        if (!packet) return error(`unknown review ${id}`);
+        const steps = packet.steps.filter((s) => s.file === file);
+        if (steps.length === 0) return error(`${file}: 依頼票に出ていないファイル`);
+        if (packet.fixture || t.repo === undefined) return error("固定データの依頼票は、ファイルの全体を読めない");
+        const abs = resolve(t.repo, file);
+        if (!existsSync(abs)) return error(`${file}: 読めないファイル`);
+        const rel = relative(realpathSync(t.repo), realpathSync(abs));
+        if (rel.startsWith("..") || isAbsolute(rel)) return error(`${file}: リポジトリの外`);
+        const size = statSync(abs).size;
+        if (size > MAX_FILE_BYTES) return error(`${file}: ${MAX_FILE_BYTES}バイトを超えるため、全体は出せない`);
+        const body = readFileSync(abs, "utf8");
+        const lines = body.split("\n");
+        // 依頼のあとにファイルが変わっていれば、行番号が依頼票とずれる。
+        const stale = steps.some((s) => !s.symbol.startsWith("HEAD:") && lines.slice(s.startLine - 1, s.startLine - 1 + s.code.split("\n").length).join("\n") !== s.code);
+        return { ...text(file), structuredContent: { file, text: body, stale } };
       },
     },
     inloop_submit: {
@@ -306,6 +336,8 @@ export function createServer(target: ReviewStore | Targets = new ReviewStore(), 
   const appOnly = { ui: { resourceUri: UI_URI, visibility: ["app" as const] } };
   const get = ui.inloop_get_request;
   registerAppTool(server, "inloop_get_request", { description: get.description, inputSchema: get.inputSchema, _meta: appOnly }, get.handler);
+  const getFile = ui.inloop_get_file;
+  registerAppTool(server, "inloop_get_file", { description: getFile.description, inputSchema: getFile.inputSchema, _meta: appOnly }, getFile.handler);
   const submit = ui.inloop_submit;
   registerAppTool(server, "inloop_submit", { description: submit.description, inputSchema: submit.inputSchema, _meta: appOnly }, submit.handler);
   const reopen = ui.inloop_reopen;

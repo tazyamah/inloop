@@ -49,6 +49,8 @@ let picked: { symbol: string; start: number; end: number } | null = null;
  * 畳むだけで省かない。見出しと行数は常に出す。
  */
 const expanded = new Set<string>();
+/** 開いたファイル全体（`依頼ID ファイル`、ADR-0034）。読み込み中は"loading"、失敗は理由。 */
+const wholeFiles = new Map<string, { text: string; stale: boolean } | "loading" | { error: string }>();
 /** 図や見出しから移った先のシンボル。しばらく枠で示す。 */
 let flashed: string | undefined;
 /** 記録の操作の途中は、ボタンを押せなくする。 */
@@ -158,7 +160,8 @@ async function copyText(text: string) {
     copied = document.execCommand("copy");
     ta.remove();
   }
-  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch(() => ({ isError: true }));
+  // 入力欄に入った位置の後ろに、そのままコメントを続けて書けるよう、空白を1つ足す。
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `${text} ` }] }).catch(() => ({ isError: true }));
   const sent = res.isError !== true;
   const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
   setStatus(msg, !sent && !copied);
@@ -168,10 +171,11 @@ async function copyText(text: string) {
 /** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */
 const positionOf = (reviewId: string, ref: string) => `${reviewId} ${ref}`;
 
-function onLineClick(step: ReviewStep, abs: number, shift: boolean) {
-  picked = shift && picked?.symbol === step.symbol
-    ? { symbol: step.symbol, start: Math.min(picked.start, abs), end: Math.max(picked.end, abs) }
-    : { symbol: step.symbol, start: abs, end: abs };
+/** 行のクリック。symbolはシンボルID、またはファイル全体の行ならファイル名（ADR-0034）。 */
+function onLineClick(symbol: string, abs: number, shift: boolean) {
+  picked = shift && picked?.symbol === symbol
+    ? { symbol, start: Math.min(picked.start, abs), end: Math.max(picked.end, abs) }
+    : { symbol, start: abs, end: abs };
   render();
   void copyText(positionOf(shownId!, refOf(picked.symbol, picked.start, picked.end)));
 }
@@ -328,6 +332,14 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
       render();
     }, "link fold"));
   }
+  const fileKey = `${p.id} ${s.file}`;
+  const wholeable = !caller && p.steps.find((x) => x.file === s.file) === s && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
+  if (wholeable && !(foldable && folded)) {
+    const open = wholeFiles.has(fileKey);
+    const wb = button(open ? "ファイルを閉じる" : "ファイル全体", () => { void toggleFile(p, s.file); }, "link whole");
+    wb.dataset.file = s.file;
+    h.append(wb);
+  }
   const rel = el("div", "rel muted");
   const relLinks = (label: string, ids: string[] | undefined) => {
     if (!ids?.length) return;
@@ -353,11 +365,48 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
     const no = el("span", "no");
     no.append(String(abs));
     ln.append(no, el("span", "tx", line));
-    ln.addEventListener("click", (e) => onLineClick(s, abs, e.shiftKey));
+    ln.addEventListener("click", (e) => onLineClick(s.symbol, abs, e.shiftKey));
     code.append(ln);
   });
   box.append(code);
+  const whole = wholeable ? wholeFiles.get(fileKey) : undefined;
+  if (whole) box.append(wholeFileBox(s.file, whole));
   return box;
+}
+
+/** 3段目の表示: ファイル全体。行のクリックは、ファイル名#行の位置になる（ADR-0034）。 */
+function wholeFileBox(file: string, whole: NonNullable<ReturnType<typeof wholeFiles.get>>): HTMLElement {
+  const box = el("div", "code whole");
+  box.dataset.file = file;
+  if (whole === "loading") { box.append(el("div", "muted", "読み込み中…")); return box; }
+  if ("error" in whole) { box.append(el("div", "muted", whole.error)); return box; }
+  box.append(el("div", "muted", whole.stale ? `${file} の全体。依頼のあとにファイルが変わっているので、行番号は依頼票とずれているかもしれません` : `${file} の全体。行のクリックで、ファイル名#行の位置を入れます`));
+  whole.text.replace(/\n$/, "").split("\n").forEach((line, i) => {
+    const abs = i + 1;
+    const selected = picked?.symbol === file && abs >= picked.start && abs <= picked.end;
+    const ln = el("div", "ln" + (selected ? " sel" : ""));
+    ln.dataset.ref = `${file}#L${abs}`;
+    const no = el("span", "no");
+    no.append(String(abs));
+    ln.append(no, el("span", "tx", line));
+    ln.addEventListener("click", (e) => onLineClick(file, abs, e.shiftKey));
+    box.append(ln);
+  });
+  return box;
+}
+
+async function toggleFile(p: ReviewPacket, file: string) {
+  const key = `${p.id} ${file}`;
+  if (wholeFiles.has(key)) { wholeFiles.delete(key); render(); return; }
+  wholeFiles.set(key, "loading");
+  render();
+  try {
+    const r = await app.callServerTool({ name: "inloop_get_file", arguments: withRepo({ id: p.id, file }) });
+    wholeFiles.set(key, structured<{ text: string; stale: boolean }>(r));
+  } catch (e) {
+    wholeFiles.set(key, { error: String((e as Error).message ?? e) });
+  }
+  render();
 }
 
 /** 図や見出しから、シンボルのコードへ移る。畳んであれば開く。 */
