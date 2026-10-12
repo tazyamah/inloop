@@ -395,3 +395,12 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（macOS）: `npm test`が110 pass・14 skip・fail 0。`INLOOP_APP_E2E=1`で、生成したアプリの`npm install`、`npm test`（8 pass、`task`と`category`を生成した後）、`npm run build`が通った。生成したAPIの`buildPackets`で、`tasks`の読みと書き（列つき）が出て、動的なSQLの未解決がない。ブラウザ（ダークテーマ）で、一覧・追加・編集の表示と操作を確かめた。UIのe2e（`INLOOP_UI_E2E=1`）は、inloopの画面は変えていないので動かしていない。
 - 気づき: zshでは`due:date?`が展開されて失敗するので、省略できる列は`:optional`にした。
 - 未検証: 実際のClaude Codeの会話での使用、ライトテーマ・狭い画面・`--desktop`のアプリでの表示。
+
+## 2026-10-12 端末内で動く構成`--standalone`（ADR-0039）
+
+- 利用者の方針（2026-10-12）: 作ったアプリを、デスクトップ・iPhone・Android・Chrome拡張で、サーバーなしで使いたい。iOSは自作アプリの署名が7日で失効するため、PWAにする。Tauriのモバイルはsidecarが使えず、ADR-0019の構成が成り立たない。
+- 使い捨ての検証（Hono＋sqlite-wasm＋OPFS）: アプリ内ブラウザで保存と再読み込みの持続、iOS 16.0のシミュレーターではOPFSが使えずメモリに切り替わる（`The local OPFS API is too old`）、iPhone実機（iOS 26.6.2）はClaude Artifactの検証ページで`opfs-sahpool`（利用者のスクリーンショット）。持続は利用者の報告。
+- 実装: `templates/standalone/`（`server/sqlite-wasm.ts`、`server/worker.ts`、`server/db.ts`、`web/src/local-api.ts`、`offline.ts`、`web/public/sw.js`など）と、`inloop new --standalone`（`src/cli.ts`）。`node:sqlite`を`vite.config.ts`のaliasで差し替えるので、`server/`のコードとscaffold、Node.jsのテストは変わらない。
+- 検証（macOS）: 生成したアプリで`inloop generate scaffold`、`npm test`（5 pass）、`npm run build`が通った。Chrome for Testingで、APIの作成と一覧、再読み込みでデータが残ること、サービスワーカーの登録、オフラインで開き直してもデータが読めることを確認した（アプリ内ブラウザはサービスワーカーを登録できず、検証には使えなかった）。
+- 気づき: iOSシミュレーターの起動で、Macの`SafariBookmarksSyncAgent`が落ちるダイアログが出た。シミュレーターは終了した。
+

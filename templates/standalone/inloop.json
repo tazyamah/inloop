@@ -1,0 +1,136 @@
+{
+  "format": 1,
+  "boundaries": [
+    {
+      "id": "http-input",
+      "question": "外部から届く入力（パス、クエリ、本文、ヘッダー）を、使う前に検証しているか。エラーの応答に内部の情報を出していないか",
+      "match": [
+        {
+          "import": "hono"
+        },
+        {
+          "import": "@hono/node-server"
+        }
+      ]
+    },
+    {
+      "id": "db-write",
+      "question": "SQLは固定の文で、値はプレースホルダーで渡しているか。書き込む値は検証済みか",
+      "match": [
+        {
+          "import": "node:sqlite"
+        },
+        {
+          "symbols": [
+            "server/db.ts#Db"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "db-schema",
+      "question": "スキーマの変更（テーブルや列の追加・削除・変更）は、既存のデータを壊さないか。移行の手順は決まっているか",
+      "match": [
+        {
+          "table": "*",
+          "access": [
+            "schema"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "secrets",
+      "question": "環境変数の値（秘密情報を含みうる）を、ログや応答や画面に出していないか",
+      "match": [
+        {
+          "global": "process.env"
+        }
+      ]
+    },
+    {
+      "id": "outbound",
+      "question": "外部への通信の宛先と送る内容は決まっているか。宛先を外部からの入力で変えられないか",
+      "match": [
+        {
+          "import": "node:http"
+        },
+        {
+          "import": "node:https"
+        },
+        {
+          "import": "node:net"
+        }
+      ]
+    },
+    {
+      "id": "process",
+      "question": "外部コマンドに渡す引数に、外部からの入力が混ざらないか",
+      "match": [
+        {
+          "import": "node:child_process"
+        }
+      ]
+    },
+    {
+      "id": "offline-cache",
+      "question": "サービスワーカー（web/public/sw.js）が保存するファイルの範囲と更新の仕方は妥当か。古い版が残り続けたり、/api など保存してはいけない応答を保存したりしないか",
+      "match": [
+        {
+          "files": [
+            "web/public/sw.js",
+            "web/src/offline.ts"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "local-worker",
+      "question": "画面とWorkerの間で受け渡す値（要求のURL・本文）を、Worker側で信頼せずに検証しているか。保存先（OPFS）の名前や場所を、入力で変えられないか",
+      "match": [
+        {
+          "files": [
+            "server/worker.ts",
+            "web/src/local-api.ts",
+            "server/sqlite-wasm.ts"
+          ]
+        }
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "id": "test",
+      "files": [
+        "server/**/*.test.ts"
+      ]
+    },
+    {
+      "id": "db",
+      "files": [
+        "server/db.ts",
+        "server/sqlite-wasm.ts"
+      ],
+      "mayUse": []
+    },
+    {
+      "id": "http",
+      "files": [
+        "server/app.ts",
+        "server/index.ts",
+        "server/routes/*.ts",
+        "server/worker.ts"
+      ],
+      "mayUse": [
+        "db"
+      ]
+    },
+    {
+      "id": "web",
+      "files": [
+        "web/**"
+      ],
+      "mayUse": []
+    }
+  ]
+}

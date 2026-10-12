@@ -234,3 +234,27 @@ test("inloop new --desktopは、サーバー向けの雛形にTauriの外枠を�
   assert.match(readFileSync(join(dir, ".gitignore"), "utf8"), /src-tauri\/target\//);
   assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);
 });
+
+test("inloop new --standaloneは、Nodeのサーバーを外し、Web WorkerでHonoを動かす仕組みを重ねる", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-new-")));
+  const r = spawnSync(process.execPath, [BIN, "new", "solo app", "--standalone"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  assert.equal(r.status, 0, r.stderr);
+  const dir = join(parent, "solo app");
+  for (const f of ["server/app.ts", "server/db.ts", "server/sqlite-wasm.ts", "server/worker.ts", "web/src/local-api.ts", "web/src/offline.ts", "web/public/sw.js", "web/public/manifest.webmanifest", "web/public/icon.png", "vite.config.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
+  // サーバーの起動と開発用の起動の仕組みは外す。
+  for (const f of ["server/index.ts", "scripts"]) assert.ok(!existsSync(join(dir, f)), f);
+  const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+  assert.equal(pkg.name, "solo-app");
+  assert.ok(pkg.dependencies["@sqlite.org/sqlite-wasm"]);
+  assert.equal(pkg.dependencies["@hono/node-server"], undefined);
+  // 目印は、`inloop generate scaffold`が使う。node:sqliteの使い方のまま、ファイルや環境変数には触れない。
+  const db = readFileSync(join(dir, "server/db.ts"), "utf8");
+  assert.match(db, /inloop:tables/);
+  assert.doesNotMatch(db, /node:fs|process\.env/);
+  assert.match(readFileSync(join(dir, "vite.config.ts"), "utf8"), /"node:sqlite":/);
+  assert.equal(JSON.parse(readFileSync(join(dir, "web/public/manifest.webmanifest"), "utf8")).name, "solo-app");
+  assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);
+  const both = spawnSync(process.execPath, [BIN, "new", "x", "--standalone", "--desktop"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  assert.notEqual(both.status, 0);
+});

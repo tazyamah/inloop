@@ -1,6 +1,6 @@
 // inloopコマンド（ADR-0011）。
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppRegistry, defaultName, NAME_PATTERN, uiPort } from "./server/apps.js";
@@ -23,7 +23,7 @@ const USAGE = `使い方: inloop <コマンド>
 
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
-  new <dir> [--name <名前>] [--db sqlite] [--desktop] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す
+  new <dir> [--name <名前>] [--db sqlite] [--desktop | --standalone] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す。--standalone はサーバーなしで端末内（ブラウザ・PWA）で動く構成にする
   generate scaffold <名前> <列>... [--plural <名前>] [--label <表示名>]  資源（表・API・テスト・画面）を決まった形で作る。列は 名前:型（text・int・real・bool・date）、省略可は 名前:型:optional
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
@@ -83,6 +83,9 @@ function create(args: string[]): void {
   const db = option(args, "--db") ?? "sqlite";
   const desktop = args.includes("--desktop");
   if (desktop) args.splice(args.indexOf("--desktop"), 1);
+  const standalone = args.includes("--standalone");
+  if (standalone) args.splice(args.indexOf("--standalone"), 1);
+  if (desktop && standalone) throw new Error("--desktop と --standalone は、同時に指定できない");
   if (db !== "sqlite") throw new Error(`--db ${db} の雛形は、まだない（今は sqlite だけ）`);
   if (args.length !== 1) throw new Error("作るディレクトリを1つ指定する（例: inloop new myapp）");
   const dir = resolve(args[0]!);
@@ -95,6 +98,13 @@ function create(args: string[]): void {
   copyTemplate(join(ROOT, "templates", "server"), dir, appName);
   // 手元で動くアプリは、サーバー向けの雛形の上に、Tauriの外枠と同梱の仕組みを重ねる（ADR-0019）。
   if (desktop) copyTemplate(join(ROOT, "templates", "desktop"), dir, appName);
+  // 端末の中だけで動くアプリ（ADR-0039）は、サーバー向けの雛形のうち、Nodeのサーバーの起動を外し、
+  // Web WorkerでHonoを動かす仕組みを重ねる。
+  if (standalone) {
+    copyTemplate(join(ROOT, "templates", "standalone"), dir, appName);
+    rmSync(join(dir, "server", "index.ts"));
+    rmSync(join(dir, "scripts"), { recursive: true });
+  }
   execFileSync("git", ["init", "-q", dir]);
   init([dir, "--name", appName]);
   process.stdout.write(`作りました: ${dir}\n次に: cd ${basename(dir)} && npm install && npm run dev\n`);

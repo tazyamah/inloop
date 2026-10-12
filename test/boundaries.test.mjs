@@ -299,14 +299,14 @@ test("inloop checkは、依頼がない・承認されていない・承認後�
 });
 
 test("雛形とinloop自身のinloop.jsonは、形が合っている", () => {
-  for (const file of ["inloop.json", "templates/server/inloop.json", "templates/desktop/inloop.json"]) {
+  for (const file of ["inloop.json", "templates/server/inloop.json", "templates/desktop/inloop.json", "templates/standalone/inloop.json"]) {
     const rules = parseConfig(readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8"), file);
     assert.ok(rules.length > 0, file);
   }
 });
 
 test("雛形のinloop.jsonには、スキーマ変更に当たるtableのルールがある", () => {
-  for (const file of ["templates/server/inloop.json", "templates/desktop/inloop.json"]) {
+  for (const file of ["templates/server/inloop.json", "templates/desktop/inloop.json", "templates/standalone/inloop.json"]) {
     const rules = parseConfig(readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8"), file);
     const rule = rules.find((r) => r.id === "db-schema");
     assert.deepEqual(rule?.match, [{ table: "*", access: ["schema"] }], file);
