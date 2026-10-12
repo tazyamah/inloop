@@ -329,6 +329,18 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 検証: macOSで`npm test`が96 pass・10 skip・fail 0（追加は`test/review-scope.test.mjs`の13件。`test/engine.test.mjs`の上限のテストは`reviewLines`を使うよう直した）。`playwright`のChromium headless shell 1228を`INLOOP_CHROMIUM`で指定して`INLOOP_UI_E2E=1 npm test`が全106件pass。ただし画面の見出し「から変更なし」と`prior.same`の畳み方は、固定データの画面では`prior`を作れず、e2eでは未検証。実際のクライアントでの表示も未検証。
 
+### 2026-10-12 実際のクライアントでの信頼境界ルールの確認（次の一手の1番）
+
+`inloop new`で作った試験用アプリ（リポジトリの外）に、レイヤー違反（`server/app.ts`が`web/`の関数を呼ぶ）、`audit_log`への書き込み、`inloop.json`の変更を仕込み、Claudeデスクトップアプリの中のClaude Code（ブラウザの経路）で、利用者が操作した。
+
+- AIは依頼を5件出した（任意2件、エンジンが加えた必須3件: `inloop-config`、`layer-direction`、`audit-table`と`db-write`）。必須を省かず、作業の終わりに自分から`inloop check --range main`を動かした。承認前は終了コード1で、AIは「必須の依頼は会話から記録できない、画面で答えてほしい」と案内した。
+- 画面に`レイヤーの向きに反する使い方: http→web`と、`tables`の`audit_log`の`write`・`schema`が出た。利用者は問いの文を「判断できる」とした。必須の1件を保留にすると、AIは再依頼か、理由を説明しての承認かを選ばせた。全件を承認すると`inloop check`が通った（3件`ok`）。
+- 直したこと: UIの`使う`・`使われる`を`uses`・`used by`にした（利用者の希望、コードが英語のため）。必須の依頼の問いに含まれる改行が画面で潰れていたので、`white-space: pre-line`にした。
+- 分かったこと: 値としての参照だけ（`String(App)`）は「使う」に数えず、`layer-direction`に当たらない。呼び出し・`new`・型・継承だけが対象で、ADR-0027は明記していないが、ADR-0020の`references`と同じ範囲。`inloop new`の雛形の`inloop.json`には`table`の当て方がない。試験用アプリで`npm install`をしていないと、`node:sqlite`の型が引けず、`db.exec`・`db.prepare`が未解決の参照に出る（`npm install`後は消えた。テーブルの解析は影響を受けなかった）。
+- 未確認: 必須の系列への`follows`での再依頼（枝番の`R4-1`）。利用者は承認で終えた。
+
+検証: macOSで`npm test`が96 pass・10 skip・fail 0。`INLOOP_UI_E2E=1`は未実行。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -420,7 +432,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 優先する構成は「macOS＋Claude Code（デスクトップクライアント）＋SQLite」。まずこの構成の全機能を完成させ、そのあとで他のクライアント（Claude Desktopなど）、他のDB、他のOSに進む。ただし設計は、後から他の選択肢を足せるように保つ（この構成に固定しない）。
 
-1. 実際のクライアント（Claude Code）で、信頼境界ルール（ADR-0022）、`layer-direction`（ADR-0027）、`table`の当て方（ADR-0028）を使い、`inloop new`の雛形の`inloop.json`が狙いどおり当たるかを確かめる。人が画面を見て確かめる作業。
+1. 実際のクライアント（Claude Code）で、必須の系列への`follows`での再依頼（枝番）と、再依頼の画面の「から変更なし」（4番と同じ）を確かめる。信頼境界ルール、`layer-direction`、`table`の当て方は2026-10-12に確かめた（上の節）。雛形の`inloop.json`に`table`の当て方を足すか決める。
 2. 解析エンジンの次: SQLの列、2段以上の間接（SQLを実行する関数の呼び出し先）。証拠の取り込みは、検査単位（ADR-0024）とテストが直接呼ぶシンボルへの結び付け（ADR-0025）まで完了。
 3. 依存の図（ADR-0020）と畳むコードを数えない上限（ADR-0029）を、実際の依頼で使って見直す。
 4. 再依頼の「から変更なし」（ADR-0029）を実際の再依頼で使い、行単位の差分が要るかを決める。

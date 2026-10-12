@@ -314,8 +314,8 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
     });
     rel.append(" ");
   };
-  relLinks("使う", uses.get(s.symbol));
-  relLinks("使われる", usedBy.get(s.symbol));
+  relLinks("uses", uses.get(s.symbol));
+  relLinks("used by", usedBy.get(s.symbol));
   box.append(h);
   if (rel.childNodes.length) box.append(rel);
   if (folded) return box;
