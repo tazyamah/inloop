@@ -4,10 +4,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BoundaryHit, evaluate, fileCode, loadConfig } from "./boundaries.js";
-import { readEvidence } from "./evidence.js";
+import { bindEvidence, readEvidence, testCoverage } from "./evidence.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
-import { CONFIG_FILE, type Layer, layerOf } from "./rules.js";
+import { CONFIG_FILE, type EvidenceSpec, type Layer, layerOf } from "./rules.js";
 import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
@@ -69,7 +69,13 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       return lines;
     };
     const evidence = readEvidence(repo, config.evidence);
-    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers, evidence };
+    const coverage = new Map<string, Set<string>>();
+    const covered = (spec: EvidenceSpec) => {
+      let c = coverage.get(spec.id);
+      if (!c) coverage.set(spec.id, (c = testCoverage(project, spec.tests ?? [])));
+      return c;
+    };
+    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers, specs: config.evidence, evidence, covered };
     const packets = [...reviews, ...extra].map((r) => packetOf(ctx, r, range));
     const max = options.maxLines;
     if (max !== undefined) {
@@ -96,8 +102,11 @@ interface Context {
   boundaries: Map<string, string[]>;
   /** inloop.jsonのレイヤー（ADR-0023） */
   layers: Layer[];
-  /** 設定した検査の結果（ADR-0024）。どの依頼票にも同じものを入れる */
+  /** 設定した検査（ADR-0024）と、その結果。`specs`と同じ順 */
+  specs: EvidenceSpec[];
   evidence: Evidence[];
+  /** `tests`を持つ検査が、呼び出す・newするシンボルのID（ADR-0025） */
+  covered: (spec: EvidenceSpec) => Set<string>;
 }
 
 /** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0022）。 */
@@ -166,7 +175,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     edges: sortEdges(edges, steps, callers),
     callers,
     unresolved: [...new Set(unresolved)],
-    evidence: ctx.evidence,
+    evidence: bindEvidence(ctx.specs, ctx.evidence, ctx.covered, [...new Set([...review.symbols, ...steps.filter((s) => s.change !== "unchanged").map((s) => s.symbol)])].filter((id) => id.includes("#"))),
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },
     fixture: false,
   };

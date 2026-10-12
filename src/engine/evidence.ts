@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { z } from "zod";
 import type { Evidence } from "../server/types.js";
 import { treeFingerprint } from "./diff.js";
-import type { EvidenceSpec } from "./rules.js";
+import type { TsProject } from "./project.js";
+import { matchesAny, type EvidenceSpec } from "./rules.js";
 
 export const EVIDENCE_FILE = "evidence.json";
 const TIMEOUT_MS = 10 * 60 * 1000;
@@ -81,5 +82,39 @@ export function readEvidence(repo: string, specs: EvidenceSpec[]): Evidence[] {
       return { kind: s.kind, name: `${s.name}（結果が今のコードのものではない）`, status: "missing" };
     }
     return { kind: s.kind, name: s.name, status: r.status };
+  });
+}
+
+/**
+ * `tests`に当たるファイルが、呼び出す・newするシンボルのID（ADR-0025）。宣言の中と最上位の文（`test(...)`など）を調べる。
+ * 宣言までたどれない呼び出しは数えない（推測でつなげない）。
+ */
+export function testCoverage(project: TsProject, patterns: string[]): Set<string> {
+  const out = new Set<string>();
+  if (patterns.length === 0) return out;
+  const add = (uses: { to: string; kind: string }[]) => {
+    for (const u of uses) if (u.kind === "call" || u.kind === "new") out.add(u.to);
+  };
+  for (const file of project.repoFiles()) {
+    if (!matchesAny(patterns, file)) continue;
+    for (const d of project.declarationsOf(file)) add(project.references(d).uses);
+    const top = project.topLevel(file);
+    if (top.nodes.length > 0) add(project.referencesIn(file, top.nodes).uses);
+  }
+  return out;
+}
+
+/**
+ * 依頼票の`evidence`。`tests`のない検査はそのまま。`tests`のある検査は、依頼票の対象（指定したシンボルと変わったシンボル）の
+ * どれかを参照するテストがあるときだけ結果を示し、なければ`missing`にする。一部だけなら名前に件数を足す。
+ */
+export function bindEvidence(specs: EvidenceSpec[], evidence: Evidence[], covered: (spec: EvidenceSpec) => Set<string>, targets: string[]): Evidence[] {
+  return evidence.map((e, i) => {
+    const spec = specs[i]!;
+    if (!spec.tests) return e;
+    const c = covered(spec);
+    const n = targets.filter((t) => c.has(t)).length;
+    if (n === 0) return { kind: e.kind, name: `${e.name}（対象のシンボルを参照するテストがない）`, status: "missing" };
+    return n === targets.length ? e : { ...e, name: `${e.name}（対象${targets.length}件のうち${n}件を参照）` };
   });
 }
