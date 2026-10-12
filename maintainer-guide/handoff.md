@@ -290,6 +290,13 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 `claude/review-lifecycle`の未マージ分（アイコン2コミット）をmainに取り込んだ（`templates/desktop/README.md`の衝突は両方の記述を残した）。`claude/trust-boundary-rules`、`tauri-scaffold-remaining`、`claude/dependency-graph`はmainに含まれていた。検証: macOSで`npm ci`・`npm run build`、`npm test`が73 pass・10 skip・fail 0、`playwright@1.56.0`（`--no-save`）とChromium 149で`INLOOP_UI_E2E=1 npm test`が全83件pass。この環境ではSSHの鍵が使えず、GitHubとのやり取りはhttps（`gh`の認証）で行った。
 
+### 2026-10-12 inloop.jsonのレイヤーと版の下限（ADR-0023）
+
+- `inloop.json`に省略できる`layers`（`{id, files}`）と`minVersion`を足した。ファイルが最初に当たったレイヤーが依頼票の`layer`になる（それまで常に空）。`minVersion`が今のinloopより新しければ、`request_review`と`inloop check`が拒否する。向きの検査（`mayUse`）は作っていない。
+- 次の一手の1番にあった「アイコンの生成」は、すでにmainにあった（`npm run icon`）ので、そちらは完了として外した。
+
+検証: macOSで`npm run build && npm test`が75 pass・10 skip・fail 0（追加は2件）。UIは変えていないので`INLOOP_UI_E2E=1`は未実行。実際のクライアントでの表示は未検証。
+
 ## クライアント検証の結果
 
 | クライアント | 接続 | AIに見えるツールが2つだけ | 依頼の戻り値 | UI表示 | 回答の会話への反映 | 同じ画面でのファイル編集 |
@@ -328,7 +335,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - TypeScriptの型解決にGo版コンパイラ（TypeScript 7）を使えるか。外部から呼び出すAPIの状況は未確認。
 - 手元のアプリで同梱するHonoの実行ファイルの作り方（Bun、Deno、Node.jsの単一実行ファイル）と、Tauriからの起動・終了（ADR-0011）。
 - 対象のパスを依頼票とUIにどこまで見せるか（ADR-0010）。
-- inloopの設定ファイル（`inloop.json`、ADR-0022）に、使うinloopの版とレイヤー対応ルールをどう足すか。当て方を特定のファイルに絞る指定。
+- レイヤー間の依存の向きの検査（ADR-0023）。信頼境界ルールの当て方を特定のファイルに絞る指定。
 - ライセンス。
 - [docs/review-protocol.md](../docs/review-protocol.md)の未決事項（レビュー予算の単位、差分だけの再依頼、承認後の変更の検出（必須の依頼以外）、記録の整理）。
 
@@ -378,7 +385,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 優先する構成は「macOS＋Claude Code（デスクトップクライアント）＋SQLite」。まずこの構成の全機能を完成させ、そのあとで他のクライアント（Claude Desktopなど）、他のDB、他のOSに進む。ただし設計は、後から他の選択肢を足せるように保つ（この構成に固定しない）。
 
-1. `inloop`コマンドの残り: inloopの設定ファイルの形式（解析エンジンと合わせて決める）、手元で動くアプリの雛形のアイコンの生成（macOSの`dev:desktop`と`.dmg`は確認済み）。
+1. `inloop`コマンドの残り: 設定ファイルのレイヤー間の依存の向きの検査（ADR-0023で後回し）、雛形に`layers`を足すか。
 2. 解析エンジンの次: 証拠（テスト結果）の取り込み、SQLの解析。信頼境界ルール（ADR-0022）を実際のクライアントで使い、`inloop new`の雛形のルールが狙いどおり当たるかを確かめる。
 3. 依存の図（ADR-0020）を実際の依頼で使い、行数の上限の数え方を見直す（第一候補: 畳んである変わっていない依存の行を数えない）。
 4. 再依頼で、承認済みシンボルとの差分だけを見せる仕組みを作る。

@@ -1,9 +1,10 @@
 // 信頼境界ルールを、範囲の変更に当てる（ADR-0001、ADR-0022）。同じコード・範囲・ルールからは、同じ結果になる。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
 import type { TsProject } from "./project.js";
-import { CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, matchesAny, mergeRules, parseConfig, type Rule, sameModule } from "./rules.js";
+import { type Config, CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, type Layer, matchesAny, mergeRules, parseFullConfig, type Rule, sameModule, versionLess } from "./rules.js";
 
 /** ルールに当たった単位。必須の依頼は、この単位ごとに1件作る。 */
 export interface BoundaryHit {
@@ -22,14 +23,34 @@ export interface BoundaryHit {
   code: string;
 }
 
-/** 範囲の基点と作業ツリーのinloop.jsonを読み、ルールの和を返す。どちらも形が合わなければ拒否する。 */
-export function loadRules(repo: string, base: string): Rule[] {
+/** 今のinloopの版（package.json）。 */
+export function inloopVersion(): string {
+  const file = fileURLToPath(new URL("../../package.json", import.meta.url));
+  return (JSON.parse(readFileSync(file, "utf8")) as { version: string }).version;
+}
+
+/**
+ * 範囲の基点と作業ツリーのinloop.jsonを読む（ADR-0022、ADR-0023）。ルールは和、レイヤーは作業ツリーのもの（なければ基点のもの）。
+ * どちらも形が合わない、または`minVersion`が今のinloopより新しければ拒否する。
+ */
+export function loadConfig(repo: string, base: string): { rules: Rule[]; layers: Layer[] } {
   const atBase = fileAtBase(repo, base, CONFIG_FILE);
   const current = join(repo, CONFIG_FILE);
-  return mergeRules(
-    atBase === undefined ? [] : parseConfig(atBase.toString("utf8"), `${base}:${CONFIG_FILE}`),
-    existsSync(current) ? parseConfig(readFileSync(current, "utf8"), CONFIG_FILE) : [],
-  );
+  const configs: Config[] = [];
+  const fromBase = atBase === undefined ? undefined : parseFullConfig(atBase.toString("utf8"), `${base}:${CONFIG_FILE}`);
+  const fromTree = existsSync(current) ? parseFullConfig(readFileSync(current, "utf8"), CONFIG_FILE) : undefined;
+  if (fromBase) configs.push(fromBase);
+  if (fromTree) configs.push(fromTree);
+  const have = inloopVersion();
+  for (const c of configs) {
+    if (c.minVersion && versionLess(have, c.minVersion)) throw new Error(`${CONFIG_FILE}: inloop ${c.minVersion} 以上が必要（今は ${have}）。inloop update で更新する`);
+  }
+  return { rules: mergeRules(fromBase?.rules ?? [], fromTree?.rules ?? []), layers: (fromTree ?? fromBase)?.layers ?? [] };
+}
+
+/** 範囲の基点と作業ツリーのinloop.jsonを読み、ルールの和を返す。 */
+export function loadRules(repo: string, base: string): Rule[] {
+  return loadConfig(repo, base).rules;
 }
 
 /** ファイルの中身を依頼票のコードの形にする（末尾の改行を1つ除く）。読めなければundefined。 */

@@ -3,10 +3,10 @@
 // 必須の依頼の観点は、AIではなく信頼境界ルールの問いから作る（ADR-0022）。
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { type BoundaryHit, evaluate, fileCode, loadRules } from "./boundaries.js";
+import { type BoundaryHit, evaluate, fileCode, loadConfig } from "./boundaries.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
-import { CONFIG_FILE } from "./rules.js";
+import { CONFIG_FILE, type Layer, layerOf } from "./rules.js";
 import type { ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
@@ -50,10 +50,11 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       for (const s of r.symbols) if (!exists(project, repo, base, s)) errors.push(`${s}: 見つからないシンボル`);
     }
     if (errors.length > 0) throw new Error([...new Set(errors)].join("\n"));
+    const config = loadConfig(repo, base);
     let hits: BoundaryHit[] = [];
     let extra: PlannedReview[] = [];
     if (options.required) {
-      hits = evaluate(project, repo, base, loadRules(repo, base));
+      hits = evaluate(project, repo, base, config.rules);
       extra = options.required(hits);
     }
     const boundaries = new Map(hits.map((h) => [h.symbol, h.rules]));
@@ -66,7 +67,7 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       }
       return lines;
     };
-    const ctx: Context = { project, repo, base, changed, boundaries };
+    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers };
     const packets = [...reviews, ...extra].map((r) => packetOf(ctx, r, range));
     const max = options.maxLines;
     if (max !== undefined) {
@@ -91,6 +92,8 @@ interface Context {
   changed: (file: string, lineCount: number) => Set<number>;
   /** ルールに当たった単位のシンボルIDと、ルールのid */
   boundaries: Map<string, string[]>;
+  /** inloop.jsonのレイヤー（ADR-0023） */
+  layers: Layer[];
 }
 
 /** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0022）。 */
@@ -138,7 +141,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
       symbol: d.id,
       file: d.file,
       startLine: d.startLine,
-      layer: "",
+      layer: layerOf(ctx.layers, d.file),
       boundaries: ctx.boundaries.get(d.id) ?? [],
       change: rel.length === 0 ? "unchanged" : rel.length === total ? "added" : "modified",
       code: d.code,
@@ -176,7 +179,7 @@ function fileSteps(ctx: Context, file: string): Omit<ReviewStep, "order">[] {
   const old = fileAtBase(ctx.repo, ctx.base, file);
   const boundaries = ctx.boundaries.get(file) ?? [];
   if (old !== undefined && (current === undefined || file === CONFIG_FILE)) {
-    out.push({ symbol: `${ctx.base}:${file}`, file, startLine: 1, layer: "", boundaries, change: "unchanged", code: fileCode(old), changedLines: [] });
+    out.push({ symbol: `${ctx.base}:${file}`, file, startLine: 1, layer: layerOf(ctx.layers, file), boundaries, change: "unchanged", code: fileCode(old), changedLines: [] });
   }
   if (current !== undefined) {
     const count = current.split("\n").length;
@@ -186,7 +189,7 @@ function fileSteps(ctx: Context, file: string): Omit<ReviewStep, "order">[] {
       symbol: file,
       file,
       startLine: 1,
-      layer: "",
+      layer: layerOf(ctx.layers, file),
       boundaries,
       change: old === undefined ? "added" : rel.length === 0 ? "unchanged" : "modified",
       code: current,
