@@ -405,4 +405,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 気づき: iOSシミュレーターの起動で、Macの`SafariBookmarksSyncAgent`が落ちるダイアログが出た。シミュレーターは終了した。
 - 実機の確認（利用者の発言、2026-10-12）: `inloop new memo --standalone`で作ったアプリを、Cloudflare Pages（無料、`wrangler pages deploy dist/web --project-name memo --branch production`）に置き、iPhone（iOS 26.6.2）のホーム画面に「Webアプリとして開く」で追加。メモの保存、終了後の再起動での保持、機内モードでの表示と追加ができた。Safariのタブとホーム画面のアプリは保存領域が別。
 - 気づき: `--branch`を付けないと、gitにcommitがないためプレビュー扱いのURLになる。固定のURL（`<プロジェクト>.pages.dev`）に出すには`--branch production`。URLが変わると保存領域も別になる。保存領域を開けないことに気づけるよう、画面の下に保存先の状態を出すようにした（`web/src/local-api.ts`）。
+- 更新通知（`web/src/offline.ts`、`vite.config.ts`の`build-id`、`web/public/sw.js`）: ビルドごとの識別子を`version.txt`に出し、開いたときと画面に戻ったときに置き場所の値と見比べ、違えば「更新」を出す。押すとキャッシュを捨てて読み込み直す。Chromiumで、版を上げて再ビルドすると表示が出て、押すと消えることを確認（実機は未確認）。
+- 機能カタログのデモアプリ（`~/work/catalog`、雛形の外。Cloudflare Pagesの`catalog`）: PWAで使える31の機能（SQLite、保存容量、ファイル、通知、バッジ、センサー、カメラ、マイク、読み上げ、共有、パスキーなど）を試す画面と、試した結果をSQLiteに残す履歴（`inloop generate scaffold trial`で生成）。Chromium（狭い画面）で、12の機能の実行と履歴の保存を確認。カメラ・マイク・通知・センサーなどの実機での動作は未確認。
+- 気づき: `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗する。空のディレクトリで`--force`を付けて作る（初回だけ）。
 
