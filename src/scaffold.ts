@@ -341,22 +341,24 @@ ${r.fields.map(input).join("\n")}
         {items.length === 0 ? (
           <p className="muted">まだありません。</p>
         ) : (
-          <table>
-            <thead>
-              <tr>${r.fields.map((f) => `<th>${inputLabel(f)}</th>`).join("")}<th></th></tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  ${r.fields.map((f) => `<td>${cell(f)}</td>`).join("\n                  ")}
-                  <td className="row-actions">
-                    <button type="button" onClick={() => { setForm(toForm(item)); setEditing(item.id); setError(""); }}>編集</button>{" "}
-                    <button type="button" className="danger" onClick={() => void remove(item.id)}>削除</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>${r.fields.map((f) => `<th>${inputLabel(f)}</th>`).join("")}<th></th></tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    ${r.fields.map((f) => `<td>${cell(f)}</td>`).join("\n                  ")}
+                    <td className="row-actions">
+                      <button type="button" onClick={() => { setForm(toForm(item)); setEditing(item.id); setError(""); }}>編集</button>{" "}
+                      <button type="button" className="danger" onClick={() => void remove(item.id)}>削除</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </>

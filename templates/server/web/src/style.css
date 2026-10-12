@@ -36,7 +36,8 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 syst
 .app-main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
 h2 { font-size: 1.25rem; margin: 0 0 var(--gap); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-.form { display: grid; gap: var(--gap); }
+.form { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+.form > .actions, .form > .error { grid-column: 1 / -1; }
 .field { display: grid; gap: 4px; }
 .field > span { font-size: 0.85rem; color: var(--muted); }
 .field-check { display: flex; align-items: center; gap: 8px; }
@@ -52,7 +53,8 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 button.danger { color: var(--danger); }
 .error { color: var(--danger); margin: 0; }
 .muted { color: var(--muted); }
-table { width: 100%; border-collapse: collapse; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 480px; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 td.row-actions { text-align: right; white-space: nowrap; }
