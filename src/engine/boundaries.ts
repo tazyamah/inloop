@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
 import type { TsProject } from "./project.js";
-import { type Config, CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, type Layer, matchesAny, mergeRules, parseFullConfig, type Rule, sameModule, versionLess } from "./rules.js";
+import { type Config, CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, type EvidenceSpec, type Layer, matchesAny, mergeRules, parseFullConfig, type Rule, sameModule, versionLess } from "./rules.js";
 
 /** ルールに当たった単位。必須の依頼は、この単位ごとに1件作る。 */
 export interface BoundaryHit {
@@ -33,7 +33,7 @@ export function inloopVersion(): string {
  * 範囲の基点と作業ツリーのinloop.jsonを読む（ADR-0022、ADR-0023）。ルールは和、レイヤーは作業ツリーのもの（なければ基点のもの）。
  * どちらも形が合わない、または`minVersion`が今のinloopより新しければ拒否する。
  */
-export function loadConfig(repo: string, base: string): { rules: Rule[]; layers: Layer[] } {
+export function loadConfig(repo: string, base: string): { rules: Rule[]; layers: Layer[]; evidence: EvidenceSpec[] } {
   const atBase = fileAtBase(repo, base, CONFIG_FILE);
   const current = join(repo, CONFIG_FILE);
   const configs: Config[] = [];
@@ -45,7 +45,7 @@ export function loadConfig(repo: string, base: string): { rules: Rule[]; layers:
   for (const c of configs) {
     if (c.minVersion && versionLess(have, c.minVersion)) throw new Error(`${CONFIG_FILE}: inloop ${c.minVersion} 以上が必要（今は ${have}）。inloop update で更新する`);
   }
-  return { rules: mergeRules(fromBase?.rules ?? [], fromTree?.rules ?? []), layers: (fromTree ?? fromBase)?.layers ?? [] };
+  return { rules: mergeRules(fromBase?.rules ?? [], fromTree?.rules ?? []), layers: (fromTree ?? fromBase)?.layers ?? [], evidence: (fromTree ?? fromBase)?.evidence ?? [] };
 }
 
 /** 範囲の基点と作業ツリーのinloop.jsonを読み、ルールの和を返す。 */

@@ -44,3 +44,4 @@
 | [0021](0021-callers-in-dependency-graph.md) | Accepted | 依頼票に呼び出し元（`callers`、1段、呼び出しと`new`だけ）を残し、依存の図の右の列に出す。コードは畳む |
 | [0022](0022-trust-boundary-rules.md) | Accepted | 信頼境界ルールをリポジトリの`inloop.json`に書き、当たった変更ごとにエンジンが必須の依頼を作る。`inloop check`で承認を確かめる |
 | [0023](0023-config-layers-and-min-version.md) | Accepted | `inloop.json`に`layers`（ファイルからレイヤーを決めて依頼票の`layer`に入れる）と`minVersion`を足す。向きの検査は後回し |
+| [0024](0024-evidence-runs.md) | Accepted | `inloop.json`の`evidence`の検査をinloopが実行して記録し、依頼票の`evidence`に入れる。作業ツリーの指紋が違う結果は`missing`にする |

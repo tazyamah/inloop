@@ -4,10 +4,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type BoundaryHit, evaluate, fileCode, loadConfig } from "./boundaries.js";
+import { readEvidence } from "./evidence.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
 import { CONFIG_FILE, type Layer, layerOf } from "./rules.js";
-import type { ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep } from "../server/types.js";
+import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
 export const BUDGET_LIMIT = 40;
@@ -67,7 +68,8 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       }
       return lines;
     };
-    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers };
+    const evidence = readEvidence(repo, config.evidence);
+    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers, evidence };
     const packets = [...reviews, ...extra].map((r) => packetOf(ctx, r, range));
     const max = options.maxLines;
     if (max !== undefined) {
@@ -94,6 +96,8 @@ interface Context {
   boundaries: Map<string, string[]>;
   /** inloop.jsonのレイヤー（ADR-0023） */
   layers: Layer[];
+  /** 設定した検査の結果（ADR-0024）。どの依頼票にも同じものを入れる */
+  evidence: Evidence[];
 }
 
 /** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0022）。 */
@@ -162,7 +166,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     edges: sortEdges(edges, steps, callers),
     callers,
     unresolved: [...new Set(unresolved)],
-    evidence: [],
+    evidence: ctx.evidence,
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },
     fixture: false,
   };

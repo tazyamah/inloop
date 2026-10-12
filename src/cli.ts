@@ -8,6 +8,8 @@ import { runMcp } from "./server/mcp.js";
 import { LOG_FILE_NAME, ReviewStore } from "./server/store.js";
 import { gitTopLevel } from "./server/target.js";
 import { answersOf } from "./server/wait.js";
+import { loadConfig } from "./engine/boundaries.js";
+import { runEvidence } from "./engine/evidence.js";
 import { checkRequired } from "./server/check.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
 
@@ -25,6 +27,7 @@ const USAGE = `使い方: inloop <コマンド>
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
   check [--repo <dir>] [--range <範囲>]              信頼境界ルールが求める必須の依頼が、すべて承認済みかを確かめる
+  evidence run [<id>...] [--repo <dir>]              inloop.jsonに書いた検査（テストなど）を実行し、結果を依頼票の証拠にする
   update                                             inloopを更新してビルドし直す
 `;
 
@@ -173,6 +176,19 @@ function check(args: string[]): void {
   process.exitCode = 1;
 }
 
+/** inloop.jsonの`evidence`の検査を実行して記録する（ADR-0024）。1つでもfailなら終了コード1。 */
+function evidence(args: string[]): void {
+  const sub = args.shift();
+  if (sub !== "run") throw new Error("使い方: inloop evidence run [<id>...] [--repo <dir>]");
+  const repoArg = option(args, "--repo");
+  const repo = gitTopLevel(resolve(repoArg ?? "."));
+  const specs = loadConfig(repo, "HEAD").evidence;
+  if (specs.length === 0) throw new Error("inloop.json に evidence がない");
+  const results = runEvidence(repo, specs, args.length > 0 ? args : undefined);
+  for (const r of results) process.stdout.write(`${r.status}\t${r.spec.id}\t${r.spec.name}\n`);
+  if (results.some((r) => r.status !== "pass")) process.exitCode = 1;
+}
+
 export async function main(argv: string[]): Promise<void> {
   const [command, ...args] = argv;
   try {
@@ -202,6 +218,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "check":
         check(args);
+        return;
+      case "evidence":
+        evidence(args);
         return;
       case undefined:
       case "help":
