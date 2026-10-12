@@ -59,3 +59,4 @@
 | [0037](0037-primary-client-claude-code.md) | Accepted | 主なクライアントをClaude Code（デスクトップ）にする。ほかのクライアント・DB・OSは後回し（ADR-0006をSupersedes） |
 | [0038](0038-scaffold-generator.md) | Accepted | `inloop generate scaffold`で表・API・テスト・画面を決まった形で生成し、雛形に共通の見た目を入れる |
 | [0039](0039-standalone-in-browser-runtime.md) | Accepted | サーバーなしで端末内（ブラウザ・PWA）で動く構成`--standalone`を足す。HonoをWeb Workerで動かし、SQLiteはsqlite-wasm（OPFS）に差し替える |
+| [0040](0040-e2e-encrypted-sync-relay.md) | Accepted | 端末どうしの同期は、端末のSQLiteを正にし、暗号化した変更を小さな中継（Cloudflare Workers）で受け渡す |

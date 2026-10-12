@@ -18,6 +18,7 @@
 - テスト: macOSで`npm test`が通る（直近の数は[implementation-log.md](implementation-log.md)の末尾）。UIを変えたときは`INLOOP_UI_E2E=1 npm test`も動かす。
 - `inloop generate scaffold`（ADR-0038）を実装した。表・API・テスト・画面の生成と、雛形の共通の見た目。自動テストと、生成アプリのビルド・ブラウザでの表示まで。実クライアントでの使用は未確認。
 - `inloop new --standalone`（ADR-0039）を実装した。サーバーなしで、HonoをWeb Workerで動かし、SQLiteはsqlite-wasm（OPFS）に保存する。PWAとして配る。Chromiumと、iPhone実機のホーム画面のPWA（Cloudflare Pagesに置いた）で、保存・再起動後の保持・機内モードでの動作まで確認。Android、Chrome拡張は未確認。
+- 買い物リストと端末どうしの同期（ADR-0040）: `~/work/shopping`で作った（inloopの外のアプリ）。中継はCloudflare Workers。雛形への取り込み（`--sync`など）は未。実機（iPhone）での共有は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
 
@@ -26,8 +27,9 @@
 利用者の方針（2026-10-12）: まず、Claude Code（デスクトップ）で、webアプリとデスクトップアプリを楽に作れるようにする。ほかのクライアント（Claude Desktop、Codex、VS Code、Claude Code CLI）、他のミドルウェア（DBなど）、他のOSは、それが済んでからでよい。ただし設計は、後から足せるように保つ。
 
 1. scaffoldの実クライアントでの確認と調整（ADR-0038。実装済み）。Claude Codeの会話で、AIが`inloop generate scaffold`を使って機能を作るか、生成された画面の見た目と操作が使えるものか、足りないもの（関連、並べ替え、検索、列の型、日本語の表示名など）を、実際にアプリを作って洗い出す。手順は、新しいアプリを`inloop new`で作り、Claude Codeで開いて「○○を管理する機能を作って」と頼む。
-2. `--standalone`（ADR-0039）の次: Chrome拡張の入れ物（MV3）を足す。データの書き出し・読み込み。配る手順（Cloudflare Pagesへの`wrangler pages deploy`）の雛形への反映。
-3. 利用者の判断待ち（困ったときに戻る）: 再依頼で、保留のあとも畳むか。行単位の差分が要るか。
+2. 買い物リストの共有を、iPhoneとほかの端末で確かめる（ADR-0040）。そのあと、同期を雛形（`--sync`）へ取り込むか決める。
+3. `--standalone`（ADR-0039）の次: Chrome拡張の入れ物（MV3）を足す。データの書き出し・読み込み。配る手順（Cloudflare Pagesへの`wrangler pages deploy`）の雛形への反映。
+4. 利用者の判断待ち（困ったときに戻る）: 再依頼で、保留のあとも畳むか。行単位の差分が要るか。
 
 後回し（理由: 上の方針）: 他のクライアントでの確認、他のDB（PostgreSQLは上の保管中の作業）、Windows・Linux、署名と公証。
 

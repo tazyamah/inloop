@@ -409,3 +409,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 機能カタログのデモアプリ（`~/work/catalog`、雛形の外。Cloudflare Pagesの`catalog`）: PWAで使える31の機能（SQLite、保存容量、ファイル、通知、バッジ、センサー、カメラ、マイク、読み上げ、共有、パスキーなど）を試す画面と、試した結果をSQLiteに残す履歴（`inloop generate scaffold trial`で生成）。Chromium（狭い画面）で、12の機能の実行と履歴の保存を確認。カメラ・マイク・通知・センサーなどの実機での動作は未確認。
 - 気づき: `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗する。空のディレクトリで`--force`を付けて作る（初回だけ）。
 
+## 2026-10-12 買い物リストと端末どうしの同期（ADR-0040）
+
+- 利用者の方針（2026-10-12）: 少人数で共有する買い物リストを使いたい。通信が必要な共有系も、可能な限りスタンドアロン・オフラインで動かす（無料の範囲）。
+- `~/work/shopping`（inloopの外のアプリ。`inloop new --standalone`で作成）: 買い物リスト、同期しやすい構造（`uid`、`updated_at`、`deleted`、`dirty`）、同期（`server/sync.ts`、`sync-crypto.ts`）、中継（`relay/`、Cloudflare Workers＋Durable Objects）、共有の画面（`web/src/pages/Share.tsx`）。Cloudflare Pagesの`shopping`と、Workersの`shopping-relay`に置いた。
+- 無料枠は、Cloudflareの公式ドキュメント（Durable Objectsの料金と制限、Workersの制限、WebSocketの休止）で確認した。SQLite版のDurable Objectsは無料プランで使える。
+- 検証: アプリの`npm test`が17 pass（同期の2台のテスト、不正な行、中継の部屋）。本物の中継と2つのブラウザで、参加・追加・チェックの伝わりを確認。許可外のオリジンは403。未検証: iPhone実機、実際の回線の切断からの再接続、休止からの復帰。
+- 気づき: Playwrightの`setOffline`は、既存のWebSocketを切らない。`wrangler@4.149`と`@cloudflare/workers-types`は、`^5`が必要（`^4`だとnpmの依存が解決しない）。
+
