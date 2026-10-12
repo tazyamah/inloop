@@ -424,4 +424,6 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（macOS）: このリポジトリの`npm test`が112 pass・14 skip・fail 0。生成したアプリの`npm test`が17 pass（5回続けて動かし、1回、負荷で時間切れがあったので、待ち時間を8秒にした）。ローカルの中継（`wrangler dev`）と2つのブラウザで、承認までの流れと取り外し後のアラートを確認。
 - 気づき: (1) メッセージの処理は、届いた順に1つずつにしないと、承認の直後の「記録の追加」が二重に処理されて止まった（直した）。(2) `@cloudflare/workers-types`の型は、DOMの型と違うので、`crypto.ts`に型の断り（`as`）が要った。(3) `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗するので、空のディレクトリで`--force`を付けて作る。
 - 未検証: 実機（iPhone）、本物のCloudflare上の中継、実ブラウザでの再接続・休止からの復帰、オーナー鍵の複製のアラートの実ブラウザでの表示。
+- 買い物リストを`inloop new shoppinglist --sync`で作り直し（`~/work/shoppinglist`、inloopの外のアプリ）、Cloudflareに置いた（画面: `shoppinglist-b35.pages.dev`、中継: `shoppinglist-relay.suzuki-4f2.workers.dev`）。アプリの`npm test`が21 pass。本物のCloudflare上で、2つのブラウザの間の承認から取り外しまでを確認。同期のテストを、アプリの表に依らない専用の表に直した（アプリが表を変えても、同期のテストが壊れないように）。
+- 気づき: `wrangler pages deploy`の直後は、数秒、522が返る。`ALLOWED_ORIGINS`は、Pagesの最初のデプロイで決まるURLを入れて、中継を置き直す必要がある（READMEの手順4）。
 

@@ -4,9 +4,8 @@ import { DatabaseSync } from "node:sqlite";
 import { RoomStore, authContext, LIMITS, type Ctx, type Out, type Sql } from "../../relay/src/room.ts";
 import { createApp } from "../app.ts";
 import { openDb } from "../db.ts";
-import { syncTables } from "../sync-tables.ts";
 import { confirmDigits, deviceId, groupKeys, inviteProof, newGroupKey, newIdentity, newInvite, parseInvite, unwrapGroupKey, verify, verifyInviteProof, wrapGroupKey } from "./crypto.ts";
-import { Sync, validateRow, type SocketLike } from "./engine.ts";
+import { Sync, validateRow, type SocketLike, type SyncTable } from "./engine.ts";
 import { deviceOf, makeRecord, recordHash, verifyChain } from "./membership.ts";
 
 // ── 中継の代わり（メモリ上）。本物の中継と同じ RoomStore と認証を使う ──
@@ -90,16 +89,30 @@ class FakeSocket implements SocketLike {
 }
 
 // ── 端末の代わり ──
+// アプリの表（server/sync-tables.ts）に依らず、このテスト専用の表で、同期の仕組みだけを確かめる。
+const TEST_TABLE: SyncTable = { name: "sync_test", columns: { body: { type: "text", max: 1000 } } };
+
 function device(relay: FakeRelay, label = "端末") {
   const db = openDb(":memory:");
+  db.exec("CREATE TABLE sync_test (uid TEXT PRIMARY KEY, body TEXT NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, dirty INTEGER NOT NULL DEFAULT 1)");
   const now = () => ++relay.clock.t;
-  const sync = new Sync(db, { url: "wss://relay.test", tables: syncTables, open: relay.open, now, backoffMs: [5, 10] });
+  const sync = new Sync(db, { url: "wss://relay.test", tables: [TEST_TABLE], open: relay.open, now, backoffMs: [5, 10] });
   const app = createApp(db, now, sync);
   const req = (path: string, body?: unknown, method = "POST") => app.request(path, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   return {
     label, db, sync, app, req,
-    addNote: async (body: string) => ((await (await req("/api/notes", { body })).json()) as { uid: string }).uid,
-    notes: async () => ((await (await app.request("/api/notes")).json()) as { uid: string; body: string }[]).map((n) => n.body).sort(),
+    addNote: async (body: string) => {
+      const uid = crypto.randomUUID();
+      const t = now();
+      db.prepare("INSERT INTO sync_test (uid, body, deleted, created_at, updated_at, dirty) VALUES (?, ?, 0, ?, ?, 1)").run(uid, body, t, t);
+      sync.touch();
+      return uid;
+    },
+    deleteNote: (uid: string) => {
+      db.prepare("UPDATE sync_test SET deleted = 1, updated_at = ?, dirty = 1 WHERE uid = ?").run(now(), uid);
+      sync.touch();
+    },
+    notes: async () => (db.prepare("SELECT body FROM sync_test WHERE deleted = 0").all() as { body: string }[]).map((n) => n.body).sort(),
     status: () => sync.status(),
   };
 }
@@ -270,7 +283,7 @@ test("オーナー1人と参加者2人: 追加・削除がそれぞれに届く"
   await until(async () => (await m1!.notes()).length === 1 && (await m2!.notes()).length === 1, "全員に届く");
   const uid = await m1!.addNote("卵");
   await until(async () => (await owner.notes()).length === 2 && (await m2!.notes()).length === 2, "参加者の追加が届く");
-  assert.equal((await m2!.req(`/api/notes/${uid}`, undefined, "DELETE")).status, 204);
+  m2!.deleteNote(uid);
   await until(async () => (await owner.notes()).length === 1 && (await m1!.notes()).length === 1, "削除が届く");
   for (const d of [owner, m1!, m2!]) await d.sync.leave();
 });
@@ -328,8 +341,8 @@ test("同じメモを同時に変えたら、新しいほうが勝つ（古い�
   await until(async () => (await m!.notes()).length === 1, "届く");
   relay.down();
   await until(() => owner.status().state === "offline" && m!.status().state === "offline", "両方オフライン");
-  owner.db.prepare("UPDATE notes SET body = ?, updated_at = ?, dirty = 1 WHERE uid = ?").run("古い", relay.clock.t + 1, uid);
-  m!.db.prepare("UPDATE notes SET body = ?, updated_at = ?, dirty = 1 WHERE uid = ?").run("新しい", relay.clock.t + 1000, uid);
+  owner.db.prepare("UPDATE sync_test SET body = ?, updated_at = ?, dirty = 1 WHERE uid = ?").run("古い", relay.clock.t + 1, uid);
+  m!.db.prepare("UPDATE sync_test SET body = ?, updated_at = ?, dirty = 1 WHERE uid = ?").run("新しい", relay.clock.t + 1000, uid);
   relay.up = true;
   await until(async () => (await owner.notes())[0] === "新しい" && (await m!.notes())[0] === "新しい", "新しいほうに揃う");
 });
@@ -397,16 +410,16 @@ test("参加を断られると、参加の申し込みは消える。確認の�
 
 test("同期のURLがなければ、同期は使えないが、アプリは動く", async () => {
   const db = openDb(":memory:");
-  const sync = new Sync(db, { url: undefined, tables: syncTables });
+  const sync = new Sync(db, { url: undefined, tables: [] });
   const app = createApp(db, Date.now, sync);
   assert.equal(sync.status().state, "unavailable");
   assert.equal((await app.request("/api/sync/create-room", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "x" }) })).status, 400);
-  assert.equal((await app.request("/api/notes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: "x" }) })).status, 201);
+  assert.equal((await app.request("/api/health")).status, 200);
 });
 
 test("届いた行の検証: 形の合わない行は捨てる", () => {
-  const table = syncTables[0]!;
-  const good = { table: "notes", uid: "11111111-1111-1111-1111-111111111111", body: "ok", deleted: 0, created_at: 1, updated_at: 2 };
+  const table = TEST_TABLE;
+  const good = { table: "sync_test", uid: "11111111-1111-1111-1111-111111111111", body: "ok", deleted: 0, created_at: 1, updated_at: 2 };
   assert.ok(validateRow(table, good));
   for (const bad of [{ ...good, table: "other" }, { ...good, uid: "../x" }, { ...good, body: "" }, { ...good, body: "x".repeat(1001) }, { ...good, deleted: 2 }, { ...good, updated_at: -1 }, null, "x"]) {
     assert.equal(validateRow(table, bad), null);
