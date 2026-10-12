@@ -1,5 +1,8 @@
 // 変更された行（ADR-0015）。作業ツリーのファイルを、範囲の基点と比べる。
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * 範囲の基点。`A..B`ならA、それ以外（`HEAD`など）はその値。
@@ -76,4 +79,21 @@ function hasCommits(repo: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * 作業ツリーの内容の指紋。HEAD、追跡しているファイルのHEADからの差分、追跡していない（無視されていない）ファイルの中身から決める。
+ * 同じ内容なら同じ値になる。証拠（テスト結果など）が今のコードのものかを確かめるのに使う（ADR-0024）。
+ */
+export function treeFingerprint(repo: string): string {
+  const h = createHash("sha256");
+  const commits = hasCommits(repo);
+  h.update(commits ? git(repo, ["rev-parse", "HEAD"]) : "no-commits\n");
+  if (commits) h.update(git(repo, ["diff", "--no-color", "--no-ext-diff", "--binary", "HEAD"]));
+  const others = git(repo, ["ls-files", "-z", "--others", "--exclude-standard"]).split("\0").filter((p) => p !== "").sort();
+  for (const p of others) {
+    h.update(`\0${p}\0`);
+    try { h.update(readFileSync(join(repo, p))); } catch { h.update("unreadable"); }
+  }
+  return h.digest("hex");
 }

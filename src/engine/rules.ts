@@ -31,6 +31,14 @@ const layerSchema = z.strictObject({
   files: patterns,
 });
 
+/** 証拠（ADR-0024）。inloopが実行する検査。コマンドはシェルを通さずに実行する。 */
+const evidenceSchema = z.strictObject({
+  id: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/),
+  kind: z.enum(["test", "static"]),
+  name: z.string().trim().min(1).max(100),
+  command: z.array(z.string().min(1).max(300)).min(1).max(30),
+});
+
 const VERSION = /^\d+\.\d+\.\d+$/;
 
 const configSchema = z.strictObject({
@@ -39,13 +47,16 @@ const configSchema = z.strictObject({
   minVersion: z.string().regex(VERSION).optional(),
   boundaries: z.array(ruleSchema),
   layers: z.array(layerSchema).optional(),
+  evidence: z.array(evidenceSchema).optional(),
 });
 
 export type Layer = z.infer<typeof layerSchema>;
+export type EvidenceSpec = z.infer<typeof evidenceSchema>;
 export interface Config {
   minVersion?: string;
   rules: Rule[];
   layers: Layer[];
+  evidence: EvidenceSpec[];
 }
 
 export type Matcher = z.infer<typeof matcherSchema>;
@@ -83,7 +94,12 @@ export function parseFullConfig(text: string, where: string): Config {
     if (layerIds.has(l.id)) throw new Error(`${where}: レイヤーのidが重なっている ${l.id}`);
     layerIds.add(l.id);
   }
-  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [] };
+  const evidenceIds = new Set<string>();
+  for (const e of r.data.evidence ?? []) {
+    if (evidenceIds.has(e.id)) throw new Error(`${where}: 証拠のidが重なっている ${e.id}`);
+    evidenceIds.add(e.id);
+  }
+  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [] };
 }
 
 /** `x.y.z`の大小。 */

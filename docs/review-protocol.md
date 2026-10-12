@@ -39,7 +39,7 @@ AIが渡す入力は、依頼ごとの観点の文と対象シンボルIDの列�
 | `edges` | `steps`のシンボルどうしの使う関係。`from`、`to`、`kind`（`call`・`new`・`type`・`inherit`）。`to`は`steps`、`from`は`steps`か`callers`のシンボル。ADR-0020より前の記録にはない（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)） |
 | `callers` | 呼び出し元。AIが指定したシンボルと変わったシンボルを呼び出す、`steps`にないシンボル（1段だけ）。`symbol`、`file`、`startLine`、`code`。ADR-0021より前の記録にはない（[ADR-0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)） |
 | `unresolved` | 解析で解決できなかった参照の列 |
-| `evidence` | 証拠の列。`kind`（`test`・`static`）、`name`、`status`（`pass`・`fail`・`missing`） |
+| `evidence` | 証拠の列。`kind`（`test`・`static`）、`name`、`status`（`pass`・`fail`・`missing`）。`inloop.json`の`evidence`の検査を`inloop evidence run`で動かした結果で、今の作業ツリーのものでなければ`missing`（[ADR-0024](../maintainer-guide/decisions/0024-evidence-runs.md)） |
 | `budget` | レビュー予算。`changedLines`と`limit` |
 | `fixture` | 固定データなら`true`、解析エンジンが作ったなら`false` |
 
