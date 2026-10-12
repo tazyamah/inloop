@@ -403,4 +403,6 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 実装: `templates/standalone/`（`server/sqlite-wasm.ts`、`server/worker.ts`、`server/db.ts`、`web/src/local-api.ts`、`offline.ts`、`web/public/sw.js`など）と、`inloop new --standalone`（`src/cli.ts`）。`node:sqlite`を`vite.config.ts`のaliasで差し替えるので、`server/`のコードとscaffold、Node.jsのテストは変わらない。
 - 検証（macOS）: 生成したアプリで`inloop generate scaffold`、`npm test`（5 pass）、`npm run build`が通った。Chrome for Testingで、APIの作成と一覧、再読み込みでデータが残ること、サービスワーカーの登録、オフラインで開き直してもデータが読めることを確認した（アプリ内ブラウザはサービスワーカーを登録できず、検証には使えなかった）。
 - 気づき: iOSシミュレーターの起動で、Macの`SafariBookmarksSyncAgent`が落ちるダイアログが出た。シミュレーターは終了した。
+- 実機の確認（利用者の発言、2026-10-12）: `inloop new memo --standalone`で作ったアプリを、Cloudflare Pages（無料、`wrangler pages deploy dist/web --project-name memo --branch production`）に置き、iPhone（iOS 26.6.2）のホーム画面に「Webアプリとして開く」で追加。メモの保存、終了後の再起動での保持、機内モードでの表示と追加ができた。Safariのタブとホーム画面のアプリは保存領域が別。
+- 気づき: `--branch`を付けないと、gitにcommitがないためプレビュー扱いのURLになる。固定のURL（`<プロジェクト>.pages.dev`）に出すには`--branch production`。URLが変わると保存領域も別になる。保存領域を開けないことに気づけるよう、画面の下に保存先の状態を出すようにした（`web/src/local-api.ts`）。
 
