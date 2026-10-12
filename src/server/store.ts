@@ -493,6 +493,7 @@ const packetSchema = z.object({
     symbol: z.string().min(1),
     table: z.string().min(1),
     access: z.enum(["read", "write", "schema"]),
+    via: z.array(z.string().min(1)).min(1).optional(),
   })).optional(),
   prior: z.object({ id: idSchema, same: z.array(z.string()) }).optional(),
   unresolved: z.array(z.string()),

@@ -37,3 +37,26 @@ test("依頼票のtablesに入り、動的なSQLは未解決になる", () => {
   const none = buildPackets(repo, [{ id: "R1", group: "R1", viewpoint: "q", symbols: ["src/app.ts#hello"] }], "HEAD")[0];
   assert.deepEqual(none.tables, []);
 });
+
+test("並べていない宣言の中のSQLを、呼び出しを2段までたどって出す（ADR-0030）", () => {
+  const repo = makeRepo("sqlvia", { commit: true });
+  writeFileSync(join(repo, "src", "db.ts"), [
+    "declare const db: { prepare(s: string): { run(): void } };",
+    "export function insertRow() { db.prepare(\"INSERT INTO orders(id) VALUES (1)\").run(); }",
+    "export function deep() { insertRow(); }",
+    "export function deeper() { deep(); }",
+    "export function deepest() { deeper(); }",
+    "",
+  ].join("\n"));
+  writeFileSync(join(repo, "src", "api.ts"), [
+    "import { deep, deepest } from \"./db.ts\";",
+    "export function post() { deep(); }",
+    "export function far() { deepest(); }",
+    "",
+  ].join("\n"));
+  const build = (s) => buildPackets(repo, [{ id: "R1", group: "R1", viewpoint: "q", symbols: [s] }], "HEAD")[0];
+  // post → deep（並べる）→ insertRow。deepが自分の分を持つので、postには出ない。
+  assert.deepEqual(build("src/api.ts#post").tables, [{ symbol: "src/db.ts#deep", table: "orders", access: "write", via: ["src/db.ts#insertRow"] }]);
+  // far → deepest（並べる）→ deeper → deep → insertRow。2段でdeepまで、insertRowは3段目なので出ない。
+  assert.deepEqual(build("src/api.ts#far").tables, []);
+});

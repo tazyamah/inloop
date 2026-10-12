@@ -170,6 +170,32 @@ export class TsProject {
     return this.declarationsOf(id.slice(0, i)).find((d) => d.id === id);
   }
 
+  /**
+   * 呼び出し・`new`でたどれる同じリポジトリの宣言を、depth段まで集める（ADR-0030）。skipの宣言には入らず、その先へも進まない。
+   * `via`は、起点の次の宣言から、その宣言までのシンボルID。未解決の参照は、たどった宣言のものを返す（先にSQLがあるか分からないため）。
+   */
+  reachByCalls(from: Declaration, depth: number, skip: ReadonlySet<string> = new Set()): { decl: Declaration; via: string[]; unresolved: string[] }[] {
+    const out: { decl: Declaration; via: string[]; unresolved: string[] }[] = [];
+    const seen = new Set<string>([from.id]);
+    let frontier: { decl: Declaration; via: string[] }[] = [{ decl: from, via: [] }];
+    for (let level = 0; level < depth; level++) {
+      const next: { decl: Declaration; via: string[] }[] = [];
+      for (const f of frontier) {
+        for (const u of this.references(f.decl).uses) {
+          if ((u.kind !== "call" && u.kind !== "new") || seen.has(u.to) || skip.has(u.to)) continue;
+          const d = this.find(u.to);
+          if (!d) continue;
+          seen.add(u.to);
+          const via = [...f.via, d.id];
+          out.push({ decl: d, via, unresolved: this.references(d).unresolved });
+          next.push({ decl: d, via });
+        }
+      }
+      frontier = next;
+    }
+    return out;
+  }
+
   /** 位置を含む宣言のうち、いちばん内側のもの。 */
   private enclosing(relFile: string, pos: number): Declaration | undefined {
     let best: Declaration | undefined;
