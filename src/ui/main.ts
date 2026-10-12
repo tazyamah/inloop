@@ -124,19 +124,25 @@ function answerText(a: Answer): string {
 
 // ---- 位置のコピー ----
 
-/** 位置の文字列をクリップボードに写す。会話で「ここの範囲なんだけど」と貼るため（ADR-0017）。 */
+/**
+ * 位置の文字列をクリップボードに写す。会話で「ここの範囲なんだけど」と貼るため（ADR-0017）。
+ * ホストがクリップボードを許さない場合（Claude DesktopのMCP Appsのiframeなど）は、位置を会話に送る（ADR-0032）。
+ */
 async function copyText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    // ホストがクリップボードを許さない場合（MCP Appsのiframeなど）は、選択してのコピーを試す。
     const ta = el("textarea");
     ta.value = text;
     document.body.append(ta);
     ta.select();
     const ok = document.execCommand("copy");
     ta.remove();
-    if (!ok) { setStatus(`コピーできませんでした。手で写してください: ${text}`, true); return; }
+    if (!ok) {
+      const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `[inloop] 位置の指定: ${text}（この位置についての指示が続きます。次の発言を待ってください）` }] }).catch(() => ({ isError: true }));
+      setStatus(res.isError ? `コピーできませんでした。手で写してください: ${text}` : `会話に位置を送りました: ${text}`, res.isError === true);
+      return;
+    }
   }
   setStatus(`コピーしました: ${text}`);
 }
