@@ -60,6 +60,17 @@ function setStatus(msg: string, isError = false) {
   s.className = isError ? "err" : "";
 }
 
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+/** 画面の下の表示欄はコードから遠いので、行をクリックした結果は、見えている位置にも短く出す。 */
+function toast(msg: string, isError = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = isError ? "err" : "";
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
 function structured<T>(r: { structuredContent?: unknown; isError?: boolean; content?: unknown }): T {
   if (r.isError) {
     const c = (r.content as { text?: string }[] | undefined)?.map((x) => x.text).join("\n");
@@ -140,11 +151,14 @@ async function copyText(text: string) {
     ta.remove();
     if (!ok) {
       const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `[inloop] 位置の指定: ${text}（この位置についての指示が続きます。次の発言を待ってください）` }] }).catch(() => ({ isError: true }));
-      setStatus(res.isError ? `コピーできませんでした。手で写してください: ${text}` : `会話に位置を送りました: ${text}`, res.isError === true);
+      const msg = res.isError ? `コピーできませんでした。手で写してください: ${text}` : `会話に位置を送りました: ${text}`;
+      setStatus(msg, res.isError === true);
+      toast(msg, res.isError === true);
       return;
     }
   }
   setStatus(`コピーしました: ${text}`);
+  toast(`コピーしました: ${text}`);
 }
 
 /** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */
