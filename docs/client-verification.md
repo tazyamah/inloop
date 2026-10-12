@@ -121,7 +121,7 @@ R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 | # | 確認すること | 見方 |
 |---|---|---|
 | 1 | サーバーに接続できる | クライアントのMCP設定画面、またはAIにツール一覧を尋ねる |
-| 2 | AIに見えるツールが`request_review`と`get_review_result`だけ | AIにinloopのツール一覧を尋ねる。`inloop_get_request`と`inloop_submit`が見えたら、visibilityが効いていない |
+| 2 | AIに見えるツールが`request_review`・`get_review_result`・`answer_review`の3つだけ | AIにinloopのツール一覧を尋ねる。`inloop_get_request`・`inloop_submit`・`inloop_reopen`が見えたら、visibilityが効いていない |
 | 3 | `request_review`の結果が`R1 pending`だけ | ツール呼び出しの詳細表示 |
 | 4 | レビューUIが表示される | 会話内に依頼票が出る |
 | 5 | 回答が会話に戻り、AIが続きを始める | 「まとめて送信」後の会話 |
