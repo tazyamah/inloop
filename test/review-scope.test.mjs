@@ -248,3 +248,10 @@ test("sameのシンボルは行数の上限に数えない。記録の形は、�
   writeFileSync(file, `${bad}\n`);
   assert.throws(() => new ReviewStore({ file }), /依頼票の形が不正（prior\.same\.0）/);
 });
+
+test("tableは、2段先の宣言のSQLにも当たる（ADR-0030）", () => {
+  const repo = sqlRepo([TABLE_RULE({ access: ["write"] })]);
+  write(repo, "src/svc.ts", ["import { save } from \"./db.ts\";", "export function create() { save(); }"]);
+  write(repo, "src/api.ts", ["import { create } from \"./svc.ts\";", "export function post() { create(); }"]);
+  assert.deepEqual(show(hits(repo)), ["src/api.ts#post orders-write", "src/svc.ts#create orders-write"]);
+});

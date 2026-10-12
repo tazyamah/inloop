@@ -7,7 +7,7 @@ import { type BoundaryHit, evaluate, fileCode, loadConfig } from "./boundaries.j
 import { bindEvidence, readEvidence, testCoverage } from "./evidence.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
-import { tablesOf } from "./sql.js";
+import { INDIRECT_DEPTH, tablesOf } from "./sql.js";
 import { CONFIG_FILE, type EvidenceSpec, type Layer, layerOf } from "./rules.js";
 import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep, ReviewTable } from "../server/types.js";
 
@@ -161,7 +161,15 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     const sql = project.sqlIn(d.file, [d.node]);
     unresolved.push(...sql.dynamic);
     for (const st of sql.statements) for (const t of tablesOf(st)) {
-      if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access)) tables.push({ symbol: d.id, ...t });
+      if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access && x.via === undefined)) tables.push({ symbol: d.id, ...t });
+    }
+    // 並べていない宣言の中のSQL（間接、ADR-0030）。並べたシンボルは自分の分を持つので、そこで止める。
+    for (const r of project.reachByCalls(d, INDIRECT_DEPTH, new Set(all.keys()))) {
+      const inner = project.sqlIn(r.decl.file, [r.decl.node]);
+      unresolved.push(...inner.dynamic, ...r.unresolved);
+      for (const st of inner.statements) for (const t of tablesOf(st)) {
+        if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access && x.via?.[x.via.length - 1] === r.decl.id)) tables.push({ symbol: d.id, ...t, via: r.via });
+      }
     }
   }
   for (const d of all.values()) {

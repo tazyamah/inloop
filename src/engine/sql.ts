@@ -1,5 +1,7 @@
 // SQL文字列から、読む・書くテーブルを取り出す（ADR-0026）。構文を完全には解析せず、
 // 文を字句に分けて、FROM・JOIN・INTO・UPDATE・CREATE TABLEなどの直後の名前を拾う。読み取れない形は拾わない。
+/** SQLを探して、並べていない宣言を呼び出しでたどる段数（ADR-0030）。 */
+export const INDIRECT_DEPTH = 2;
 export type TableAccess = "read" | "write" | "schema";
 export interface TableUse { table: string; access: TableAccess }
 

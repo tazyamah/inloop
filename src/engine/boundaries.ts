@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
 import type { Declaration, TsProject } from "./project.js";
 import { type Config, CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, type EvidenceSpec, LAYER_RULE, type Layer, layerOf, matchesAny, mayUseLayer, mergeRules, parseFullConfig, type Rule, sameModule, tableMatches, versionLess } from "./rules.js";
-import { type TableUse, tablesOf } from "./sql.js";
+import { INDIRECT_DEPTH, type TableUse, tablesOf } from "./sql.js";
 
 /** ルールに当たった単位。必須の依頼は、この単位ごとに1件作る。 */
 export interface BoundaryHit {
@@ -94,7 +94,9 @@ export function evaluate(project: TsProject, repo: string, base: string, rules: 
     scan(file, nodes);
     for (const id of internal) {
       const d = project.find(id);
-      if (d) scan(d.file, [d.node]);
+      if (!d) continue;
+      scan(d.file, [d.node]);
+      for (const r of project.reachByCalls(d, INDIRECT_DEPTH)) scan(r.decl.file, [r.decl.node]);
     }
     return { tables, dynamic };
   };
