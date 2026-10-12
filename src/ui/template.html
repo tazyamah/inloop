@@ -53,6 +53,9 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.5;cursor:default}
 #status{font-size:12px;color:var(--muted);white-space:pre-wrap}
 #status.err{color:var(--req)}
+#toast{position:absolute;left:0;top:0;max-width:min(560px,calc(100% - 16px));padding:8px 14px;border-radius:8px;background:var(--fg);color:var(--bg);font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);z-index:10;pointer-events:none;white-space:pre-wrap;word-break:break-all}
+#toast[hidden]{display:none}
+#toast.err{background:var(--req)}
 .muted{color:var(--muted);font-size:12px}
 #graph{overflow-x:auto;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--soft)}
 .graph{display:block}
@@ -119,6 +122,7 @@ button:disabled{opacity:.5;cursor:default}
   <div class="muted" id="answers-help">質問や修正の相談は会話で。コード行をクリックすると位置をコピーできるので（Shift+クリックで範囲）、会話に貼ってください。承認・保留は、ここのボタンか、会話で決まった言葉（既定は「承認」「保留」）を言うと記録されます。</div>
   <div class="inbox" id="inbox"></div>
   <div class="row" style="margin-top:10px"><button class="primary" id="approve-all" hidden>まとめて承認</button><span id="status"></span></div>
+  <div id="toast" role="status" hidden></div>
   <div class="muted" id="all-answered" hidden>この画面の依頼は、すべて回答済みです。</div>
 </main>
 <!--SCRIPT-->

@@ -277,7 +277,9 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 起動ログと`inloop-demo/.inloop/reviews.jsonl`で確認: AIが`repo`を渡し、依頼R6の記録が対象のリポジトリの`.inloop/`に書かれた（ADR-0010が実機で動く）。`request_review`の呼び出しの`meta=null`（`_meta`は届かない）でも、画面が`inloop_get_request`・`inloop_submit`を呼び、承認の回答が記録され、`answer_message`が会話に送られた。
 - 利用者が貼ったAIの回答で、AIから見えるツールは`request_review`・`get_review_result`・`answer_review`の3つ（画面専用の`inloop_get_request`・`inloop_submit`・`inloop_reopen`は見えない）。`visibility: ["app"]`はClaude Desktopでも効いている。`answer_review`はAIが人の言葉を記録する設計どおりのツールで、必須の依頼は拒否される（ADR-0017、ADR-0022）。
 - 利用者の報告: 画面は会話の中に出て、見え方も良かった（MCP Appsの表示がClaude Desktopの通常の会話で動く。画面写真は未確認）。
-- 未確認: `fix`への`follows`での再依頼、「未回答に戻す」。
+- `claude mcp serve`の登録で、Desktopの通常の会話から`inloop-demo/server/app.ts`を編集できた。許可の確認は0回、遅さは感じなかった（利用者の報告、ファイルの変更を確認）。
+- `fix`への`follows`の再依頼（R7→R7-1）と「未回答に戻す」（R7-1の保留→reopen→承認、R3-5も同様）は、`reviews.jsonl`で確認した。R7に回答がなかったので、R7-1に`prior`は付かない（ADR-0029の仕様どおり）。
+- Desktopでは、行クリックの位置のコピー自体は成功していたが、結果の表示欄が画面の最下部で見えなかった（利用者の確認）。利用者の要望で、位置を`sendMessage`で会話の入力欄に入れ、見える位置の通知も出す形にした（ADR-0032）。Desktopでは承認の`sendMessage`が、送らずに入力欄に入ることを、利用者の貼り付けから確認した。位置の挿入と、クリックした位置のすぐ上に出る通知は、実際のDesktopで確認した（利用者の報告、2026-10-12）。
 
 
 ### 2026-10-12 手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー）
@@ -417,12 +419,9 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 実際のホストが、UIからの`sendMessage`を会話に入れ、AIの作業を再開させるか。
 - 1回のレビューループの実際のトークン消費量。文字数は記録しているが、ホスト側で付加される分は含まない。
 - 観点をまとめるよう明示しない依頼文でも、AIが自分からまとめるか。
-- Claude Desktopで、`fix`の回答を受けたAIが、修正後に`follows`を付けて再依頼するか。`ask`の回答に、再依頼せず会話で答えるか。
-- Claude Desktopで、「未回答に戻す」が働き、戻した依頼への回答が会話に届くか。会話をさかのぼって古い画面を操作することになるので、使い勝手も確かめる。
 - ADR-0009より前の実装が書いた実際の記録を、依頼票の形の全体を確かめるようになった実装で読めるか。利用者の記録（R1〜R15）は2026-10-10に失われ、確かめられなかった。古い形の記録を読むことは、テストで作った記録でだけ確かめている。
 - 利用者の記録（R1〜R15）が2026-10-10 23:55ごろに失われた原因。
 - Claudeデスクトップアプリの中のClaude Codeで、ブラウザの経路の`wait`が、未回答に戻して答え直した回答を待てるか（直した後の版）。`follows`での再依頼と、再依頼の画面の表示。
-- Claude Desktopの通常の会話で、`claude mcp serve`のツールにより手元のMacのファイルを読み書きできるか。VMより速いか。許可を何回求められるか。
 - Claude Codeでrootsにより対象が決まるか（rootsへの対応は起動ログで確認済み: Claude Codeは対応、Claude Desktopは非対応）。Claude Desktopで`_meta`が届かない場合の画面の動き（下の節）の、画面での見え方。
 - Tauriにサーバーを同梱した手元のアプリのメモリ（ADR-0011）。大きさは`.app`が118MB、`.dmg`が37MB（macOS arm64）。
 - 手元で動くアプリの雛形のWindows・Linuxでのビルドと起動（sidecarの作り方を含む）。署名と公証。`npm run dev:desktop`で、ウィンドウを閉じたときに開発用のプロセスが止まるか。
@@ -464,6 +463,6 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 ここまでが完了してから進めるもの（理由: 上の構成を先に完成させるため）:
 
-5. 他のクライアント: Claude DesktopでADR-0010と`visibility`は確認済み（上の節）。次は、Claude Desktopで`fix`への`follows`での再依頼と「未回答に戻す」、`claude mcp serve`による手元での作業、Claude Code（CLI）、Codex、VS Codeでの確認。Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業、`follows`での再依頼、「未回答に戻す」を確かめる。Claude Code（CLI）、Codex、VS Codeでの確認。
+5. 他のクライアント: Claude Desktopは確認済み（上の節、ADR-0032の位置の挿入を含む）。残りはClaude Code（CLI）、Codex、VS Codeでの確認（使うものだけ。利用者の判断で後回し）。
 6. 他のDB: PostgreSQLの雛形（`inloop new --db postgres`）と、PostgreSQL向けのSQLの解析。
 7. 他のOS: 手元で動くアプリの雛形のWindows・Linuxでのビルドと起動（sidecarの作り方を含む）。署名と公証。

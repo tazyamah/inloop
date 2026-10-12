@@ -60,6 +60,22 @@ function setStatus(msg: string, isError = false) {
   s.className = isError ? "err" : "";
 }
 
+let toastTimer: ReturnType<typeof setTimeout> | undefined;
+let pointer = { x: 0, y: 0 };
+document.addEventListener("pointerdown", (e) => { pointer = { x: e.pageX, y: e.pageY }; }, true);
+/** 行をクリックした結果は、画面の下の表示欄だと見えないので、クリックした位置のすぐ上に短く出す。 */
+function toast(msg: string, isError = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = isError ? "err" : "";
+  t.hidden = false;
+  const width = document.documentElement.clientWidth;
+  t.style.left = `${Math.max(8, Math.min(pointer.x - t.offsetWidth / 2, width - t.offsetWidth - 8))}px`;
+  t.style.top = `${Math.max(8, pointer.y - t.offsetHeight - 14)}px`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
 function structured<T>(r: { structuredContent?: unknown; isError?: boolean; content?: unknown }): T {
   if (r.isError) {
     const c = (r.content as { text?: string }[] | undefined)?.map((x) => x.text).join("\n");
@@ -124,21 +140,29 @@ function answerText(a: Answer): string {
 
 // ---- 位置のコピー ----
 
-/** 位置の文字列をクリップボードに写す。会話で「ここの範囲なんだけど」と貼るため（ADR-0017）。 */
+/**
+ * 行クリックの位置を、会話の入力欄に入れる（ADR-0032）。会話で「ここの範囲なんだけど」と話しかけるため（ADR-0017）。
+ * 会話に入れられるホスト（MCP Appsの埋め込み）は`sendMessage`で入れ、あわせてクリップボードにも写す。
+ * 会話に入れられないホスト（ブラウザの経路）は、クリップボードだけにする。
+ */
 async function copyText(text: string) {
+  let copied = false;
   try {
     await navigator.clipboard.writeText(text);
+    copied = true;
   } catch {
-    // ホストがクリップボードを許さない場合（MCP Appsのiframeなど）は、選択してのコピーを試す。
     const ta = el("textarea");
     ta.value = text;
     document.body.append(ta);
     ta.select();
-    const ok = document.execCommand("copy");
+    copied = document.execCommand("copy");
     ta.remove();
-    if (!ok) { setStatus(`コピーできませんでした。手で写してください: ${text}`, true); return; }
   }
-  setStatus(`コピーしました: ${text}`);
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch(() => ({ isError: true }));
+  const sent = res.isError !== true;
+  const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
+  setStatus(msg, !sent && !copied);
+  toast(msg, !sent && !copied);
 }
 
 /** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */
