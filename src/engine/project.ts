@@ -6,6 +6,7 @@ import { SyntaxKind } from "typescript/unstable/ast";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import { API, SymbolFlags } from "typescript/unstable/sync";
 import type { Checker, Project, Symbol as TsSymbol } from "typescript/unstable/sync";
+import { looksLikeSql } from "./sql.js";
 
 /** シンボルの宣言。IDは`リポジトリからのパス#名前`、クラスのメンバーは`.`でつなぐ（ADR-0015）。 */
 export interface Declaration {
@@ -246,6 +247,35 @@ export class TsProject {
     });
     // 出てきた順（同じ入力からは同じ順）。上限で省くときは、後に出てきたものから省く。
     return { internal: [...internal], uses: [...uses.values()], unresolved: [...new Set(unresolved)] };
+  }
+
+  /**
+   * ノードの中の`prepare(...)`・`exec(...)`の引数のSQL（ADR-0026）。文字列として読めるSQLらしいものは`statements`、
+   * `prepare`の引数が文字列として読めないものは`dynamic`（`file:line 式`）に入れる。
+   */
+  sqlIn(relFile: string, nodes: Node[]): { statements: string[]; dynamic: string[] } {
+    const statements: string[] = [];
+    const dynamic: string[] = [];
+    const sf = this.sourceOf(relFile);
+    const walk = (n: Node) => {
+      if (n.kind === SyntaxKind.CallExpression) {
+        const c = n as unknown as { expression: Node; arguments: Node[] };
+        const name = c.expression.kind === SyntaxKind.PropertyAccessExpression ? (c.expression as unknown as { name: { text: string } }).name.text : undefined;
+        const arg = c.arguments[0];
+        if ((name === "prepare" || name === "exec") && arg) {
+          const text = stringOf(arg);
+          if (text !== undefined) { if (looksLikeSql(text)) statements.push(text); }
+          else if (name === "prepare" && sf) {
+            const at = arg.getStart(sf);
+            const shown = sf.text.slice(at, arg.end).replace(/\s+/g, " ");
+            dynamic.push(`${relFile}:${sf.getLineAndCharacterOfPosition(at).line + 1} 動的なSQL ${shown.length > 60 ? `${shown.slice(0, 60)}…` : shown}`);
+          }
+        }
+      }
+      n.forEachChild(walk);
+    };
+    for (const node of nodes) walk(node);
+    return { statements, dynamic };
   }
 
   /**
