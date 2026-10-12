@@ -116,7 +116,7 @@ R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 
 ## 確認項目
 
-クライアントごとに、次の表を埋めて[handoff](../maintainer-guide/handoff.md)に結果を残します。
+クライアントごとに、次の表を埋めて[クライアント検証の結果](../maintainer-guide/client-verification-results.md)に結果を残します。
 
 | # | 確認すること | 見方 |
 |---|---|---|
