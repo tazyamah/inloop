@@ -174,12 +174,13 @@ export class ReviewStore {
 
   /**
    * 再依頼で、前の依頼票のうち人が読み終えたシンボルのコード（ADR-0029）。
-   * 前の依頼に回答があり、保留でも、シンボルの分からない修正・質問でもないときだけ、
-   * 修正・質問の対象になったシンボルを除いた全シンボルのコードを返す。それ以外は何も返さない（全部を見せる）。
+   * 前の依頼に回答がなければ（修正を会話で伝えた場合。ADR-0033）全シンボルのコードを返す。回答があるときは、
+   * 保留でも、シンボルの分からない修正・質問でもないときだけ、修正・質問の対象になったシンボルを除いて返す。
+   * それ以外は何も返さない（全部を見せる）。
    */
   private priorOf(head: ReviewPacket): { prior: NonNullable<PlannedReview["prior"]> } | undefined {
     const answers = (this.rounds.get(head.id) ?? []).flat();
-    if (answers.length === 0 || answers.some((a) => a.verdict === "hold" || ((a.verdict === "fix" || a.verdict === "ask") && !a.ref))) return undefined;
+    if (answers.some((a) => a.verdict === "hold" || ((a.verdict === "fix" || a.verdict === "ask") && !a.ref))) return undefined;
     const flagged = new Set(answers.filter((a) => a.verdict === "fix" || a.verdict === "ask").map((a) => a.ref!.replace(/#L\d+(?:-L\d+)?$/, "")));
     return { prior: { id: head.id, codes: Object.fromEntries(head.steps.filter((s) => !flagged.has(s.symbol)).map((s) => [s.symbol, s.code])) } };
   }

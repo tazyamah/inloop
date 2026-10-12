@@ -243,11 +243,11 @@ test("承認済みの必須の依頼の再依頼は、コードが同じで指�
   assert.equal(textOf(await call({ reviews: [] })), "R1 pending required:R1");
   const first = (await client.callTool({ name: "inloop_get_request", arguments: { id: "R1", repo } })).structuredContent.packet;
   assert.equal(first.prior, undefined);
-  // 承認の前の再依頼は、全部を見せる。
+  // 回答の前の再依頼も、同じコードは畳む（ADR-0033）。
   write(repo, "src/env.ts", file("A2"));
   assert.equal(textOf(await call({ reviews: [] })), "R1-1 pending required:R1-1");
   const unanswered = (await client.callTool({ name: "inloop_get_request", arguments: { id: "R1-1", repo } })).structuredContent.packet;
-  assert.equal(unanswered.prior, undefined, "回答のない依頼とは比べない");
+  assert.deepEqual(unanswered.prior, { id: "R1", same: ["src/env.ts#fmt"] });
   // R1-1を承認してから、oneだけ変える（fmtは同じ）。
   await client.callTool({ name: "inloop_submit", arguments: { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }], repo } });
   write(repo, "src/env.ts", file("A3"));
