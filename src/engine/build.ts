@@ -7,8 +7,9 @@ import { type BoundaryHit, evaluate, fileCode, loadConfig } from "./boundaries.j
 import { bindEvidence, readEvidence, testCoverage } from "./evidence.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
+import { tablesOf } from "./sql.js";
 import { CONFIG_FILE, type EvidenceSpec, type Layer, layerOf } from "./rules.js";
-import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep } from "../server/types.js";
+import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep, ReviewTable } from "../server/types.js";
 
 /** レビュー予算（変更行の数）の上限の目安。単位は未決（ADR-0015）。 */
 export const BUDGET_LIMIT = 40;
@@ -140,6 +141,14 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
   // 並べたシンボルどうしの使う関係（ADR-0020）。依存として並べたものの中の呼び出しも含める。
   // 新しいシンボルは足さない（並べるのは直接の依存まで、ADR-0015）。
   const edges: ReviewEdge[] = [];
+  const tables: ReviewTable[] = [];
+  for (const d of all.values()) {
+    const sql = project.sqlIn(d.file, [d.node]);
+    unresolved.push(...sql.dynamic);
+    for (const st of sql.statements) for (const t of tablesOf(st)) {
+      if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access)) tables.push({ symbol: d.id, ...t });
+    }
+  }
   for (const d of all.values()) {
     for (const u of project.references(d).uses) {
       if (all.has(u.to)) edges.push({ from: d.id, to: u.to, kind: u.kind });
@@ -174,6 +183,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     steps,
     edges: sortEdges(edges, steps, callers),
     callers,
+    tables: sortTables(tables, steps),
     unresolved: [...new Set(unresolved)],
     evidence: bindEvidence(ctx.specs, ctx.evidence, ctx.covered, [...new Set([...review.symbols, ...steps.filter((s) => s.change !== "unchanged").map((s) => s.symbol)])].filter((id) => id.includes("#"))),
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },
@@ -276,4 +286,11 @@ const overlaps = (a: Declaration, b: Declaration) => inside(a, b) || inside(b, a
 function sortEdges(edges: ReviewEdge[], steps: ReviewStep[], callers: ReviewCaller[]): ReviewEdge[] {
   const pos = new Map([...steps.map((s) => [s.symbol, s.order] as const), ...callers.map((c, i) => [c.symbol, steps.length + 1 + i] as const)]);
   return edges.sort((a, b) => pos.get(a.from)! - pos.get(b.from)! || pos.get(a.to)! - pos.get(b.to)! || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+}
+
+/** 並べたシンボルの順、読む・書く・スキーマの順。 */
+function sortTables(tables: ReviewTable[], steps: ReviewStep[]): ReviewTable[] {
+  const pos = new Map(steps.map((s) => [s.symbol, s.order]));
+  const acc = ["read", "write", "schema"];
+  return tables.sort((a, b) => (pos.get(a.symbol) ?? 0) - (pos.get(b.symbol) ?? 0) || acc.indexOf(a.access) - acc.indexOf(b.access));
 }

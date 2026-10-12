@@ -46,3 +46,4 @@
 | [0023](0023-config-layers-and-min-version.md) | Accepted | `inloop.json`に`layers`（ファイルからレイヤーを決めて依頼票の`layer`に入れる）と`minVersion`を足す。向きの検査は後回し |
 | [0024](0024-evidence-runs.md) | Accepted | `inloop.json`の`evidence`の検査をinloopが実行して記録し、依頼票の`evidence`に入れる。作業ツリーの指紋が違う結果は`missing`にする |
 | [0025](0025-evidence-symbol-binding.md) | Accepted | `evidence`に`tests`を足し、そのテストが直接呼び出す・newするシンボルの依頼票にだけ結果を結び付ける。参照するテストがなければ`missing` |
+| [0026](0026-sql-table-access.md) | Accepted | 依頼票に並べたシンボルの`prepare`・`exec`のSQL文字列から読む・書くテーブルを取り出し、`tables`に出す。読めない動的なSQLは未解決にする |

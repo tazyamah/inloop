@@ -36,6 +36,13 @@ export interface ReviewEdge {
   kind: "call" | "new" | "type" | "inherit";
 }
 
+/** シンボルのコードの中のSQLが触るテーブル（ADR-0026）。schemaは作成・削除・変更。 */
+export interface ReviewTable {
+  symbol: string;
+  table: string;
+  access: "read" | "write" | "schema";
+}
+
 /**
  * 依頼票に並べたシンボルを使っている、リポジトリの別のシンボル（呼び出し元、ADR-0021）。1段だけ。
  * stepsには入れない（理解順の対象ではなく、影響範囲として見せる）。使う関係はedgesにfromとして入る。
@@ -84,6 +91,11 @@ export interface ReviewPacket {
    * この項目がない依頼票（ADR-0021より前の記録）は、呼び出し元を調べていない。
    */
   callers?: ReviewCaller[];
+  /**
+   * stepsのシンボルが読む・書くテーブル（ADR-0026）。SQL文字列から取り出す。
+   * この項目がない依頼票（ADR-0026より前の記録）は、調べていない。
+   */
+  tables?: ReviewTable[];
   /** 解析で解決できなかった参照 */
   unresolved: string[];
   evidence: Evidence[];

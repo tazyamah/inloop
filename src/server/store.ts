@@ -476,6 +476,11 @@ const packetSchema = z.object({
     startLine: lineNumber,
     code: z.string(),
   })).optional(),
+  tables: z.array(z.object({
+    symbol: z.string().min(1),
+    table: z.string().min(1),
+    access: z.enum(["read", "write", "schema"]),
+  })).optional(),
   unresolved: z.array(z.string()),
   evidence: z.array(z.object({
     kind: z.enum(["test", "static"]),
@@ -490,6 +495,9 @@ const packetSchema = z.object({
   const callers = new Set(p.callers?.map((c) => c.symbol));
   p.callers?.forEach((c, i) => {
     if (symbols.has(c.symbol)) ctx.addIssue({ code: "custom", path: ["callers", i], message: "並べたシンボルと重なる" });
+  });
+  p.tables?.forEach((t, i) => {
+    if (!symbols.has(t.symbol)) ctx.addIssue({ code: "custom", path: ["tables", i], message: "依頼票にないシンボル" });
   });
   p.edges?.forEach((e, i) => {
     if (!(symbols.has(e.from) || callers.has(e.from)) || !symbols.has(e.to)) ctx.addIssue({ code: "custom", path: ["edges", i], message: "依頼票にないシンボル" });
