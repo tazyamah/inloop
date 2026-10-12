@@ -25,10 +25,28 @@ const ruleSchema = z.strictObject({
   match: z.array(matcherSchema).min(1),
 });
 
+/** レイヤー（ADR-0023）。ファイルがどの層かを、依頼票の`layer`に出すための対応。最初に当たったものを使う。 */
+const layerSchema = z.strictObject({
+  id: z.string().min(1).max(60).regex(/^[^\s]+$/),
+  files: patterns,
+});
+
+const VERSION = /^\d+\.\d+\.\d+$/;
+
 const configSchema = z.strictObject({
   format: z.literal(CONFIG_FORMAT),
+  /** 必要なinloopの版の下限（`x.y.z`）。今のinloopが古ければ拒否する。 */
+  minVersion: z.string().regex(VERSION).optional(),
   boundaries: z.array(ruleSchema),
+  layers: z.array(layerSchema).optional(),
 });
+
+export type Layer = z.infer<typeof layerSchema>;
+export interface Config {
+  minVersion?: string;
+  rules: Rule[];
+  layers: Layer[];
+}
 
 export type Matcher = z.infer<typeof matcherSchema>;
 export type Rule = z.infer<typeof ruleSchema>;
@@ -38,6 +56,10 @@ export type Rule = z.infer<typeof ruleSchema>;
  * 綴りを誤ったルールが黙って効かなくなるのを防ぐため、推測で読み飛ばさない。
  */
 export function parseConfig(text: string, where: string): Rule[] {
+  return parseFullConfig(text, where).rules;
+}
+
+export function parseFullConfig(text: string, where: string): Config {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -56,7 +78,24 @@ export function parseConfig(text: string, where: string): Rule[] {
     if (seen.has(rule.id)) throw new Error(`${where}: ルールのidが重なっている ${rule.id}`);
     seen.add(rule.id);
   }
-  return r.data.boundaries;
+  const layerIds = new Set<string>();
+  for (const l of r.data.layers ?? []) {
+    if (layerIds.has(l.id)) throw new Error(`${where}: レイヤーのidが重なっている ${l.id}`);
+    layerIds.add(l.id);
+  }
+  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [] };
+}
+
+/** `x.y.z`の大小。 */
+export function versionLess(a: string, b: string): boolean {
+  const pa = a.split(".").map(Number), pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) if (pa[i]! !== pb[i]!) return pa[i]! < pb[i]!;
+  return false;
+}
+
+/** ファイルのレイヤーid。どれにも当たらなければ空。 */
+export function layerOf(layers: Layer[], file: string): string {
+  return layers.find((l) => matchesAny(l.files, file))?.id ?? "";
 }
 
 /**

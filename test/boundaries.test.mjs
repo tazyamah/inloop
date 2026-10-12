@@ -10,7 +10,7 @@ import { Client, InMemoryTransport } from "@modelcontextprotocol/client";
 import { evaluate, loadRules } from "../dist/engine/boundaries.js";
 import { buildPackets } from "../dist/engine/build.js";
 import { TsProject } from "../dist/engine/project.js";
-import { globToRegExp, parseConfig } from "../dist/engine/rules.js";
+import { globToRegExp, parseConfig, parseFullConfig } from "../dist/engine/rules.js";
 import { checkRequired } from "../dist/server/check.js";
 import { createServer } from "../dist/server/create-server.js";
 import { ReviewStore } from "../dist/server/store.js";
@@ -280,4 +280,35 @@ test("雛形とinloop自身のinloop.jsonは、形が合っている", () => {
     const rules = parseConfig(readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8"), file);
     assert.ok(rules.length > 0, file);
   }
+});
+
+test("レイヤーは依頼票のlayerに入り、最初に当たったものを使う。当たらなければ空", () => {
+  const repo = makeRepo("layers");
+  write(repo, "src/db.ts", ["export type Db = { run(sql: string): void };"]);
+  write(repo, "inloop.json", JSON.stringify({
+    format: 1,
+    boundaries: [],
+    layers: [{ id: "DB", files: ["src/db.ts"] }, { id: "src", files: ["src/**"] }],
+  }));
+  commit(repo);
+  write(repo, "src/other.ts", ["export const x = 1;"]);
+  const packets = buildPackets(repo, [
+    { id: "R1", group: "R1", viewpoint: "q", symbols: ["src/db.ts#Db"] },
+    { id: "R2", group: "R1", viewpoint: "q", symbols: ["src/other.ts#x"] },
+  ], "HEAD");
+  assert.deepEqual(packets.map((p) => p.steps.map((s) => s.layer)), [["DB"], ["src"]]);
+});
+
+test("レイヤーのid重複と、今のinloopより新しいminVersionを拒否する", () => {
+  const layer = (id) => ({ id, files: ["a"] });
+  const text = (extra) => JSON.stringify({ format: 1, boundaries: [], ...extra });
+  assert.throws(() => parseFullConfig(text({ layers: [layer("A"), layer("A")] }), "inloop.json"), /重なっている/);
+  assert.throws(() => parseFullConfig(text({ minVersion: "1.0" }), "inloop.json"), /形が不正/);
+  assert.equal(parseFullConfig(text({ minVersion: "0.0.1" }), "inloop.json").minVersion, "0.0.1");
+  const repo = ruled();
+  write(repo, "inloop.json", text({ minVersion: "999.0.0" }));
+  assert.throws(() => loadRules(repo, "HEAD"), /999\.0\.0 以上が必要/);
+  write(repo, "inloop.json", text({ minVersion: "0.0.0" }));
+  // 基点のルールも和に残る（ADR-0022）ので、読めること（拒否されないこと）だけを確かめる。
+  assert.equal(loadRules(repo, "HEAD").length, RULES.length);
 });
