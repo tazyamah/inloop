@@ -275,7 +275,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 - 設定は`mcpServers`に`inloop`を`--state-dir`なしで登録（起動ログは`state=repo`）。Claude Desktop（`claude-ai` 0.1.0）は`io.modelcontextprotocol/ui`のMIMEタイプを宣言するが、`roots`は宣言しない。
 - 起動ログと`inloop-demo/.inloop/reviews.jsonl`で確認: AIが`repo`を渡し、依頼R6の記録が対象のリポジトリの`.inloop/`に書かれた（ADR-0010が実機で動く）。`request_review`の呼び出しの`meta=null`（`_meta`は届かない）でも、画面が`inloop_get_request`・`inloop_submit`を呼び、承認の回答が記録され、`answer_message`が会話に送られた。
-- 利用者の報告: AIから見えるツールの一覧に、`request_review`・`get_review_result`以外のツールも見えた。`visibility: ["app"]`のツールをDesktopがAIから隠さない可能性が高い（見えたツール名は未確認）。AIが`inloop_submit`を直接呼べる状態なら、AIが回答を代行できるので、対策が要る（次の一手）。
+- 利用者が貼ったAIの回答で、AIから見えるツールは`request_review`・`get_review_result`・`answer_review`の3つ（画面専用の`inloop_get_request`・`inloop_submit`・`inloop_reopen`は見えない）。`visibility: ["app"]`はClaude Desktopでも効いている。`answer_review`はAIが人の言葉を記録する設計どおりのツールで、必須の依頼は拒否される（ADR-0017、ADR-0022）。
 - 未確認: 画面がどう見えたか（会話内に出たか）、`fix`への`follows`での再依頼、「未回答に戻す」。
 
 
@@ -463,6 +463,6 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 ここまでが完了してから進めるもの（理由: 上の構成を先に完成させるため）:
 
-5. 他のクライアント: Claude DesktopでADR-0010は確認済み（上の節）。次は、AIから見える`inloop_submit`などへの対策（AIが回答を代行できない形にする）。Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業、`follows`での再依頼、「未回答に戻す」を確かめる。Claude Code（CLI）、Codex、VS Codeでの確認。
+5. 他のクライアント: Claude DesktopでADR-0010と`visibility`は確認済み（上の節）。次は、Claude Desktopで`fix`への`follows`での再依頼と「未回答に戻す」、`claude mcp serve`による手元での作業、Claude Code（CLI）、Codex、VS Codeでの確認。Claude Desktopの通常の会話で、`claude mcp serve`による手元での作業、`follows`での再依頼、「未回答に戻す」を確かめる。Claude Code（CLI）、Codex、VS Codeでの確認。
 6. 他のDB: PostgreSQLの雛形（`inloop new --db postgres`）と、PostgreSQL向けのSQLの解析。
 7. 他のOS: 手元で動くアプリの雛形のWindows・Linuxでのビルドと起動（sidecarの作り方を含む）。署名と公証。
