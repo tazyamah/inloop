@@ -84,5 +84,37 @@
         }
       ]
     }
+  ],
+  "layers": [
+    {
+      "id": "test",
+      "files": [
+        "server/**/*.test.ts"
+      ]
+    },
+    {
+      "id": "db",
+      "files": [
+        "server/db.ts"
+      ],
+      "mayUse": []
+    },
+    {
+      "id": "http",
+      "files": [
+        "server/app.ts",
+        "server/index.ts"
+      ],
+      "mayUse": [
+        "db"
+      ]
+    },
+    {
+      "id": "web",
+      "files": [
+        "web/**"
+      ],
+      "mayUse": []
+    }
   ]
 }

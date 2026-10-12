@@ -96,6 +96,11 @@ export interface ReviewPacket {
    * この項目がない依頼票（ADR-0026より前の記録）は、調べていない。
    */
   tables?: ReviewTable[];
+  /**
+   * 再依頼で、前の依頼票（id）と同じコードのまま、指摘の対象でもなかったシンボル（ADR-0029）。
+   * 人が読み直さなくてよいものとして、画面は畳み、行数の上限にも数えない。この項目がない依頼票は再依頼ではないか、ADR-0029より前の記録。
+   */
+  prior?: { id: string; same: string[] };
   /** 解析で解決できなかった参照 */
   unresolved: string[];
   evidence: Evidence[];

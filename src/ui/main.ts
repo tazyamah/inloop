@@ -277,6 +277,7 @@ function renderDetail() {
 
 /** シンボル1つの見出しとコード。callerは呼び出し元（ADR-0021）で、番号と変更の印の代わりに「呼び出し元」と出す。 */
 function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<string, string[]>, usedBy: Map<string, string[]>, requested: Set<string>): HTMLElement {
+  const same = !caller && (p.prior?.same.includes(s.symbol) ?? false);
   const box = el("div", (caller ? "step caller" : "step") + (s.symbol === flashed ? " flash" : ""));
   box.dataset.symbol = s.symbol;
   const h = el("header");
@@ -286,6 +287,7 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
     if (s.layer) h.append(el("span", "chip", s.layer));
     h.append(el("span", "chip", s.change === "added" ? "追加" : s.change === "modified" ? "変更" : "変更なし"));
   }
+  if (same) h.append(el("span", "chip", `${p.prior!.id}から変更なし`));
   for (const b of s.boundaries) h.append(el("span", "chip req", b));
   h.append(el("span", "spacer"));
   const copy = button("位置をコピー", () => { void copyText(positionOf(p.id, s.symbol)); }, "link");
@@ -293,7 +295,7 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
   h.append(copy);
   const lineCount = s.code.split("\n").length;
   // 変わっていない依存と呼び出し元は既定で畳む（ADR-0020）。畳むだけで省かない。
-  const foldable = caller || (s.change === "unchanged" && !requested.has(s.symbol));
+  const foldable = caller || same || (s.change === "unchanged" && !requested.has(s.symbol));
   const folded = foldable && !expanded.has(`${p.id} ${s.symbol}`);
   if (foldable) {
     h.append(button(folded ? `コードを表示（${lineCount}行）` : "畳む", () => {
