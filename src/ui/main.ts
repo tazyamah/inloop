@@ -158,7 +158,8 @@ async function copyText(text: string) {
     copied = document.execCommand("copy");
     ta.remove();
   }
-  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch(() => ({ isError: true }));
+  // 入力欄に入った位置の後ろに、そのままコメントを続けて書けるよう、空白を1つ足す。
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `${text} ` }] }).catch(() => ({ isError: true }));
   const sent = res.isError !== true;
   const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
   setStatus(msg, !sent && !copied);

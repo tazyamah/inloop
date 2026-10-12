@@ -74,7 +74,7 @@ test("依頼票を表示し、行のクリックで位置をコピーする（�
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44", "R1 src/db/orders.ts#cancelOrder#L44-L46"], "位置は会話に入れる（ADR-0032）");
+    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44 ", "R1 src/db/orders.ts#cancelOrder#L44-L46 "], "位置は会話に入れる（ADR-0032）");
     assert.equal(await view.locator(".ln.sel").count(), 3);
     await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
     await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
