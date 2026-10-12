@@ -417,3 +417,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証: アプリの`npm test`が17 pass（同期の2台のテスト、不正な行、中継の部屋）。本物の中継と2つのブラウザで、参加・追加・チェックの伝わりを確認。許可外のオリジンは403。未検証: iPhone実機、実際の回線の切断からの再接続、休止からの復帰。
 - 気づき: Playwrightの`setOffline`は、既存のWebSocketを切らない。`wrangler@4.149`と`@cloudflare/workers-types`は、`^5`が必要（`^4`だとnpmの依存が解決しない）。
 
+## 2026-10-12 承認方式の共有と、標準のオプション`--sync`（ADR-0041）
+
+- 利用者の方針（2026-10-12）: 承認方式にする。別のオーナーがいたらアラートを出す。端末間の同期をするPWAを作るときの標準オプションにして、オプション一発で使えるようにする。無料枠を使い切られる嫌がらせへの備えも要る。
+- 実装: `templates/sync/`（`server/sync/`の`crypto.ts`・`membership.ts`・`engine.ts`、`relay/`、共有の画面`Share.tsx`、同期する表の例`notes`、READMEとAGENTS.md、`inloop.json`の追加ルール）と、`inloop new --sync`（`src/cli.ts`、`--standalone`の上に重ねる）。`inloop generate scaffold`は、`--sync`のアプリには断る（`src/scaffold.ts`）。
+- 検証（macOS）: このリポジトリの`npm test`が112 pass・14 skip・fail 0。生成したアプリの`npm test`が17 pass（5回続けて動かし、1回、負荷で時間切れがあったので、待ち時間を8秒にした）。ローカルの中継（`wrangler dev`）と2つのブラウザで、承認までの流れと取り外し後のアラートを確認。
+- 気づき: (1) メッセージの処理は、届いた順に1つずつにしないと、承認の直後の「記録の追加」が二重に処理されて止まった（直した）。(2) `@cloudflare/workers-types`の型は、DOMの型と違うので、`crypto.ts`に型の断り（`as`）が要った。(3) `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗するので、空のディレクトリで`--force`を付けて作る。
+- 未検証: 実機（iPhone）、本物のCloudflare上の中継、実ブラウザでの再接続・休止からの復帰、オーナー鍵の複製のアラートの実ブラウザでの表示。
+

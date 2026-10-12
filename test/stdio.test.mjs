@@ -258,3 +258,22 @@ test("inloop new --standaloneは、Nodeのサーバーを外し、Web WorkerでH
   const both = spawnSync(process.execPath, [BIN, "new", "x", "--standalone", "--desktop"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.notEqual(both.status, 0);
 });
+
+test("inloop new --syncは、端末内で動く構成に、共有（同期・中継・画面）を重ねる", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-new-")));
+  const r = spawnSync(process.execPath, [BIN, "new", "fam note", "--sync"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  assert.equal(r.status, 0, r.stderr);
+  const dir = join(parent, "fam note");
+  for (const f of ["server/sync/engine.ts", "server/sync/crypto.ts", "server/sync/membership.ts", "server/sync/sync.test.ts", "server/sync-tables.ts", "server/sqlite-wasm.ts", "server/worker.ts", "relay/src/index.ts", "relay/src/room.ts", "relay/wrangler.jsonc", "relay/package.json", "web/src/pages/Share.tsx", "web/src/local-api.ts", "web/public/sw.js", "web/.env.production"]) assert.ok(existsSync(join(dir, f)), f);
+  assert.ok(!existsSync(join(dir, "server/index.ts")));
+  // 同期する表は、uidの文字列を主キーにする（notesの例）。サーバー向けの雛形の整数のidのままではない。
+  assert.match(readFileSync(join(dir, "server/db.ts"), "utf8"), /uid TEXT PRIMARY KEY/);
+  assert.match(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /"name": "fam-note-relay"/);
+  assert.doesNotMatch(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /__APP_NAME__/);
+  assert.match(readFileSync(join(dir, "web/src/App.tsx"), "utf8"), /Share/);
+  // 共有のアプリには、まだscaffoldを使えない（案内して断る）。
+  const g = spawnSync(process.execPath, [BIN, "generate", "scaffold", "task", "title:text"], { encoding: "utf8", cwd: dir, env: { ...process.env, INLOOP_HOME: home } });
+  assert.notEqual(g.status, 0);
+  assert.match(g.stderr, /--sync/);
+});

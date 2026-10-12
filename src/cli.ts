@@ -23,7 +23,7 @@ const USAGE = `使い方: inloop <コマンド>
 
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
-  new <dir> [--name <名前>] [--db sqlite] [--desktop | --standalone] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す。--standalone はサーバーなしで端末内（ブラウザ・PWA）で動く構成にする
+  new <dir> [--name <名前>] [--db sqlite] [--desktop | --standalone | --sync] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す。--standalone はサーバーなしで端末内（ブラウザ・PWA）で動く構成にする。--sync は、それに端末どうしの共有（承認方式、暗号化、中継つき）を足す
   generate scaffold <名前> <列>... [--plural <名前>] [--label <表示名>]  資源（表・API・テスト・画面）を決まった形で作る。列は 名前:型（text・int・real・bool・date）、省略可は 名前:型:optional
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
@@ -83,9 +83,12 @@ function create(args: string[]): void {
   const db = option(args, "--db") ?? "sqlite";
   const desktop = args.includes("--desktop");
   if (desktop) args.splice(args.indexOf("--desktop"), 1);
-  const standalone = args.includes("--standalone");
-  if (standalone) args.splice(args.indexOf("--standalone"), 1);
-  if (desktop && standalone) throw new Error("--desktop と --standalone は、同時に指定できない");
+  const sync = args.includes("--sync");
+  if (sync) args.splice(args.indexOf("--sync"), 1);
+  // --sync は、端末内で動く構成（--standalone）に共有を足したもの。
+  const standalone = args.includes("--standalone") || sync;
+  if (args.includes("--standalone")) args.splice(args.indexOf("--standalone"), 1);
+  if (desktop && standalone) throw new Error("--desktop と、--standalone・--sync は、同時に指定できない");
   if (db !== "sqlite") throw new Error(`--db ${db} の雛形は、まだない（今は sqlite だけ）`);
   if (args.length !== 1) throw new Error("作るディレクトリを1つ指定する（例: inloop new myapp）");
   const dir = resolve(args[0]!);
@@ -102,6 +105,8 @@ function create(args: string[]): void {
   // Web WorkerでHonoを動かす仕組みを重ねる。
   if (standalone) {
     copyTemplate(join(ROOT, "templates", "standalone"), dir, appName);
+    // 共有（ADR-0041）: 同期の仕組みと、中継（relay/）、共有の画面を重ねる。
+    if (sync) copyTemplate(join(ROOT, "templates", "sync"), dir, appName);
     rmSync(join(dir, "server", "index.ts"));
     rmSync(join(dir, "scripts"), { recursive: true });
   }

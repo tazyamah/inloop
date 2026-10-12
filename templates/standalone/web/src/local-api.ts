@@ -6,7 +6,9 @@ export function installLocalApi(): void {
   const pending = new Map<number, (r: Response) => void>();
   let n = 0;
   const ready = new Promise<void>((resolve) => {
-    worker.addEventListener("message", (e: MessageEvent<Reply | { ready: true; storage: string }>) => {
+    worker.addEventListener("message", (e: MessageEvent<Reply | { ready: true; storage: string } | { changed: true }>) => {
+      // Workerで、他の端末の変更の取り込みや同期の状態の変化があった。画面に知らせる。
+      if ("changed" in e.data) return void window.dispatchEvent(new Event("local-api-changed"));
       if ("ready" in e.data) {
         // 保存先の状態を、画面の下に出す（保存できないときに、気づけるように）。
         const status = document.createElement("p");
@@ -23,6 +25,10 @@ export function installLocalApi(): void {
       done?.(new Response(empty ? null : e.data.body, { status: e.data.status, headers: e.data.headers }));
     });
   });
+
+  // 画面に戻ったとき、同期をすぐつなぎ直す。
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && worker.postMessage({ wake: true }));
+  addEventListener("online", () => worker.postMessage({ wake: true }));
 
   const real = window.fetch.bind(window);
   window.fetch = async (input, init) => {

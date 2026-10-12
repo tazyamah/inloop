@@ -393,6 +393,10 @@ export function plan(repo: string, r: Resource): Plan {
     if (!existsSync(join(repo, p))) throw new Error(`${p} がない。inloop new で作ったアプリのリポジトリで動かす`);
     return readFileSync(join(repo, p), "utf8");
   };
+  // 共有（inloop new --sync）のアプリは、同期する表の列が違う（ADR-0041）。生成は、まだ対応していない。
+  if (existsSync(join(repo, "server/sync-tables.ts"))) {
+    throw new Error("共有（inloop new --sync）のアプリには、まだ scaffold を使えない。同期する表は、server/db.ts・server/sync-tables.ts・server/app.ts の notes の例にならって、手で足す");
+  }
   const files = {
     route: `server/routes/${r.plural}.ts`,
     test: `server/${r.plural}.test.ts`,
