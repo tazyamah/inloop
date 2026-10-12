@@ -49,7 +49,7 @@ let picked: { symbol: string; start: number; end: number } | null = null;
  * 畳むだけで省かない。見出しと行数は常に出す。
  */
 const expanded = new Set<string>();
-/** 開いたファイル全体（`依頼ID ファイル`、ADR-0034）。読み込み中は"loading"、失敗は理由。 */
+/** 開いたファイル全体（`依頼ID シンボル`、ADR-0034）。シンボルごとに開閉する。読み込み中は"loading"、失敗は理由。 */
 const wholeFiles = new Map<string, { text: string; stale: boolean } | "loading" | { error: string }>();
 /** 図や見出しから移った先のシンボル。しばらく枠で示す。 */
 let flashed: string | undefined;
@@ -160,8 +160,8 @@ async function copyText(text: string) {
     copied = document.execCommand("copy");
     ta.remove();
   }
-  // 入力欄に入った位置の後ろに、そのままコメントを続けて書けるよう、空白を1つ足す。
-  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `${text} ` }] }).catch(() => ({ isError: true }));
+  // 入力欄に入った位置の後ろに、そのままコメントを続けて書けるよう、改行を1つ足す（ホストが末尾の空白を削るため）。
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `${text}\n` }] }).catch(() => ({ isError: true }));
   const sent = res.isError !== true;
   const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
   setStatus(msg, !sent && !copied);
@@ -332,13 +332,12 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
       render();
     }, "link fold"));
   }
-  const fileKey = `${p.id} ${s.file}`;
-  // 同じファイルのシンボルのうち、コードが開いている最初のものにだけ、ファイル全体の操作を出す。
-  const opened = (x: ReviewStep) => !((p.prior?.same.includes(x.symbol) || (x.change === "unchanged" && !requested.has(x.symbol))) && !expanded.has(`${p.id} ${x.symbol}`));
-  const wholeable = !caller && p.steps.find((x) => x.file === s.file && opened(x)) === s && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
+  const fileKey = `${p.id} ${s.symbol}`;
+  // コードが開いているシンボルごとに、ファイル全体の操作を出す（差分が複数あるファイルのどの差分からも開けるように）。
+  const wholeable = !caller && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
   if (wholeable && !(foldable && folded)) {
     const open = wholeFiles.has(fileKey);
-    const wb = button(open ? "ファイルを閉じる" : "ファイル全体", () => { void toggleFile(p, s.file); }, "link whole");
+    const wb = button(open ? "ファイルを閉じる" : "ファイル全体", () => { void toggleFile(p, s); }, "link whole");
     wb.dataset.file = s.file;
     h.append(wb);
   }
@@ -397,8 +396,9 @@ function wholeFileBox(file: string, whole: NonNullable<ReturnType<typeof wholeFi
   return box;
 }
 
-async function toggleFile(p: ReviewPacket, file: string) {
-  const key = `${p.id} ${file}`;
+async function toggleFile(p: ReviewPacket, s: ReviewStep) {
+  const file = s.file;
+  const key = `${p.id} ${s.symbol}`;
   if (wholeFiles.has(key)) { wholeFiles.delete(key); render(); return; }
   wholeFiles.set(key, "loading");
   render();
