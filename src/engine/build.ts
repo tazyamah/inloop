@@ -22,6 +22,11 @@ export interface PlannedReview {
   /** 省略するとoptional。requiredは、信頼境界ルールによる必須の依頼（ADR-0022）。 */
   kind?: ReviewKind;
   triggeredBy?: string[];
+  /**
+   * 再依頼のとき、前の依頼票と、そのうち人が読み終えたシンボルのコード（ADR-0029）。
+   * コードが同じシンボルは、依頼票の`prior.same`に入る。
+   */
+  prior?: { id: string; codes: Record<string, string> };
 }
 
 export interface BuildOptions {
@@ -56,7 +61,7 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
     let hits: BoundaryHit[] = [];
     let extra: PlannedReview[] = [];
     if (options.required) {
-      hits = evaluate(project, repo, base, config.rules);
+      hits = evaluate(project, repo, base, config.rules, config.layerSets);
       extra = options.required(hits);
     }
     const boundaries = new Map(hits.map((h) => [h.symbol, h.rules]));
@@ -81,7 +86,7 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
     const max = options.maxLines;
     if (max !== undefined) {
       const over = packets.flatMap((p) => {
-        const lines = p.steps.reduce((n, s) => n + s.code.split("\n").length, 0);
+        const lines = reviewLines(p);
         return p.kind !== "required" && lines > max && new Set(p.requestedSymbols).size > 1
           ? [`${p.id}: 依頼票が${lines}行で、上限の${max}行を超える。対象のシンボルを分けて、別々の依頼（別の呼び出し）にする`]
           : [];
@@ -92,6 +97,16 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
   } finally {
     project.close();
   }
+}
+
+/**
+ * 依頼票の行数の上限（ADR-0017）に数える行。畳んで見せるコード（変わっていない依存、再依頼で前回と同じシンボル）は数えない（ADR-0029）。
+ * 畳んだコードは、開けば全行読める。数えないのは、人がまず読む量ではないため。
+ */
+export function reviewLines(p: Pick<ReviewPacket, "steps" | "requestedSymbols" | "prior">): number {
+  const same = new Set(p.prior?.same);
+  const asked = new Set(p.requestedSymbols);
+  return p.steps.reduce((n, s) => n + (same.has(s.symbol) || (s.change === "unchanged" && !asked.has(s.symbol)) ? 0 : s.code.split("\n").length), 0);
 }
 
 interface Context {
@@ -184,6 +199,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     edges: sortEdges(edges, steps, callers),
     callers,
     tables: sortTables(tables, steps),
+    ...(review.prior ? { prior: { id: review.prior.id, same: steps.filter((s) => review.prior!.codes[s.symbol] === s.code).map((s) => s.symbol) } } : {}),
     unresolved: [...new Set(unresolved)],
     evidence: bindEvidence(ctx.specs, ctx.evidence, ctx.covered, [...new Set([...review.symbols, ...steps.filter((s) => s.change !== "unchanged").map((s) => s.symbol)])].filter((id) => id.includes("#"))),
     budget: { changedLines: steps.reduce((n, s) => n + s.changedLines.length, 0), limit: BUDGET_LIMIT },

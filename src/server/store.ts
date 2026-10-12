@@ -137,13 +137,14 @@ export class ReviewStore {
         // 必須の依頼は、種別・根拠のルール・対象・観点を引き継ぎ、AIは変えられない（ADR-0022）。
         if (item.symbols !== undefined && !sameList(item.symbols, head.requestedSymbols)) errors.push(`${item.follows}: 必須の依頼の対象は変えられない`);
         if (item.viewpoint?.trim() && item.viewpoint !== head.viewpoint) errors.push(`${item.follows}: 必須の依頼の観点は変えられない`);
-        return { id, group: "", viewpoint: head.viewpoint, symbols: head.requestedSymbols, kind: "required", triggeredBy: head.triggeredBy };
+        return { id, group: "", viewpoint: head.viewpoint, symbols: head.requestedSymbols, kind: "required", triggeredBy: head.triggeredBy, ...this.priorOf(head) };
       }
       return {
         id,
         group: "",
         viewpoint: item.viewpoint?.trim() ? item.viewpoint : head.viewpoint,
         symbols: item.symbols ?? head.requestedSymbols,
+        ...this.priorOf(head),
       };
     });
     if (errors.length > 0) throw new Error(errors.join("\n"));
@@ -157,7 +158,7 @@ export class ReviewStore {
       roots.add(root);
       const rules = [...new Set([...head.triggeredBy, ...h.rules])].sort();
       const viewpoint = [...new Set([...head.viewpoint.split("\n"), ...h.question.split("\n")])].join("\n");
-      return [{ id: idOf(root, branch + 1), group: "", viewpoint: rules.every((r) => h.rules.includes(r)) ? h.question : viewpoint, symbols: [h.symbol], kind: "required", triggeredBy: rules }];
+      return [{ id: idOf(root, branch + 1), group: "", viewpoint: rules.every((r) => h.rules.includes(r)) ? h.question : viewpoint, symbols: [h.symbol], kind: "required", triggeredBy: rules, ...this.priorOf(head) }];
     });
     const at = this.now();
     // 依頼票を作れなければ（見つからないシンボルなど）、ここで例外になり、何も記録しない。
@@ -169,6 +170,18 @@ export class ReviewStore {
     const events: LogEvent[] = packets.map((packet) => ({ v: LOG_VERSION, type: "request", at, packet }));
     this.record(events);
     return packets.map((p) => this.packets.get(p.id)!);
+  }
+
+  /**
+   * 再依頼で、前の依頼票のうち人が読み終えたシンボルのコード（ADR-0029）。
+   * 前の依頼に回答があり、保留でも、シンボルの分からない修正・質問でもないときだけ、
+   * 修正・質問の対象になったシンボルを除いた全シンボルのコードを返す。それ以外は何も返さない（全部を見せる）。
+   */
+  private priorOf(head: ReviewPacket): { prior: NonNullable<PlannedReview["prior"]> } | undefined {
+    const answers = (this.rounds.get(head.id) ?? []).flat();
+    if (answers.length === 0 || answers.some((a) => a.verdict === "hold" || ((a.verdict === "fix" || a.verdict === "ask") && !a.ref))) return undefined;
+    const flagged = new Set(answers.filter((a) => a.verdict === "fix" || a.verdict === "ask").map((a) => a.ref!.replace(/#L\d+(?:-L\d+)?$/, "")));
+    return { prior: { id: head.id, codes: Object.fromEntries(head.steps.filter((s) => !flagged.has(s.symbol)).map((s) => [s.symbol, s.code])) } };
   }
 
   /** そのシンボルだけを対象にした、必須の系列の最新の依頼（ADR-0022）。なければundefined。 */
@@ -481,6 +494,7 @@ const packetSchema = z.object({
     table: z.string().min(1),
     access: z.enum(["read", "write", "schema"]),
   })).optional(),
+  prior: z.object({ id: idSchema, same: z.array(z.string()) }).optional(),
   unresolved: z.array(z.string()),
   evidence: z.array(z.object({
     kind: z.enum(["test", "static"]),
@@ -495,6 +509,9 @@ const packetSchema = z.object({
   const callers = new Set(p.callers?.map((c) => c.symbol));
   p.callers?.forEach((c, i) => {
     if (symbols.has(c.symbol)) ctx.addIssue({ code: "custom", path: ["callers", i], message: "並べたシンボルと重なる" });
+  });
+  p.prior?.same.forEach((s, i) => {
+    if (!symbols.has(s)) ctx.addIssue({ code: "custom", path: ["prior", "same", i], message: "依頼票にないシンボル" });
   });
   p.tables?.forEach((t, i) => {
     if (!symbols.has(t.symbol)) ctx.addIssue({ code: "custom", path: ["tables", i], message: "依頼票にないシンボル" });

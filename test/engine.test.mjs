@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { buildPackets } from "../dist/engine/build.js";
+import { buildPackets, reviewLines } from "../dist/engine/build.js";
 import { makeRepo } from "./helpers.mjs";
 
 const commit = (repo) => {
@@ -150,7 +150,7 @@ test("並べるシンボルの数に上限はなく、直接の依存はすべ�
 
 test("行数の上限を超える依頼は、対象のシンボルが2つ以上なら断り、1つなら受け付ける", () => {
   const repo = project();
-  const lines = (p) => p.steps.reduce((n, s) => n + s.code.split("\n").length, 0);
+  const lines = reviewLines;
   const both = build(repo, ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"]);
   const total = lines(both);
   const opts = (maxLines) => buildPackets(repo, [{ id: "R7", group: "R7", viewpoint: "q", symbols: ["src/cancel.ts#cancelOrder", "src/cancel.ts#setup"] }], "HEAD", { maxLines });

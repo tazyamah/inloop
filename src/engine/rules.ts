@@ -7,6 +7,8 @@ export const CONFIG_FILE = "inloop.json";
 export const CONFIG_FORMAT = 1;
 /** 設定ファイルそのものを変えたときに当たる、組み込みのルール。inloop.jsonでは使えない。 */
 export const CONFIG_RULE = "inloop-config";
+/** レイヤーの依存の向きに反したときに当たる、組み込みのルール。inloop.jsonでは使えない（ADR-0027）。 */
+export const LAYER_RULE = "layer-direction";
 export const CONFIG_QUESTION = "inloopの設定（inloop.json）の変更。信頼境界ルールを消したり弱めたりしていないか、基点の内容と比べて確かめる";
 
 const patterns = z.array(z.string().min(1).max(300)).min(1);
@@ -17,6 +19,8 @@ const matcherSchema = z.union([
   z.strictObject({ global: z.string().regex(/^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/) }),
   z.strictObject({ files: patterns }),
   z.strictObject({ symbols: patterns }),
+  /** SQLが触るテーブル（ADR-0028）。大文字小文字は区別せず、`*`を使える。`access`を省くとどの種類でも当たる。 */
+  z.strictObject({ table: z.string().min(1).max(200), access: z.array(z.enum(["read", "write", "schema"])).min(1).optional() }),
 ]);
 
 const ruleSchema = z.strictObject({
@@ -29,6 +33,11 @@ const ruleSchema = z.strictObject({
 const layerSchema = z.strictObject({
   id: z.string().min(1).max(60).regex(/^[^\s]+$/),
   files: patterns,
+  /**
+   * このレイヤーのコードが使ってよい、ほかのレイヤーのid（ADR-0027）。同じレイヤーは常に使える。
+   * 省略すると制限しない。空の列なら、ほかのレイヤーを使えない。レイヤーのないファイルは検査しない。
+   */
+  mayUse: z.array(z.string().min(1).max(60)).optional(),
 });
 
 /** 証拠（ADR-0024）。inloopが実行する検査。コマンドはシェルを通さずに実行する。 */
@@ -87,7 +96,7 @@ export function parseFullConfig(text: string, where: string): Config {
   }
   const seen = new Set<string>();
   for (const rule of r.data.boundaries) {
-    if (rule.id === CONFIG_RULE) throw new Error(`${where}: ${CONFIG_RULE} は組み込みのルールのidで、使えない`);
+    if (rule.id === CONFIG_RULE || rule.id === LAYER_RULE) throw new Error(`${where}: ${rule.id} は組み込みのルールのidで、使えない`);
     if (seen.has(rule.id)) throw new Error(`${where}: ルールのidが重なっている ${rule.id}`);
     seen.add(rule.id);
   }
@@ -96,12 +105,29 @@ export function parseFullConfig(text: string, where: string): Config {
     if (layerIds.has(l.id)) throw new Error(`${where}: レイヤーのidが重なっている ${l.id}`);
     layerIds.add(l.id);
   }
+  for (const l of r.data.layers ?? []) {
+    for (const u of l.mayUse ?? []) if (!layerIds.has(u)) throw new Error(`${where}: レイヤー${l.id}のmayUseに、定義にないレイヤー ${u}`);
+  }
   const evidenceIds = new Set<string>();
   for (const e of r.data.evidence ?? []) {
     if (evidenceIds.has(e.id)) throw new Error(`${where}: 証拠のidが重なっている ${e.id}`);
     evidenceIds.add(e.id);
   }
   return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [] };
+}
+
+/**
+ * 使う側のレイヤーが、使われる側のレイヤーを使ってよいか（ADR-0027）。どちらかがレイヤーのないファイルなら、使ってよい。
+ */
+export function mayUseLayer(layers: Layer[], from: string, to: string): boolean {
+  if (!from || !to || from === to) return true;
+  const allowed = layers.find((l) => l.id === from)?.mayUse;
+  return allowed === undefined || allowed.includes(to);
+}
+
+/** テーブル名が、ルールの`table`の指定に当たるか。 */
+export function tableMatches(pattern: string, table: string): boolean {
+  return globToRegExp(pattern.toLowerCase()).test(table.toLowerCase());
 }
 
 /** `x.y.z`の大小。 */

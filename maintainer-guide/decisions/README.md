@@ -47,3 +47,6 @@
 | [0024](0024-evidence-runs.md) | Accepted | `inloop.json`の`evidence`の検査をinloopが実行して記録し、依頼票の`evidence`に入れる。作業ツリーの指紋が違う結果は`missing`にする |
 | [0025](0025-evidence-symbol-binding.md) | Accepted | `evidence`に`tests`を足し、そのテストが直接呼び出す・newするシンボルの依頼票にだけ結果を結び付ける。参照するテストがなければ`missing` |
 | [0026](0026-sql-table-access.md) | Accepted | 依頼票に並べたシンボルの`prepare`・`exec`のSQL文字列から読む・書くテーブルを取り出し、`tables`に出す。読めない動的なSQLは未解決にする |
+| [0027](0027-layer-direction.md) | Accepted | `layers`に`mayUse`を足し、レイヤーの依存の向きに反した使い方を、組み込みのルール`layer-direction`で必須の依頼にする |
+| [0028](0028-table-matcher.md) | Accepted | 信頼境界ルールに、SQLのテーブルでの当て方`table`を足す。動的なSQLの単位にも当てる |
+| [0029](0029-folded-lines-and-reread-diff.md) | Accepted | 畳んで見せるコードを行数の上限に数えない。再依頼では、前の依頼票と同じコードで指摘のないシンボルを`prior.same`として畳む |

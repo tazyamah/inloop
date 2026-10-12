@@ -1,5 +1,5 @@
 // 必須の依頼がすべて承認されているかを確かめる（ADR-0001、ADR-0022）。マージの前に、人やCIが動かす。記録は書かない。
-import { evaluate, loadRules } from "../engine/boundaries.js";
+import { evaluate, loadConfig } from "../engine/boundaries.js";
 import { baseOf, checkBase } from "../engine/diff.js";
 import { TsProject } from "../engine/project.js";
 import { codeOf, type ReviewStore } from "./store.js";
@@ -24,7 +24,8 @@ export function checkRequired(repo: string, range: string, store: ReviewStore): 
   checkBase(repo, base);
   const project = new TsProject(repo);
   try {
-    return evaluate(project, repo, base, loadRules(repo, base)).map((h): CheckLine => {
+    const config = loadConfig(repo, base);
+    return evaluate(project, repo, base, config.rules, config.layerSets).map((h): CheckLine => {
       const head = store.requiredHead(h.symbol);
       if (!head) return { symbol: h.symbol, rules: h.rules, state: "missing" };
       if (codeOf(head, h.symbol) !== h.code) return { symbol: h.symbol, rules: h.rules, state: "changed", id: head.id };
