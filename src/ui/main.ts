@@ -136,29 +136,28 @@ function answerText(a: Answer): string {
 // ---- 位置のコピー ----
 
 /**
- * 位置の文字列をクリップボードに写す。会話で「ここの範囲なんだけど」と貼るため（ADR-0017）。
- * ホストがクリップボードを許さない場合（Claude DesktopのMCP Appsのiframeなど）は、位置を会話に送る（ADR-0032）。
+ * 行クリックの位置を、会話の入力欄に入れる（ADR-0032）。会話で「ここの範囲なんだけど」と話しかけるため（ADR-0017）。
+ * 会話に入れられるホスト（MCP Appsの埋め込み）は`sendMessage`で入れ、あわせてクリップボードにも写す。
+ * 会話に入れられないホスト（ブラウザの経路）は、クリップボードだけにする。
  */
 async function copyText(text: string) {
+  let copied = false;
   try {
     await navigator.clipboard.writeText(text);
+    copied = true;
   } catch {
     const ta = el("textarea");
     ta.value = text;
     document.body.append(ta);
     ta.select();
-    const ok = document.execCommand("copy");
+    copied = document.execCommand("copy");
     ta.remove();
-    if (!ok) {
-      const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `[inloop] 位置の指定: ${text}（この位置についての指示が続きます。次の発言を待ってください）` }] }).catch(() => ({ isError: true }));
-      const msg = res.isError ? `コピーできませんでした。手で写してください: ${text}` : `会話に位置を送りました: ${text}`;
-      setStatus(msg, res.isError === true);
-      toast(msg, res.isError === true);
-      return;
-    }
   }
-  setStatus(`コピーしました: ${text}`);
-  toast(`コピーしました: ${text}`);
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch(() => ({ isError: true }));
+  const sent = res.isError !== true;
+  const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
+  setStatus(msg, !sent && !copied);
+  toast(msg, !sent && !copied);
 }
 
 /** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */

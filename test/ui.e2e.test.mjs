@@ -40,6 +40,7 @@ async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare, ta
   const page = await browser.newPage({ viewport: { width: 900, height: 1000 }, colorScheme: theme });
   const calls = [];
   const messages = [];
+  const positions = [];
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
@@ -48,6 +49,7 @@ async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare, ta
     calls.push(params);
     return JSON.stringify(await client.callTool(params));
   });
+  await page.exposeFunction("__onPosition", async (json) => { positions.push(JSON.parse(json).content[0].text); });
   await page.exposeFunction("__onMessage", async (json) => { messages.push(JSON.parse(json)); });
   // setContentでは初期化スクリプトが走らないため、ホストへ渡す値はページ内に埋め込む。
   const globals = { __REVIEW_HTML: reviewHtml, __TOOL_INPUT: input, __TOOL_RESULT: result, __THEME: theme };
@@ -55,13 +57,13 @@ async function setup({ theme = "light", requests = 2, elsewhere = 0, prepare, ta
   await page.setContent(`<!doctype html><html><body style="margin:0"><script>${data}</script><script type="module">${hostJs}</script></body></html>`);
   const view = page.frameLocator("#view");
   await view.locator("#detail").waitFor({ state: "visible", timeout: 10000 });
-  return { browser, page, view, calls, messages, errors, id, client };
+  return { browser, page, view, calls, messages, positions, errors, id, client };
 }
 
 const line = (view, ref) => view.locator(`.ln[data-ref="${ref}"]`);
 
 test("依頼票を表示し、行のクリックで位置をコピーする（コメント欄はない）", { skip: !enabled }, async () => {
-  const { browser, page, view, errors } = await setup();
+  const { browser, page, view, positions, errors } = await setup();
   try {
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
     assert.equal(await view.locator("#title").textContent(), "inloop レビュー依頼 R1", "最初の依頼を表示する");
@@ -69,12 +71,13 @@ test("依頼票を表示し、行のクリックで位置をコピーする（�
     assert.equal(await view.locator("textarea").count(), 0, "コメント欄はない（議論は会話で、ADR-0018）");
     assert.equal(await view.locator("#send").count(), 0, "まとめて送信はない");
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
+    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44", "R1 src/db/orders.ts#cancelOrder#L44-L46"], "位置は会話に入れる（ADR-0032）");
     assert.equal(await view.locator(".ln.sel").count(), 3);
     await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
-    await view.locator("#status", { hasText: "コピーしました: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
     await shot(page, "review-copy");
     assert.deepEqual(errors, []);
   } finally {
@@ -199,7 +202,7 @@ test("再依頼の画面には、元の依頼への指摘が出て、枝番のID
     assert.deepEqual(await view.locator(".item[data-id]").evaluateAll((els) => els.map((e) => e.dataset.id)), ["R1-1"]);
     await shot(page, "review-rerequest");
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await view.locator("#status", { hasText: "コピーしました: R1-1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1-1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await view.locator('.item[data-id="R1-1"] [data-decision="ok"]').click();
     await view.locator("#status", { hasText: "R1-1を承認として記録しました。" }).waitFor({ timeout: 5000 });
     assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }] });

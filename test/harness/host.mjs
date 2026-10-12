@@ -14,7 +14,12 @@ const bridge = new AppBridge(
   { hostContext: { theme: window.__THEME ?? "light", displayMode: "inline", availableDisplayModes: ["inline", "fullscreen"] } },
 );
 bridge.oncalltool = async (params) => window.__callTool(JSON.stringify(params)).then((s) => JSON.parse(s));
-bridge.onmessage = async (params) => { await window.__onMessage(JSON.stringify(params)); return {}; };
+// 行クリックの位置（「R1 src/a.ts#f#L3」の形）は会話の入力欄に入るメッセージ。回答のメッセージとは分けて記録する。
+bridge.onmessage = async (params) => {
+  const text = params.content?.[0]?.text ?? "";
+  await (/^R\d+(?:-\d+)? \S+$/.test(text) ? window.__onPosition : window.__onMessage)(JSON.stringify(params));
+  return {};
+};
 bridge.onrequestdisplaymode = async (params) => { window.__displayMode = params.mode; return { mode: params.mode }; };
 bridge.oninitialized = async () => {
   await bridge.sendToolInput({ arguments: window.__TOOL_INPUT });
