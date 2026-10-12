@@ -6,10 +6,14 @@ import react from "@vitejs/plugin-react";
 // 画面からの /api の要求は、web/src/local-api.ts がWorkerへ渡す（ネットワークには出ない）。
 // server/ のコードは Node.js でも動くよう、node:sqlite を使う。ブラウザ向けのビルドでは、同じ使い方のできる
 // server/sqlite-wasm.ts に差し替える。
+// ビルドごとの識別子。画面に埋め込み、同じ値を version.txt にも出して、置き場所の版と見比べる（web/src/offline.ts）。
+const buildId = Date.now().toString();
+
 export default defineConfig({
   root: "web",
   base: "./",
-  plugins: [react()],
+  define: { __BUILD_ID__: JSON.stringify(buildId) },
+  plugins: [react(), { name: "build-id", generateBundle() { this.emitFile({ type: "asset", fileName: "version.txt", source: buildId }); } }],
   resolve: { alias: { "node:sqlite": fileURLToPath(new URL("./server/sqlite-wasm.ts", import.meta.url)) } },
   optimizeDeps: { exclude: ["@sqlite.org/sqlite-wasm"] },
   worker: { format: "es" },
