@@ -12,6 +12,9 @@ try {
   poolError = e instanceof Error ? e.message : String(e);
 }
 
+/** 保存先の状態（画面の下に出す）。 */
+export const storageInfo = pool ? "端末内に保存（OPFS）" : `保存できない（${poolError}）`;
+
 type Param = string | number | bigint | null | Uint8Array;
 
 export class DatabaseSync {

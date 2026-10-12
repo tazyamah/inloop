@@ -1,6 +1,7 @@
 // Web Workerの入口。Hono（createApp）をここで動かし、画面からの要求を app.fetch で処理して返す。
 import { createApp } from "./app.ts";
 import { openDb } from "./db.ts";
+import { storageInfo } from "./sqlite-wasm.ts";
 
 interface Call { id: number; url: string; method: string; headers: [string, string][]; body: string | null }
 
@@ -22,4 +23,4 @@ ctx.addEventListener("message", async (e: MessageEvent<Call>) => {
   const res = await app.fetch(new Request(new URL(url, "http://app.local"), { method, headers, body }));
   ctx.postMessage({ id, status: res.status, headers: [...res.headers], body: await res.text() });
 });
-ctx.postMessage({ ready: true });
+ctx.postMessage({ ready: true, storage: startError === null ? storageInfo : `起動できない（${startError}）` });

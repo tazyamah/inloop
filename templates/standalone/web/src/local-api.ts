@@ -6,8 +6,16 @@ export function installLocalApi(): void {
   const pending = new Map<number, (r: Response) => void>();
   let n = 0;
   const ready = new Promise<void>((resolve) => {
-    worker.addEventListener("message", (e: MessageEvent<Reply | { ready: true }>) => {
-      if ("ready" in e.data) return resolve();
+    worker.addEventListener("message", (e: MessageEvent<Reply | { ready: true; storage: string }>) => {
+      if ("ready" in e.data) {
+        // 保存先の状態を、画面の下に出す（保存できないときに、気づけるように）。
+        const status = document.createElement("p");
+        status.id = "storage-status";
+        status.textContent = e.data.storage;
+        status.style.cssText = "margin:1rem;font-size:.75rem;opacity:.7";
+        document.body.append(status);
+        return resolve();
+      }
       const done = pending.get(e.data.id);
       pending.delete(e.data.id);
       // 204などの本文のない応答は、本文を付けない。
