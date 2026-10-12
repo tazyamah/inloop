@@ -348,7 +348,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 ### 2026-10-12 雛形の`inloop.json`に`table`のルール
 
-- 雛形（server・desktop）に`db-schema`を足した。テーブルや列の追加・削除・変更（`CREATE`・`DROP`・`ALTER`）に必須の依頼を出す。動的なSQLを含む単位にも当たる（ADR-0028）。特定のテーブル・列のルールの書き方（`table`・`access`・`columns`）は、雛形のAGENTS.mdに足した。`npm test`で形を確かめる。実際にXX。
+- 雛形（server・desktop）に`db-schema`を足した。テーブルや列の追加・削除・変更（`CREATE`・`DROP`・`ALTER`）に必須の依頼を出す。動的なSQLを含む単位にも当たる（ADR-0028）。特定のテーブル・列のルールの書き方（`table`・`access`・`columns`）は、雛形のAGENTS.mdに足した。`npm test`で形を確かめる。雛形のコピーのリポジトリで、`ALTER TABLE`を足すと`db-schema`が当たることを`inloop check`で確かめた（クライアントでの表示は未検証）。
 
 ### 2026-10-12 SQLの列（ADR-0031）
 
