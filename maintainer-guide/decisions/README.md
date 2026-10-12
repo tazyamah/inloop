@@ -56,3 +56,4 @@
 | [0033](0033-fold-same-without-answer.md) | Accepted | 前の依頼に回答がなくても、再依頼で同じコードのシンボルを畳む（ADR-0029の1項目だけを変える） |
 | [0034](0034-whole-file-view.md) | Accepted | コードの3段目としてファイル全体を開き、`ファイル名#L行`の位置を受け付ける |
 | [0035](0035-position-colon.md) | Accepted | 行クリックの位置の末尾に「:」を付け、会話に入れたときはクリップボードに写さない。ファイル全体は呼び出し元からも開ける |
+| [0036](0036-postgres-template-and-sql.md) | Accepted | `inloop new --db postgres`の雛形（`pg`とPGlite）と、PostgreSQLの書き方（`$1`、`::`、`$$`、`ONLY`、`TRUNCATE`、`COPY`、`query(...)`）のSQL解析 |

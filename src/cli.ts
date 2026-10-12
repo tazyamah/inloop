@@ -22,7 +22,7 @@ const USAGE = `使い方: inloop <コマンド>
 
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
-  new <dir> [--name <名前>] [--db sqlite] [--desktop] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す
+  new <dir> [--name <名前>] [--db sqlite|postgres] [--desktop] 新しいアプリを標準の構成（React＋Hono＋SQLite。--db postgres で PostgreSQL）で作る。--desktop はTauriの外枠を足す
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
@@ -81,7 +81,8 @@ function create(args: string[]): void {
   const db = option(args, "--db") ?? "sqlite";
   const desktop = args.includes("--desktop");
   if (desktop) args.splice(args.indexOf("--desktop"), 1);
-  if (db !== "sqlite") throw new Error(`--db ${db} の雛形は、まだない（今は sqlite だけ）`);
+  if (db !== "sqlite" && db !== "postgres") throw new Error(`--db ${db} の雛形はない（sqlite か postgres）`);
+  if (db === "postgres" && desktop) throw new Error("--db postgres と --desktop は組み合わせられない（手元のアプリは同梱のSQLiteを使う）");
   if (args.length !== 1) throw new Error("作るディレクトリを1つ指定する（例: inloop new myapp）");
   const dir = resolve(args[0]!);
   const appName = name ?? defaultName(dir);
@@ -91,6 +92,8 @@ function create(args: string[]): void {
   if (taken) throw new Error(`アプリ名「${appName}」は ${taken} が使っている。--name で別の名前を指定する`);
   if (existsSync(dir) && readdirSync(dir).length > 0) throw new Error(`${dir} は空ではない`);
   copyTemplate(join(ROOT, "templates", "server"), dir, appName);
+  // PostgreSQLは、データベースに触れるファイルと設定を上書きする（ADR-0036）。
+  if (db === "postgres") copyTemplate(join(ROOT, "templates", "postgres"), dir, appName);
   // 手元で動くアプリは、サーバー向けの雛形の上に、Tauriの外枠と同梱の仕組みを重ねる（ADR-0019）。
   if (desktop) copyTemplate(join(ROOT, "templates", "desktop"), dir, appName);
   execFileSync("git", ["init", "-q", dir]);

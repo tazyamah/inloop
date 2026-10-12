@@ -1,0 +1,25 @@
+# __APP_NAME__
+
+このリポジトリは inloop で作ったアプリです。人はコードを書かず、AIが書いたコードをレビューします。
+
+## 構成
+
+- `web/`: 画面（React、Vite）
+- `server/`: サーバー（Hono）。`/api` の要求を受ける
+- `server/db.ts`: データベース（PostgreSQL、`pg`。接続先は環境変数 `DATABASE_URL`。テストは `memory:` でPGlite（メモリ上のPostgreSQL）を使う）
+- `npm run dev` で両方を動かし、`npm test` でサーバーのテスト、`npm run build` で型検査と画面のビルド
+
+## レビュー依頼（inloop）
+
+- 機能を作り終えたら、inloop の `request_review` で人にレビューを依頼する。観点が複数あれば1回の呼び出しにまとめる
+- 観点は具体的な問いにし、対象のシンボルID（例: `server/app.ts#createApp`）を付ける。コードは渡さない
+- `repo` には、このリポジトリの絶対パスを渡す（クライアントが作業フォルダを知らせる場合は省略できる）
+- 返ってきたURLを人に示し（ブラウザで開けるならそうする）、手番を終えて会話を待つ。人が画面のボタンで答えたと言ったら、`get_review_result` で回答を読む
+- `fix` は直してから `follows` を付けて再依頼する。`ask` には会話で答える
+- 議論は会話で行う。人が画面からコピーした位置（例: `R3 server/app.ts#createApp#L12-L15`）を貼って話しかけてくる
+- 人が会話で承認・保留の言葉（既定は「承認」「保留」、`~/.inloop/config.json` で変えられる）をはっきり言ったときだけ、`answer_review` で記録する。`said` には人が言った言葉をそのまま渡す。言葉がなければ記録しない
+- 依頼票が行数の上限（既定60行）を超えると断られる。対象のシンボルを分けて、別々の依頼にする
+- 信頼境界ルール（`inloop.json`）に当たる変更には、inloop が必須の依頼を自動で加える（戻り値の `required:`）。必須の依頼は省けず、会話からは記録できないので、人に画面で答えてもらう
+- 作業を終える前に `inloop check --range main` を動かす。承認されていない必須の依頼があれば、`request_review`（`reviews` は空でよい）で依頼する
+- 特定のテーブルや列だけに必須の依頼を足したいときは、`inloop.json` の `match` に `{"table": "orders", "access": ["write"], "columns": ["status"]}` のように書く（`access` と `columns` は省ける。`columns` を足すと、その列に触れるSQLだけに当たる）
+- `inloop.json` を変えると、それ自体が必須の依頼になる。ルールを消したり弱めたりする変更は、人に理由を説明する

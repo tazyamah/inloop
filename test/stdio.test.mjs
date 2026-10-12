@@ -175,8 +175,29 @@ test("inloop newは、標準の構成のリポジトリを作って登録する"
 
   assert.match(run("new", "My App").stderr, /アプリ名「my-app」は .* が使っている/);
   assert.match(run("new", "My App", "--name", "other").stderr, /空ではない/);
-  assert.match(run("new", "x", "--db", "postgres").stderr, /--db postgres の雛形は、まだない/);
+  assert.match(run("new", "x", "--db", "mysql").stderr, /--db mysql の雛形はない/);
+  assert.match(run("new", "x", "--db", "postgres", "--desktop").stderr, /組み合わせられない/);
   assert.equal(run("new").status, 1);
+});
+
+test("inloop new --db postgresは、データベースに触れるファイルと設定がPostgreSQL向けになる（ADR-0036）", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
+  const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-new-")));
+  const r = spawnSync(process.execPath, [BIN, "new", "pgapp", "--db", "postgres"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
+  assert.equal(r.status, 0, r.stderr);
+  const dir = join(parent, "pgapp");
+  const read = (f) => readFileSync(join(dir, f), "utf8");
+  const pkg = JSON.parse(read("package.json"));
+  assert.equal(pkg.name, "pgapp");
+  assert.ok(pkg.dependencies.pg && pkg.devDependencies["@electric-sql/pglite"]);
+  assert.ok(!read("server/db.ts").includes("node:sqlite"));
+  const rules = JSON.parse(read("inloop.json"));
+  assert.deepEqual(rules.boundaries.find((b) => b.id === "db-write").match[0], { import: "pg" });
+  assert.deepEqual(rules.boundaries.find((b) => b.id === "db-schema").match[0].access, ["schema"]);
+  assert.ok(!JSON.stringify(rules).includes("node:sqlite"));
+  assert.ok(!read("AGENTS.md").includes("node:sqlite") && !read("README.md").includes("__APP_NAME__"));
+  // 共通の画面は上書きされずに残る
+  assert.ok(existsSync(join(dir, "web/src/App.tsx")));
 });
 
 test("inloop initは、既存の.mcp.jsonのほかのサーバーを残してinloopを足す", () => {

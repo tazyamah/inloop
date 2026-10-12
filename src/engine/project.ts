@@ -276,8 +276,8 @@ export class TsProject {
   }
 
   /**
-   * ノードの中の`prepare(...)`・`exec(...)`の引数のSQL（ADR-0026）。文字列として読めるSQLらしいものは`statements`、
-   * `prepare`の引数が文字列として読めないものは`dynamic`（`file:line 式`）に入れる。
+   * ノードの中の`prepare(...)`・`exec(...)`・`query(...)`の引数のSQL（ADR-0026）。文字列として読めるSQLらしいものは`statements`、
+   * `prepare`（と、先頭がSQLらしい`query`）の引数が文字列として読めないものは`dynamic`（`file:line 式`）に入れる。
    */
   sqlIn(relFile: string, nodes: Node[]): { statements: string[]; dynamic: string[] } {
     const statements: string[] = [];
@@ -288,10 +288,11 @@ export class TsProject {
         const c = n as unknown as { expression: Node; arguments: Node[] };
         const name = c.expression.kind === SyntaxKind.PropertyAccessExpression ? (c.expression as unknown as { name: { text: string } }).name.text : undefined;
         const arg = c.arguments[0];
-        if ((name === "prepare" || name === "exec") && arg) {
+        if ((name === "prepare" || name === "exec" || name === "query") && arg) {
           const text = stringOf(arg);
           if (text !== undefined) { if (looksLikeSql(text)) statements.push(text); }
-          else if (name === "prepare" && sf) {
+          // `query`は何にでもある名前なので、先頭の文字列がSQLらしいときだけ動的なSQLとみなす（PostgreSQLのドライバ、ADR-0036）。
+          else if ((name === "prepare" || (name === "query" && looksLikeSql(headTextOf(arg) ?? ""))) && sf) {
             const at = arg.getStart(sf);
             const shown = sf.text.slice(at, arg.end).replace(/\s+/g, " ");
             dynamic.push(`${relFile}:${sf.getLineAndCharacterOfPosition(at).line + 1} 動的なSQL ${shown.length > 60 ? `${shown.slice(0, 60)}…` : shown}`);
@@ -408,6 +409,13 @@ function inside(a: Declaration, b: Declaration): boolean {
 /** 文字列のリテラルなら、その値。 */
 function stringOf(n: Node): string | undefined {
   return n.kind === SyntaxKind.StringLiteral || n.kind === SyntaxKind.NoSubstitutionTemplateLiteral ? (n as unknown as { text: string }).text : undefined;
+}
+
+/** 文字列の連結・テンプレートで、先頭の固定部分。読めなければundefined。 */
+function headTextOf(n: Node): string | undefined {
+  if (n.kind === SyntaxKind.TemplateExpression) return (n as unknown as { head: { text: string } }).head.text;
+  if (n.kind === SyntaxKind.BinaryExpression) return headTextOf((n as unknown as { left: Node }).left) ;
+  return stringOf(n);
 }
 
 /** `a.b["c"]`の形なら、根の名前と連なり。そうでなければundefined。 */

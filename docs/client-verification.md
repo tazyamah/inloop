@@ -21,7 +21,7 @@ which node   # 登録で使う絶対パスを控える
 
 ```sh
 export PATH="<repo>/bin:$PATH"
-inloop new <ディレクトリ>          # 新しいアプリを標準の構成（React＋Hono＋SQLite）で作り、登録する
+inloop new <ディレクトリ>          # 新しいアプリを標準の構成（React＋Hono＋SQLite。--db postgres でPostgreSQL）で作り、登録する
 inloop init <アプリのリポジトリ>   # 既存のリポジトリを登録する（ブラウザで開く経路で使う）
 inloop apps                        # 登録したアプリと画面のURL
 inloop server status|stop|restart  # 画面のサーバーの状態を見る、止める、起動し直す

@@ -101,3 +101,42 @@ test("依頼票のtablesに列が入り、同じテーブルの列は合わさ�
   const p = buildPackets(repo, [{ id: "R1", group: "R1", viewpoint: "q", symbols: ["src/db.ts#save"] }], "HEAD")[0];
   assert.deepEqual(p.tables, [{ symbol: "src/db.ts#save", table: "orders", access: "write", columns: ["paid", "status"] }]);
 });
+
+test("PostgreSQLの書き方を読む（ADR-0036）", () => {
+  assert.deepEqual(t("INSERT INTO notes (body) VALUES ($1) RETURNING id"), ["write:notes"]);
+  assert.deepEqual(t('SELECT n.id, n.body::text FROM "public"."notes" n WHERE n.id = $1'), ["read:notes"]);
+  assert.deepEqual(t("SELECT created_at::timestamp with time zone FROM public.notes"), ["read:notes"]);
+  assert.deepEqual(t("UPDATE ONLY notes SET body = $1 WHERE id = $2"), ["write:notes"]);
+  assert.deepEqual(t("DELETE FROM ONLY notes WHERE id = $1"), ["write:notes"]);
+  assert.deepEqual(t("TRUNCATE TABLE ONLY a, b RESTART IDENTITY"), ["write:a", "write:b"]);
+  assert.deepEqual(t("COPY notes (body) FROM STDIN"), ["write:notes"]);
+  assert.deepEqual(t("COPY notes TO STDOUT"), ["read:notes"]);
+  assert.deepEqual(t("COPY (SELECT * FROM notes) TO STDOUT"), ["read:notes"]);
+  assert.deepEqual(t("CREATE UNLOGGED TABLE IF NOT EXISTS notes (id bigserial PRIMARY KEY, tags int[])"), ["schema:notes"]);
+  assert.deepEqual(t("CREATE INDEX CONCURRENTLY IF NOT EXISTS notes_body ON notes (body)"), ["schema:notes_body"]);
+  assert.deepEqual(t("CREATE OR REPLACE VIEW v AS SELECT * FROM notes"), ["schema:v", "read:notes"]);
+  assert.deepEqual(t("ALTER TABLE IF EXISTS ONLY notes ADD COLUMN x int"), ["schema:notes"]);
+  assert.deepEqual(t("SELECT * FROM notes WHERE body = E'it\\'s from fake' AND $$ from other $$ <> ''"), ["read:notes"]);
+  assert.deepEqual(t("SELECT tags[1] FROM notes"), ["read:notes"]);
+  assert.deepEqual(tablesOf("INSERT INTO notes (body) VALUES ($1) ON CONFLICT (id) DO UPDATE SET body = EXCLUDED.body")[0].columns, ["body"]);
+});
+
+test("pgの`query(...)`のSQLを依頼票に出し、組み立てたSQLは未解決にする（ADR-0036）", () => {
+  const repo = makeRepo("pgquery", { commit: true });
+  writeFileSync(join(repo, "src", "db.ts"), [
+    "declare const pool: { query(s: string, p?: unknown[]): Promise<unknown> };",
+    "declare const url: URL;",
+    "export async function save(table: string, q: string) {",
+    "  await pool.query(\"INSERT INTO orders(id) VALUES ($1)\", [1]);",
+    "  await pool.query(`DELETE FROM ${table}`);",
+    "  await pool.query(\"SELECT * FROM \" + table);",
+    "  url.searchParams.get(q);",
+    "  new Map<string, string>().get(\"query\");",
+    "  (url as unknown as { query(s: string): void }).query(q);",
+    "}",
+    "",
+  ].join("\n"));
+  const p = buildPackets(repo, [{ id: "R1", group: "R1", viewpoint: "q", symbols: ["src/db.ts#save"] }], "HEAD")[0];
+  assert.deepEqual(p.tables, [{ symbol: "src/db.ts#save", table: "orders", access: "write", columns: ["id"] }]);
+  assert.equal(p.unresolved.filter((u) => u.includes("動的なSQL")).length, 2);
+});

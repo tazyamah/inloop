@@ -7,17 +7,33 @@ export type TableAccess = "read" | "write" | "schema";
 export interface TableUse { table: string; access: TableAccess; columns?: string[] }
 
 /** SQLらしい文字列か。普通の文字列（正規表現の`exec`の引数など）をSQLとみなさないための入口。 */
-export const looksLikeSql = (s: string): boolean => /^\s*(?:--[^\n]*\n\s*)*(?:select|insert|update|delete|replace|create|drop|alter|pragma|with|begin|commit|rollback|vacuum)\b/i.test(s);
+export const looksLikeSql = (s: string): boolean => /^\s*(?:--[^\n]*\n\s*)*(?:select|insert|update|delete|replace|create|drop|alter|pragma|with|begin|commit|rollback|vacuum|truncate|copy)\b/i.test(s);
 
 /** コメントと文字列リテラルを空にしたうえで、語に分ける。引用符つきの名前（"t"、`t`、[t]）は中身を1語にする。 */
 function tokens(sql: string): string[] {
   const out: string[] = [];
-  const re = /--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'|"((?:[^"]|"")*)"|`([^`]*)`|\[([^\]]*)\]|[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?|[(),;]|\S/g;
+  // `E'..'`（バックスラッシュのエスケープ）と`$tag$..$tag$`（ドル引用）はPostgreSQLの文字列。`[t]`は、名前らしい中身のときだけ引用符つきの名前にする（`int[]`・`a[1]`を除く）。
+  const re = /--[^\n]*|\/\*[\s\S]*?\*\/|[eE]'(?:[^'\\]|\\[\s\S]|'')*'|'(?:[^']|'')*'|(\$(?:[A-Za-z_]\w*)?\$)[\s\S]*?\1|"((?:[^"]|"")*)"|`([^`]*)`|\[([A-Za-z_][^\]]*)\]|[A-Za-z_][\w$]*(?:\.[A-Za-z_][\w$]*)?|[(),;]|\S/g;
   for (const m of sql.matchAll(re)) {
     const t = m[0];
-    if (t.startsWith("--") || t.startsWith("/*") || t.startsWith("'")) { out.push("''"); continue; }
-    const quoted = m[1] ?? m[2] ?? m[3];
+    if (t.startsWith("--") || t.startsWith("/*") || t.startsWith("'") || m[1] !== undefined || /^[eE]'/.test(t)) { out.push("''"); continue; }
+    const quoted = m[2] ?? m[3] ?? m[4];
     out.push(quoted !== undefined ? `\u0000${quoted}` : t);
+  }
+  return qualify(out);
+}
+
+/** `"public"."notes"`・`public."notes"`のように引用符が混ざった修飾名を、`public.notes`の1語にする（名前が単純なときだけ）。 */
+function qualify(t: string[]): string[] {
+  const part = (x: string | undefined) => (x === undefined ? undefined : x.startsWith("\u0000") ? x.slice(1) : /^[A-Za-z_][\w$]*$/.test(x) ? x : undefined);
+  const simple = /^[A-Za-z_][\w$]*$/;
+  const out: string[] = [];
+  for (let i = 0; i < t.length; i++) {
+    const a = part(t[i]), b = part(t[i + 2]);
+    if (a !== undefined && b !== undefined && t[i + 1] === "." && simple.test(a) && simple.test(b) && (t[i]!.startsWith("\u0000") || t[i + 2]!.startsWith("\u0000"))) {
+      out.push(`${a}.${b}`);
+      i += 2;
+    } else out.push(t[i]!);
   }
   return out;
 }
@@ -75,8 +91,11 @@ function statementTables(t: string[], keep: Keep): void {
   const alias = new Map<string, string>(); // 別名（小文字）→テーブル
   let insertTarget: { cols: string[] } | undefined;
   let hasUpdate = false;
+  const copyStmt = isWord(t[0], "copy") && t[1] !== "(";
   const add = (idx: number, access: TableAccess): { name: string; cols: string[] } | undefined => {
-    const name = ident(t[idx]);
+    if (isWord(t[idx], "only") && ident(t[idx + 1]) !== undefined) idx++; // FROM ONLY t（PostgreSQL）
+    const raw = ident(t[idx]);
+    const name = raw !== undefined && /^public\./i.test(raw) ? raw.slice("public.".length) : raw; // 既定のスキーマは付けても付けなくても同じテーブル
     if (name === undefined || (!name.includes(".") && RESERVED.has(name.toLowerCase()))) return undefined;
     named.add(idx);
     const u = { name, access, cols: [] as string[] };
@@ -114,6 +133,7 @@ function statementTables(t: string[], keep: Keep): void {
     const w = t[i]!.toLowerCase();
     if (t[i]!.startsWith("\u0000")) continue;
     const next = t[i + 1];
+    if (w === "with" && isWord(next, "time", "ordinality") ) continue; // timestamp with time zone
     if (w === "with") {
       // WITH [RECURSIVE] a AS (...), b AS (...)
       let j = isWord(next, "recursive") ? i + 2 : i + 1;
@@ -134,7 +154,7 @@ function statementTables(t: string[], keep: Keep): void {
         if (t[k + 1] !== ",") break;
         j = k + 2;
       }
-    } else if ((w === "from" && !isWord(t[i - 1], "delete")) || w === "join") {
+    } else if ((w === "from" && !isWord(t[i - 1], "delete") && !copyStmt) || w === "join") {
       // FROM a, b JOIN c: FROMの後のカンマ区切りも読む。副問い合わせ（括弧）は中を別に読むので飛ばす。
       add(i + 1, "read");
       if (w === "from") {
@@ -167,15 +187,39 @@ function statementTables(t: string[], keep: Keep): void {
           setColumns(k + 1, u.cols);
         }
       }
+    } else if (w === "copy" && i === 0 && t[1] !== "(") {
+      // COPY t [(列)] FROM ... は書く、TO ... は読む。COPY (SELECT ...) TO ... は中の文を読む。
+      const dir = t.slice(2).findIndex((x) => isWord(x, "from", "to"));
+      const writes = dir >= 0 && isWord(t[2 + dir], "from");
+      const u = add(1, writes ? "write" : "read");
+      if (u) {
+        if (t[2] === "(") for (let j = 3; j < t.length && t[j] !== ")"; j++) { const c = ident(t[j]); if (c !== undefined) { u.cols.push(c); named.add(j); } }
+        else u.cols.push("*");
+      }
+    } else if (w === "truncate" && i === 0) {
+      // TRUNCATE [TABLE] [ONLY] a, b
+      let j = isWord(next, "table") ? 2 : 1;
+      for (;;) {
+        const u = add(j, "write");
+        if (!u) break;
+        u.cols.push("*");
+        j += isWord(t[j], "only") ? 2 : 1;
+        j += isWord(t[j], "*") ? 1 : 0;
+        if (t[j] !== ",") break;
+        j++;
+      }
     } else if (w === "delete" && isWord(next, "from")) {
       const u = add(i + 2, "write");
       if (u) u.cols.push("*");
     } else if ((w === "create" || w === "drop" || w === "alter") && i + 1 < t.length) {
       let j = i + 1;
-      while (isWord(t[j], "temp", "temporary", "virtual", "unique")) j++;
+      if (isWord(t[j], "or") && isWord(t[j + 1], "replace")) j += 2;
+      while (isWord(t[j], "temp", "temporary", "virtual", "unique", "unlogged", "materialized", "recursive", "global", "local")) j++;
       if (isWord(t[j], "table", "index", "view", "trigger")) {
         j++;
+        if (isWord(t[j], "concurrently")) j++;
         if (isWord(t[j], "if")) j += isWord(t[j + 1], "not") ? 3 : 2;
+        if (isWord(t[j], "only")) j++;
         add(j, "schema");
       }
     }
