@@ -141,10 +141,25 @@ test("動的なSQLを含む単位には、tableの当て方を当て、理由を
   assert.match(h.question, /動的なSQLを含み、触るテーブルを決められない/);
 });
 
+test("tableのcolumnsは、その列に触れるSQLだけに当たる（全列と、列を読み取れないスキーマ変更には当てる）", () => {
+  const repo = sqlRepo([TABLE_RULE({ columns: ["Status", "paid*"] })]);
+  write(repo, "src/db.ts", [
+    "declare const db: { prepare(s: string): { run(): void }; exec(s: string): void };",
+    "export function a() { db.prepare(\"UPDATE orders SET status = 1\").run(); }",
+    "export function b() { db.prepare(\"UPDATE orders SET paid_at = 1\").run(); }",
+    "export function c() { db.prepare(\"UPDATE orders SET note = 1\").run(); }",
+    "export function d() { db.prepare(\"DELETE FROM orders\").run(); }",
+    "export function e() { db.exec(\"ALTER TABLE orders ADD COLUMN x\"); }",
+    "export function f() { db.prepare(\"SELECT count(*) FROM orders\").run(); }",
+  ]);
+  assert.deepEqual(show(hits(repo)), ["src/db.ts#a orders-write", "src/db.ts#b orders-write", "src/db.ts#d orders-write", "src/db.ts#e orders-write"]);
+});
+
 test("tableの形が不正なら拒否する", () => {
   const bad = (m) => config({ boundaries: [{ id: "a", question: "q", match: [m] }] });
   assert.throws(() => parseFullConfig(bad({ table: "x", access: ["drop"] }), "inloop.json"), /形が不正/);
   assert.throws(() => parseFullConfig(bad({ table: "x", other: 1 }), "inloop.json"), /形が不正/);
+  assert.throws(() => parseFullConfig(bad({ table: "x", columns: [] }), "inloop.json"), /形が不正/);
 });
 
 // --- 畳むコードの行数 ---

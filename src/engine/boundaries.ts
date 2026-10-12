@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
 import type { Declaration, TsProject } from "./project.js";
-import { type Config, CONFIG_FILE, CONFIG_QUESTION, CONFIG_RULE, type EvidenceSpec, LAYER_RULE, type Layer, layerOf, matchesAny, mayUseLayer, mergeRules, parseFullConfig, type Rule, sameModule, tableMatches, versionLess } from "./rules.js";
+import { type Config, CONFIG_FILE, CONFIG_QUESTION, columnsMatch, CONFIG_RULE, type EvidenceSpec, LAYER_RULE, type Layer, layerOf, matchesAny, mayUseLayer, mergeRules, parseFullConfig, type Rule, sameModule, tableMatches, versionLess } from "./rules.js";
 import { INDIRECT_DEPTH, type TableUse, tablesOf } from "./sql.js";
 
 /** ルールに当たった単位。必須の依頼は、この単位ごとに1件作る。 */
@@ -173,7 +173,7 @@ function matched(rules: Rule[], symbol: string, refs: string[], uses: ReturnType
   return rules.filter((r) => r.match.some((m) => {
     if ("files" in m) return false;
     if ("table" in m) {
-      if (sql.tables.some((t) => tableMatches(m.table, t.table) && (!m.access || m.access.includes(t.access)))) return true;
+      if (sql.tables.some((t) => tableMatches(m.table, t.table) && (!m.access || m.access.includes(t.access)) && columnsMatch(m.columns, t))) return true;
       if (sql.dynamic) {
         const note = `${r.id}: 動的なSQLを含み、触るテーブルを決められない（${m.table}に触れるか分からないので当てた）`;
         if (!notes.includes(note)) notes.push(note);

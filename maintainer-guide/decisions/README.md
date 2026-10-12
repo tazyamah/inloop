@@ -51,3 +51,4 @@
 | [0028](0028-table-matcher.md) | Accepted | 信頼境界ルールに、SQLのテーブルでの当て方`table`を足す。動的なSQLの単位にも当てる |
 | [0029](0029-folded-lines-and-reread-diff.md) | Accepted | 畳んで見せるコードを行数の上限に数えない。再依頼では、前の依頼票と同じコードで指摘のないシンボルを`prior.same`として畳む |
 | [0030](0030-indirect-sql-tables.md) | Accepted | SQLを実行する宣言を、呼び出しを2段までたどって探し、`tables`に`via`つきで出す。`table`の当て方も2段先まで当てる |
+| [0031](0031-sql-columns.md) | Accepted | `tables`に読み取れた列`columns`を足し、`table`の当て方にも`columns`を足す。決められない列は`*`にして当たる側に倒す |

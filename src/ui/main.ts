@@ -262,7 +262,7 @@ function renderDetail() {
   $("callers").replaceChildren(...(callers.length ? callers.map((c) => symbolBox(p, c, true, uses, usedBy, requested)) : [el("div", "muted", "なし（このリポジトリに、対象を呼び出している別のシンボルはない）")]));
   $("tables-box").hidden = p.tables === undefined;
   const label = { read: "読む", write: "書く", schema: "スキーマ" };
-  $("tables").replaceChildren(...((p.tables ?? []).length ? p.tables!.map((t) => el("li", undefined, `${t.symbol}: ${label[t.access]} ${t.table}${t.via ? `（${t.via.map((v) => v.slice(v.indexOf("#") + 1)).join(" → ")} 経由）` : ""}`)) : [el("li", "muted", "なし（対象のコードに、読み取れるSQLはない）")]));
+  $("tables").replaceChildren(...((p.tables ?? []).length ? p.tables!.map((t) => el("li", undefined, `${t.symbol}: ${label[t.access]} ${t.table}${t.columns ? `(${t.columns.map((c) => (c === "*" ? "全列または不明" : c)).join(", ")})` : ""}${t.via ? `（${t.via.map((v) => v.slice(v.indexOf("#") + 1)).join(" → ")} 経由）` : ""}`)) : [el("li", "muted", "なし（対象のコードに、読み取れるSQLはない）")]));
   const un = $("unresolved");
   un.replaceChildren(...(p.unresolved.length ? p.unresolved.map((u) => el("li", undefined, u)) : [el("li", "muted", "なし")]));
   const ev = $("evidence");
