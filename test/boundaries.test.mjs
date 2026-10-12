@@ -282,6 +282,14 @@ test("雛形とinloop自身のinloop.jsonは、形が合っている", () => {
   }
 });
 
+test("雛形のinloop.jsonには、スキーマ変更に当たるtableのルールがある", () => {
+  for (const file of ["templates/server/inloop.json", "templates/desktop/inloop.json"]) {
+    const rules = parseConfig(readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8"), file);
+    const rule = rules.find((r) => r.id === "db-schema");
+    assert.deepEqual(rule?.match, [{ table: "*", access: ["schema"] }], file);
+  }
+});
+
 test("レイヤーは依頼票のlayerに入り、最初に当たったものを使う。当たらなければ空", () => {
   const repo = makeRepo("layers");
   write(repo, "src/db.ts", ["export type Db = { run(sql: string): void };"]);
