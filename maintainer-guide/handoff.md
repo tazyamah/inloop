@@ -276,7 +276,8 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 設定は`mcpServers`に`inloop`を`--state-dir`なしで登録（起動ログは`state=repo`）。Claude Desktop（`claude-ai` 0.1.0）は`io.modelcontextprotocol/ui`のMIMEタイプを宣言するが、`roots`は宣言しない。
 - 起動ログと`inloop-demo/.inloop/reviews.jsonl`で確認: AIが`repo`を渡し、依頼R6の記録が対象のリポジトリの`.inloop/`に書かれた（ADR-0010が実機で動く）。`request_review`の呼び出しの`meta=null`（`_meta`は届かない）でも、画面が`inloop_get_request`・`inloop_submit`を呼び、承認の回答が記録され、`answer_message`が会話に送られた。
 - 利用者が貼ったAIの回答で、AIから見えるツールは`request_review`・`get_review_result`・`answer_review`の3つ（画面専用の`inloop_get_request`・`inloop_submit`・`inloop_reopen`は見えない）。`visibility: ["app"]`はClaude Desktopでも効いている。`answer_review`はAIが人の言葉を記録する設計どおりのツールで、必須の依頼は拒否される（ADR-0017、ADR-0022）。
-- 未確認: 画面がどう見えたか（会話内に出たか）、`fix`への`follows`での再依頼、「未回答に戻す」。
+- 利用者の報告: 画面は会話の中に出て、見え方も良かった（MCP Appsの表示がClaude Desktopの通常の会話で動く。画面写真は未確認）。
+- 未確認: `fix`への`follows`での再依頼、「未回答に戻す」。
 
 
 ### 2026-10-12 手元で動くアプリの雛形の残り（`dev:desktop`、インストーラー）
