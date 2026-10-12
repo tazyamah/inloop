@@ -37,6 +37,8 @@ const evidenceSchema = z.strictObject({
   kind: z.enum(["test", "static"]),
   name: z.string().trim().min(1).max(100),
   command: z.array(z.string().min(1).max(300)).min(1).max(30),
+  /** 省略すると検査単位（すべての依頼票に同じ結果）。書くと、これに当たるファイルが呼び出す・newするシンボルにだけ結び付く（ADR-0025）。 */
+  tests: z.array(z.string().min(1).max(300)).min(1).optional(),
 });
 
 const VERSION = /^\d+\.\d+\.\d+$/;

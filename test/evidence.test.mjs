@@ -75,3 +75,15 @@ test("inloop.jsonのevidenceは、形が不正・id重複・知らない項目�
   // evidenceのないリポジトリでは、実行を拒否する。
   assert.equal(run(makeRepo("none", { commit: true })).status, 1);
 });
+
+test("testsを持つ検査は、そのテストが呼び出すシンボルの依頼票にだけ結果が入る（ADR-0025）", () => {
+  const repo = makeRepo("ev", { commit: true });
+  writeFileSync(join(repo, "src", "app.test.ts"), "import { hello } from \"./app.js\";\n\nfunction check() {\n  hello();\n}\ncheck();\nhello();\n");
+  writeFileSync(join(repo, "inloop.json"), config([spec("unit", "process.exit(0)", { tests: ["src/*.test.ts"] })]));
+  assert.equal(run(repo).status, 0);
+  const of = (symbols) => buildPackets(repo, [{ id: "R1", group: "R1", viewpoint: "q", symbols }], "HEAD")[0].evidence;
+  // helloはテストが呼ぶ。greetはhelloを通してだけ使われ、テストは直接呼ばない。
+  assert.deepEqual(of([SYMBOL]), [{ kind: "test", name: "検査unit", status: "pass" }]);
+  assert.deepEqual(of(["src/app.ts#greet"]), [{ kind: "test", name: "検査unit（対象のシンボルを参照するテストがない）", status: "missing" }]);
+  assert.deepEqual(of([SYMBOL, "src/app.ts#greet"]), [{ kind: "test", name: "検査unit（対象2件のうち1件を参照）", status: "pass" }]);
+});
