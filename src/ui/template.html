@@ -53,7 +53,7 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.5;cursor:default}
 #status{font-size:12px;color:var(--muted);white-space:pre-wrap}
 #status.err{color:var(--req)}
-#toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);max-width:90%;padding:8px 14px;border-radius:8px;background:var(--fg);color:var(--bg);font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);z-index:10;pointer-events:none;white-space:pre-wrap}
+#toast{position:absolute;left:0;top:0;max-width:min(560px,calc(100% - 16px));padding:8px 14px;border-radius:8px;background:var(--fg);color:var(--bg);font-size:13px;box-shadow:0 2px 10px rgba(0,0,0,.3);z-index:10;pointer-events:none;white-space:pre-wrap;word-break:break-all}
 #toast[hidden]{display:none}
 #toast.err{background:var(--req)}
 .muted{color:var(--muted);font-size:12px}

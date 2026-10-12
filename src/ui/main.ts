@@ -61,12 +61,17 @@ function setStatus(msg: string, isError = false) {
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
-/** 画面の下の表示欄はコードから遠いので、行をクリックした結果は、見えている位置にも短く出す。 */
+let pointer = { x: 0, y: 0 };
+document.addEventListener("pointerdown", (e) => { pointer = { x: e.pageX, y: e.pageY }; }, true);
+/** 行をクリックした結果は、画面の下の表示欄だと見えないので、クリックした位置のすぐ上に短く出す。 */
 function toast(msg: string, isError = false) {
   const t = $("toast");
   t.textContent = msg;
   t.className = isError ? "err" : "";
   t.hidden = false;
+  const width = document.documentElement.clientWidth;
+  t.style.left = `${Math.max(8, Math.min(pointer.x - t.offsetWidth / 2, width - t.offsetWidth - 8))}px`;
+  t.style.top = `${Math.max(8, pointer.y - t.offsetHeight - 14)}px`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
 }
