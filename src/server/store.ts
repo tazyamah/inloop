@@ -583,7 +583,7 @@ export function refInPacket(packet: ReviewPacket, ref: string): boolean {
   const start = m ? Number(m[2]) : 0;
   const end = m ? (m[3] ? Number(m[3]) : start) : 0;
   // 依頼票に出ているファイルの、ファイル全体の行（ADR-0034）。ファイルの長さはここでは分からないので、行の下限だけ見る。
-  if (!step && m && packet.steps.some((s) => s.file === symbol && !s.symbol.startsWith("HEAD:"))) return start >= 1 && start <= end && end <= MAX_FILE_LINES;
+  if (!step && m && [...packet.steps, ...(packet.callers ?? [])].some((s) => s.file === symbol && !s.symbol.startsWith("HEAD:"))) return start >= 1 && start <= end && end <= MAX_FILE_LINES;
   if (!step) return false;
   if (!m) return true;
   const last = step.startLine + step.code.split("\n").length - 1;

@@ -144,32 +144,36 @@ function answerText(a: Answer): string {
 
 /**
  * 行クリックの位置を、会話の入力欄に入れる（ADR-0032）。会話で「ここの範囲なんだけど」と話しかけるため（ADR-0017）。
- * 会話に入れられるホスト（MCP Appsの埋め込み）は`sendMessage`で入れ、あわせてクリップボードにも写す。
- * 会話に入れられないホスト（ブラウザの経路）は、クリップボードだけにする。
+ * 会話に入れられるホスト（MCP Appsの埋め込み）は`sendMessage`で入れ、クリップボードには写さない。
+ * 会話に入れられないホスト（ブラウザの経路）は、クリップボードにコピーする。
  */
 async function copyText(text: string) {
-  let copied = false;
-  try {
-    await navigator.clipboard.writeText(text);
-    copied = true;
-  } catch {
-    const ta = el("textarea");
-    ta.value = text;
-    document.body.append(ta);
-    ta.select();
-    copied = document.execCommand("copy");
-    ta.remove();
-  }
-  // 入力欄に入った位置の後ろに、そのままコメントを続けて書けるよう、改行を1つ足す（ホストが末尾の空白を削るため）。
-  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text: `${text}\n` }] }).catch(() => ({ isError: true }));
+  const res = await app.sendMessage({ role: "user", content: [{ type: "text", text }] }).catch(() => ({ isError: true }));
   const sent = res.isError !== true;
-  const msg = sent ? `会話に位置を入れました${copied ? "（コピーも済み）" : ""}: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
+  let copied = false;
+  if (!sent) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch {
+      const ta = el("textarea");
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      copied = document.execCommand("copy");
+      ta.remove();
+    }
+  }
+  const msg = sent ? `会話に位置を入れました: ${text}` : copied ? `コピーしました: ${text}` : `コピーできませんでした。手で写してください: ${text}`;
   setStatus(msg, !sent && !copied);
   toast(msg, !sent && !copied);
 }
 
-/** 依頼IDと参照を、回答の1行と同じ形で並べた位置の文字列。例: R6 src/a.ts#f#L3-L5 */
-const positionOf = (reviewId: string, ref: string) => `${reviewId} ${ref}`;
+/**
+ * 依頼IDと参照を並べた位置の文字列。例: R6 src/a.ts#f#L3-L5:
+ * 末尾の「:」は、入力欄に入ったあとそのままコメントを書き続けられる区切り（ホストは末尾の空白や改行を削る）。
+ */
+const positionOf = (reviewId: string, ref: string) => `${reviewId} ${ref}:`;
 
 /** 行のクリック。symbolはシンボルID、またはファイル全体の行ならファイル名（ADR-0034）。 */
 function onLineClick(symbol: string, abs: number, shift: boolean) {
@@ -334,7 +338,7 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
   }
   const fileKey = `${p.id} ${s.symbol}`;
   // コードが開いているシンボルごとに、ファイル全体の操作を出す（差分が複数あるファイルのどの差分からも開けるように）。
-  const wholeable = !caller && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
+  const wholeable = s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
   if (wholeable && !(foldable && folded)) {
     const open = wholeFiles.has(fileKey);
     const wb = button(open ? "ファイルを閉じる" : "ファイル全体", () => { void toggleFile(p, s); }, "link whole");

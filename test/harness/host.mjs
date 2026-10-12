@@ -17,7 +17,7 @@ bridge.oncalltool = async (params) => window.__callTool(JSON.stringify(params)).
 // 行クリックの位置（「R1 src/a.ts#f#L3」の形）は会話の入力欄に入るメッセージ。回答のメッセージとは分けて記録する。
 bridge.onmessage = async (params) => {
   const text = params.content?.[0]?.text ?? "";
-  await (/^R\d+(?:-\d+)? \S+\n?$/.test(text) ? window.__onPosition : window.__onMessage)(JSON.stringify(params));
+  await (/^R\d+(?:-\d+)? \S+$/.test(text) ? window.__onPosition : window.__onMessage)(JSON.stringify(params));
   return {};
 };
 bridge.onrequestdisplaymode = async (params) => { window.__displayMode = params.mode; return { mode: params.mode }; };

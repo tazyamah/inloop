@@ -104,7 +104,7 @@ export function appTools(targets: Targets) {
         if (isError(t)) return t;
         const packet = t.store.get(id);
         if (!packet) return error(`unknown review ${id}`);
-        const steps = packet.steps.filter((s) => s.file === file);
+        const steps = [...packet.steps, ...(packet.callers ?? [])].filter((s) => s.file === file);
         if (steps.length === 0) return error(`${file}: 依頼票に出ていないファイル`);
         if (packet.fixture || t.repo === undefined) return error("固定データの依頼票は、ファイルの全体を読めない");
         const abs = resolve(t.repo, file);

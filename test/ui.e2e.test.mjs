@@ -71,13 +71,13 @@ test("依頼票を表示し、行のクリックで位置をコピーする（�
     assert.equal(await view.locator("textarea").count(), 0, "コメント欄はない（議論は会話で、ADR-0018）");
     assert.equal(await view.locator("#send").count(), 0, "まとめて送信はない");
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました: R1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await line(view, "src/db/orders.ts#cancelOrder#L46").click({ modifiers: ["Shift"] });
-    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44\n", "R1 src/db/orders.ts#cancelOrder#L44-L46\n"], "位置は会話に入れる（ADR-0032）");
+    await view.locator("#status", { hasText: "会話に位置を入れました: R1 src/db/orders.ts#cancelOrder#L44-L46" }).waitFor({ timeout: 5000 });
+    assert.deepEqual(positions, ["R1 src/db/orders.ts#cancelOrder#L44:", "R1 src/db/orders.ts#cancelOrder#L44-L46:"], "位置は会話に入れる（ADR-0032）");
     assert.equal(await view.locator(".ln.sel").count(), 3);
     await view.locator('[data-copy="src/db/orders.ts#cancelOrder"]').click();
-    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました: R1 src/db/orders.ts#cancelOrder" }).waitFor({ timeout: 5000 });
     await shot(page, "review-copy");
     assert.deepEqual(errors, []);
   } finally {
@@ -202,7 +202,7 @@ test("再依頼の画面には、元の依頼への指摘が出て、枝番のID
     assert.deepEqual(await view.locator(".item[data-id]").evaluateAll((els) => els.map((e) => e.dataset.id)), ["R1-1"]);
     await shot(page, "review-rerequest");
     await line(view, "src/db/orders.ts#cancelOrder#L44").click();
-    await view.locator("#status", { hasText: "会話に位置を入れました（コピーも済み）: R1-1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
+    await view.locator("#status", { hasText: "会話に位置を入れました: R1-1 src/db/orders.ts#cancelOrder#L44" }).waitFor({ timeout: 5000 });
     await view.locator('.item[data-id="R1-1"] [data-decision="ok"]').click();
     await view.locator("#status", { hasText: "R1-1を承認として記録しました。" }).waitFor({ timeout: 5000 });
     assert.deepEqual(calls.find((c) => c.name === "inloop_submit").arguments, { from: "R1-1", answers: [{ id: "R1-1", verdict: "ok" }] });
@@ -318,7 +318,7 @@ test("ファイル全体を3段目として開き、ファイル名#行の位置
     assert.equal(await step.locator(".code.whole .ln").count(), 9, "末尾の改行の後ろの空行は出さない");
     await view.locator('.ln[data-ref="src/whole.ts#L1"]').click();
     await view.locator("#status", { hasText: "R1 src/whole.ts#L1" }).waitFor({ timeout: 5000 });
-    assert.deepEqual(positions, ["R1 src/whole.ts#L1\n"]);
+    assert.deepEqual(positions, ["R1 src/whole.ts#L1:"]);
     await step.locator("button.whole").click();
     assert.equal(await step.locator(".code.whole").count(), 0);
     assert.deepEqual(errors, []);
@@ -370,6 +370,9 @@ test("呼び出し元を図の右の列に点線の枠で出し、コードは�
     await view.locator('.g-node[data-symbol="src/chain.ts#a"]').click();
     await caller.locator(".ln").first().waitFor({ timeout: 5000 });
     assert.equal(await caller.locator(".ln").count(), 3);
+    await caller.locator("button.whole").click();
+    await caller.locator(".code.whole .ln").first().waitFor({ timeout: 5000 });
+    assert.equal(await caller.locator(".code.whole .ln").count(), 9, "呼び出し元からもファイル全体を開ける");
     await shot(page, "graph-callers");
     assert.deepEqual(errors, []);
   } finally {
