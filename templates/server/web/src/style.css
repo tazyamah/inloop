@@ -1,0 +1,64 @@
+/* 共通の見た目。色と間隔は変数にまとめてあるので、アプリの雰囲気はここで変える。 */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1c1f24;
+  --muted: #667085;
+  --border: #d9dde3;
+  --accent: #2f5bea;
+  --accent-text: #ffffff;
+  --danger: #c0352b;
+  --radius: 8px;
+  --gap: 12px;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --surface: #1d2025;
+    --text: #e8eaee;
+    --muted: #9aa3b2;
+    --border: #353a43;
+    --accent: #6d8cff;
+    --accent-text: #101216;
+    --danger: #ff7b70;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.6 system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+.app-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+.app-header-inner { max-width: 880px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 24px; min-height: 52px; flex-wrap: wrap; }
+.app-title { font-weight: 700; font-size: 1.05rem; margin: 0; }
+.nav { display: flex; gap: 4px; flex-wrap: wrap; }
+.nav a { color: var(--muted); text-decoration: none; padding: 6px 10px; border-radius: var(--radius); }
+.nav a:hover { background: var(--bg); color: var(--text); }
+.nav a[aria-current="page"] { background: var(--accent); color: var(--accent-text); }
+.app-main { max-width: 880px; margin: 0 auto; padding: 24px 16px 48px; }
+h2 { font-size: 1.25rem; margin: 0 0 var(--gap); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+.form { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: end; }
+.form > .actions, .form > .error { grid-column: 1 / -1; }
+.field { display: grid; gap: 4px; }
+.field > span { font-size: 0.85rem; color: var(--muted); }
+.field-check { display: flex; align-items: center; gap: 8px; }
+input[type="text"], input[type="number"], input[type="date"], textarea, select {
+  font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; width: 100%;
+}
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+button { font: inherit; cursor: pointer; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 6px 14px; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.danger { color: var(--danger); }
+.error { color: var(--danger); margin: 0; }
+.muted { color: var(--muted); }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 480px; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+td.row-actions { text-align: right; white-space: nowrap; }
+@media (max-width: 560px) {
+  .app-main { padding: 16px 12px 32px; }
+  th, td { padding: 6px 4px; }
+}

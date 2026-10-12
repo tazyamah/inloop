@@ -11,7 +11,7 @@
 - 信頼境界ルール、必須依頼の条件
 - 対応言語、対応クライアント、大きな依存関係
 
-小さなバグ修正やテスト結果だけならADRは不要で、handoffに記載します。
+小さなバグ修正やテスト結果だけならADRは不要で、[implementation-log](../implementation-log.md)に記載します。
 
 ファイル名は`NNNN-kebab-case.md`とし、番号は再利用しません。状態は`Proposed`、`Accepted`、`Deprecated`、`Superseded`、`Rejected`のいずれかです。Accepted ADRの結論は書き換えず、新しいADRから`Supersedes ADR-NNNN`として更新します。誤字やリンク修正は可能です。
 
@@ -26,7 +26,7 @@
 | [0003](0003-hosted-by-ai-client-via-mcp.md) | Accepted | MCPサーバー＋MCP AppsとしてAIクライアントにホストされる |
 | [0004](0004-minimal-model-context.md) | Accepted | AIの文脈には参照・差分・短い列挙値だけを返す |
 | [0005](0005-typescript-first-and-self-hosting.md) | Accepted | 最初の対象をTypeScript＋SQLとし、セルフホストする |
-| [0006](0006-claude-desktop-chat-as-primary-client.md) | Accepted | 当面の主なクライアントをClaude Desktopの通常の会話にする |
+| [0006](0006-claude-desktop-chat-as-primary-client.md) | Superseded（0037） | 当面の主なクライアントをClaude Desktopの通常の会話にする |
 | [0007](0007-append-only-review-log.md) | Accepted | 依頼と回答を、状態ディレクトリの追記専用JSON Linesに保存する |
 | [0008](0008-group-requests-per-call.md) | Accepted | 1回の呼び出しで出された依頼を、回答のまとまりにする |
 | [0009](0009-request-lifecycle-and-branch-ids.md) | Accepted | 再依頼を枝番のIDで表し、保留と質問は同じ依頼のまま未回答に戻す。依頼票の構造は現在の形で確定し、記録の版は上げない |
@@ -56,3 +56,5 @@
 | [0033](0033-fold-same-without-answer.md) | Accepted | 前の依頼に回答がなくても、再依頼で同じコードのシンボルを畳む（ADR-0029の1項目だけを変える） |
 | [0034](0034-whole-file-view.md) | Accepted | コードの3段目としてファイル全体を開き、`ファイル名#L行`の位置を受け付ける |
 | [0035](0035-position-colon.md) | Accepted | 行クリックの位置の末尾に「:」を付け、会話に入れたときはクリップボードに写さない。ファイル全体は呼び出し元からも開ける |
+| [0037](0037-primary-client-claude-code.md) | Accepted | 主なクライアントをClaude Code（デスクトップ）にする。ほかのクライアント・DB・OSは後回し（ADR-0006をSupersedes） |
+| [0038](0038-scaffold-generator.md) | Accepted | `inloop generate scaffold`で表・API・テスト・画面を決まった形で生成し、雛形に共通の見た目を入れる |

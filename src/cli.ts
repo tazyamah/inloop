@@ -11,6 +11,7 @@ import { answersOf } from "./server/wait.js";
 import { loadConfig } from "./engine/boundaries.js";
 import { runEvidence } from "./engine/evidence.js";
 import { checkRequired } from "./server/check.js";
+import { defineResource, plan as scaffoldPlan, write as scaffoldWrite } from "./scaffold.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
 
 /** 文字として読み書きすると壊れるファイル。そのままコピーする。 */
@@ -23,6 +24,7 @@ const USAGE = `使い方: inloop <コマンド>
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
   new <dir> [--name <名前>] [--db sqlite] [--desktop] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す
+  generate scaffold <名前> <列>... [--plural <名前>] [--label <表示名>]  資源（表・API・テスト・画面）を決まった形で作る。列は 名前:型（text・int・real・bool・date）、省略可は 名前:型:optional
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
@@ -96,6 +98,21 @@ function create(args: string[]): void {
   execFileSync("git", ["init", "-q", dir]);
   init([dir, "--name", appName]);
   process.stdout.write(`作りました: ${dir}\n次に: cd ${basename(dir)} && npm install && npm run dev\n`);
+}
+
+/** 資源の雛形を作る（ADR-0038）。今いるディレクトリのリポジトリに作る。 */
+function generate(args: string[]): void {
+  const kind = args.shift();
+  if (kind !== "scaffold") throw new Error(`知らない生成の種類「${kind ?? ""}」（scaffold）`);
+  const plural = option(args, "--plural");
+  const label = option(args, "--label");
+  const name = args.shift();
+  if (!name) throw new Error("資源の名前を指定する（例: inloop generate scaffold task title:text done:bool）");
+  const resource = defineResource(name, args, { plural, label });
+  const repo = gitTopLevel(process.cwd());
+  const p = scaffoldPlan(repo, resource);
+  scaffoldWrite(repo, p);
+  process.stdout.write([...p.create.map((f) => `作りました: ${f.path}`), ...p.edit.map((f) => `書き換えました: ${f.path}`), "次に: npm test && npm run dev（画面の「" + resource.label + "」から使える）", ""].join("\n"));
 }
 
 /** cloneしたinloopを更新し、ビルドし直す。 */
@@ -201,6 +218,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "new":
         create(args);
+        return;
+      case "generate":
+        generate(args);
         return;
       case "init":
         init(args);

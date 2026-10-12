@@ -21,6 +21,7 @@ which node   # 登録で使う絶対パスを控える
 
 ```sh
 export PATH="<repo>/bin:$PATH"
+inloop generate scaffold <名前> <列>... # 資源（表・API・テスト・画面）を決まった形で作る
 inloop new <ディレクトリ>          # 新しいアプリを標準の構成（React＋Hono＋SQLite）で作り、登録する
 inloop init <アプリのリポジトリ>   # 既存のリポジトリを登録する（ブラウザで開く経路で使う）
 inloop apps                        # 登録したアプリと画面のURL
@@ -116,7 +117,7 @@ R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 
 ## 確認項目
 
-クライアントごとに、次の表を埋めて[handoff](../maintainer-guide/handoff.md)に結果を残します。
+クライアントごとに、次の表を埋めて[クライアント検証の結果](../maintainer-guide/client-verification-results.md)に結果を残します。
 
 | # | 確認すること | 見方 |
 |---|---|---|

@@ -14,5 +14,6 @@ export function openDb(path = process.env.DB_PATH ?? "data/app.db"): Db {
     body TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
+  // inloop:tables（`inloop generate scaffold`が、ここに表を足す）
   return db;
 }

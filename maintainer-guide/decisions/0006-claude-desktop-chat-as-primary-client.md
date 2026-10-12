@@ -1,6 +1,6 @@
 # ADR-0006: 当面の主なクライアントをClaude Desktopの通常の会話にする
 
-- 状態: Accepted
+- 状態: Superseded（ADR-0037）
 - 日付: 2026-10-10
 - Supersedes: なし
 
@@ -37,7 +37,7 @@ ADR-0003の構成は、ホストがMCP AppsのUIを表示し、UIからの`sendM
 
 ## 検証
 
-- [handoff](../handoff.md)の「クライアント検証の結果」の表。
+- [クライアント検証の結果](../client-verification-results.md)の表。
 - 主要な変更のたびに、Claude Desktopで依頼→回答→AIの再開を確認する。
 
 ## 関連資料

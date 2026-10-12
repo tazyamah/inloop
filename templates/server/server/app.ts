@@ -1,6 +1,7 @@
 // サーバー（Hono）。画面からの /api の要求を受ける。
 import { Hono } from "hono";
 import type { Db } from "./db.ts";
+// inloop:imports
 
 export interface Note { id: number; body: string; created_at: string }
 
@@ -21,6 +22,8 @@ export function createApp(db: Db) {
     const r = db.prepare("INSERT INTO notes (body) VALUES (?)").run(body);
     return c.json({ id: Number(r.lastInsertRowid) }, 201);
   });
+
+  // inloop:routes（`inloop generate scaffold`が、ここに /api/<名前> を足す）
 
   return app;
 }
