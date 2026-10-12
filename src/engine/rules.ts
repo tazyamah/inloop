@@ -20,7 +20,8 @@ const matcherSchema = z.union([
   z.strictObject({ files: patterns }),
   z.strictObject({ symbols: patterns }),
   /** SQLが触るテーブル（ADR-0028）。大文字小文字は区別せず、`*`を使える。`access`を省くとどの種類でも当たる。 */
-  z.strictObject({ table: z.string().min(1).max(200), access: z.array(z.enum(["read", "write", "schema"])).min(1).optional() }),
+  /** `columns`（ADR-0031）を足すと、その列（`*`を使える）に触れるSQLだけに当たる。全列・列を決められないSQLとスキーマの変更にも当てる。 */
+  z.strictObject({ table: z.string().min(1).max(200), access: z.array(z.enum(["read", "write", "schema"])).min(1).optional(), columns: z.array(z.string().min(1).max(200)).min(1).optional() }),
 ]);
 
 const ruleSchema = z.strictObject({
@@ -128,6 +129,13 @@ export function mayUseLayer(layers: Layer[], from: string, to: string): boolean 
 /** テーブル名が、ルールの`table`の指定に当たるか。 */
 export function tableMatches(pattern: string, table: string): boolean {
   return globToRegExp(pattern.toLowerCase()).test(table.toLowerCase());
+}
+
+/** 列の指定が、SQLの使う列に当たるか。列を読み取れていない（`columns`なし）スキーマの変更と、`*`は、見落とさない側に倒して当てる。 */
+export function columnsMatch(patterns: string[] | undefined, use: { access: string; columns?: string[] }): boolean {
+  if (patterns === undefined) return true;
+  if (use.columns === undefined) return use.access === "schema";
+  return use.columns.some((c) => c === "*" || patterns.some((p) => globToRegExp(p.toLowerCase()).test(c.toLowerCase())));
 }
 
 /** `x.y.z`の大小。 */

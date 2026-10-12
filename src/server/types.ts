@@ -41,6 +41,8 @@ export interface ReviewTable {
   symbol: string;
   table: string;
   access: "read" | "write" | "schema";
+  /** 読み取れた列（ADR-0031）。`*`は全列、または列を決められないこと。スキーマと、列を読み取れなかったものにはない。 */
+  columns?: string[];
   /** 間接のとき、symbolの次の呼び出し先から、SQLを持つ宣言までのシンボルID（ADR-0030）。直接ならない。 */
   via?: string[];
 }

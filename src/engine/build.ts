@@ -160,16 +160,12 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
   for (const d of all.values()) {
     const sql = project.sqlIn(d.file, [d.node]);
     unresolved.push(...sql.dynamic);
-    for (const st of sql.statements) for (const t of tablesOf(st)) {
-      if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access && x.via === undefined)) tables.push({ symbol: d.id, ...t });
-    }
+    for (const st of sql.statements) for (const t of tablesOf(st)) addTable(tables, { symbol: d.id, ...t });
     // 並べていない宣言の中のSQL（間接、ADR-0030）。並べたシンボルは自分の分を持つので、そこで止める。
     for (const r of project.reachByCalls(d, INDIRECT_DEPTH, new Set(all.keys()))) {
       const inner = project.sqlIn(r.decl.file, [r.decl.node]);
       unresolved.push(...inner.dynamic, ...r.unresolved);
-      for (const st of inner.statements) for (const t of tablesOf(st)) {
-        if (!tables.some((x) => x.symbol === d.id && x.table === t.table && x.access === t.access && x.via?.[x.via.length - 1] === r.decl.id)) tables.push({ symbol: d.id, ...t, via: r.via });
-      }
+      for (const st of inner.statements) for (const t of tablesOf(st)) addTable(tables, { symbol: d.id, ...t, via: r.via });
     }
   }
   for (const d of all.values()) {
@@ -310,6 +306,17 @@ const overlaps = (a: Declaration, b: Declaration) => inside(a, b) || inside(b, a
 function sortEdges(edges: ReviewEdge[], steps: ReviewStep[], callers: ReviewCaller[]): ReviewEdge[] {
   const pos = new Map([...steps.map((s) => [s.symbol, s.order] as const), ...callers.map((c, i) => [c.symbol, steps.length + 1 + i] as const)]);
   return edges.sort((a, b) => pos.get(a.from)! - pos.get(b.from)! || pos.get(a.to)! - pos.get(b.to)! || KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+}
+
+/** 同じ（シンボル, テーブル, 種類, 経由の末尾）は1つにして、列を合わせる（`*`を先頭、ほかは名前順）。 */
+function addTable(tables: ReviewTable[], t: ReviewTable): void {
+  const last = (x: ReviewTable) => x.via?.[x.via.length - 1];
+  const found = tables.find((x) => x.symbol === t.symbol && x.table === t.table && x.access === t.access && last(x) === last(t));
+  if (!found) { tables.push(t); return; }
+  if (!t.columns) return;
+  const merged = new Map([...(found.columns ?? []), ...t.columns].map((c) => [c.toLowerCase(), c] as const));
+  const cols = [...merged.values()];
+  found.columns = [...cols.filter((c) => c === "*"), ...cols.filter((c) => c !== "*").sort()];
 }
 
 /** 並べたシンボルの順、読む・書く・スキーマの順。 */
