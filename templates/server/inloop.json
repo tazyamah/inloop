@@ -91,7 +91,8 @@
       "id": "http",
       "files": [
         "server/app.ts",
-        "server/index.ts"
+        "server/index.ts",
+        "server/routes/*.ts"
       ],
       "mayUse": [
         "db"

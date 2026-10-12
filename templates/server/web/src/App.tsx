@@ -1,27 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
+import { Notes } from "./pages/Notes.tsx";
+// inloop:imports
 
-interface Note { id: number; body: string; created_at: string }
+/** 画面の一覧。`inloop generate scaffold`が、ここに行を足す。path はURLの `#/` の後ろ。 */
+const pages: { path: string; label: string; Page: ComponentType }[] = [
+  { path: "notes", label: "メモ", Page: Notes },
+  // inloop:pages
+];
+
+const current = () => location.hash.replace(/^#\//, "");
 
 export function App() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [body, setBody] = useState("");
-
-  const load = async () => setNotes(await (await fetch("/api/notes")).json());
-  useEffect(() => { void load(); }, []);
-
-  const add = async () => {
-    const r = await fetch("/api/notes", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ body }) });
-    if (r.ok) { setBody(""); await load(); }
-  };
+  const [path, setPath] = useState(current);
+  useEffect(() => {
+    const onChange = () => setPath(current());
+    addEventListener("hashchange", onChange);
+    return () => removeEventListener("hashchange", onChange);
+  }, []);
+  const page = pages.find((p) => p.path === path) ?? pages[0]!;
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 640, margin: "2rem auto", padding: "0 1rem" }}>
-      <h1>__APP_NAME__</h1>
-      <p>
-        <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="メモ" />{" "}
-        <button type="button" onClick={() => void add()} disabled={body.trim() === ""}>追加</button>
-      </p>
-      <ul>{notes.map((n) => <li key={n.id}>{n.body}</li>)}</ul>
-    </main>
+    <>
+      <header className="app-header">
+        <div className="app-header-inner">
+          <h1 className="app-title">__APP_NAME__</h1>
+          <nav className="nav" aria-label="メニュー">
+            {pages.map((p) => (
+              <a key={p.path} href={`#/${p.path}`} aria-current={p.path === page.path ? "page" : undefined}>{p.label}</a>
+            ))}
+          </nav>
+        </div>
+      </header>
+      <main className="app-main">
+        <page.Page />
+      </main>
+    </>
   );
 }

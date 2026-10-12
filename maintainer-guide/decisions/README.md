@@ -57,3 +57,4 @@
 | [0034](0034-whole-file-view.md) | Accepted | コードの3段目としてファイル全体を開き、`ファイル名#L行`の位置を受け付ける |
 | [0035](0035-position-colon.md) | Accepted | 行クリックの位置の末尾に「:」を付け、会話に入れたときはクリップボードに写さない。ファイル全体は呼び出し元からも開ける |
 | [0037](0037-primary-client-claude-code.md) | Accepted | 主なクライアントをClaude Code（デスクトップ）にする。ほかのクライアント・DB・OSは後回し（ADR-0006をSupersedes） |
+| [0038](0038-scaffold-generator.md) | Accepted | `inloop generate scaffold`で表・API・テスト・画面を決まった形で生成し、雛形に共通の見た目を入れる |

@@ -16,6 +16,7 @@
 - 実装済み: MCPサーバーとレビューUI（会話内の埋め込みと、ブラウザの経路）、依頼と回答の記録（リポジトリごと）、解析エンジン（TypeScript＋SQLの依頼票、依存の図、畳み、証拠）、信頼境界ルールと必須の依頼、`inloop`コマンド（`new`・`init`・`apps`・`mcp`・`server`・`update`）、標準の構成の雛形（サーバー向け、`--desktop`のTauri）。詳細は[implementation-log.md](implementation-log.md)とADR。
 - 主なクライアントは **Claude Code（デスクトップクライアント）**、構成は「macOS＋Claude Code＋SQLite」（利用者の方針、2026-10-12、ADR-0037）。この構成で、`inloop-demo`を使った信頼境界ルール・依存の図・再依頼の畳みの確認まで終えた（[implementation-log.md](implementation-log.md)の「人の確認の途中結果」）。
 - テスト: macOSで`npm test`が通る（直近の数は[implementation-log.md](implementation-log.md)の末尾）。UIを変えたときは`INLOOP_UI_E2E=1 npm test`も動かす。
+- `inloop generate scaffold`（ADR-0038）を実装した。表・API・テスト・画面の生成と、雛形の共通の見た目。自動テストと、生成アプリのビルド・ブラウザでの表示まで。実クライアントでの使用は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
 
@@ -23,13 +24,14 @@
 
 利用者の方針（2026-10-12）: まず、Claude Code（デスクトップ）で、webアプリとデスクトップアプリを楽に作れるようにする。ほかのクライアント（Claude Desktop、Codex、VS Code、Claude Code CLI）、他のミドルウェア（DBなど）、他のOSは、それが済んでからでよい。ただし設計は、後から足せるように保つ。
 
-1. scaffold的な生成と、雛形の見た目（利用者が方針を承認、2026-10-12）。`inloop generate scaffold <名前> 列:型 ...`が、テーブル、Honoの一覧・作成・更新・削除と検証、テスト、画面の一覧とフォームを決まった形で生成する。雛形に最低限の見た目（共通のCSSとレイアウト）を入れ、生成した画面がそれを使う。生成したコードは信頼境界ルールに今までどおり当たる。最初はSQLiteのサーバー向けで作り、デスクトップ向けも同じコードに載せる。設計をADRにしてから実装する。
+1. scaffoldの実クライアントでの確認と調整（ADR-0038。実装済み）。Claude Codeの会話で、AIが`inloop generate scaffold`を使って機能を作るか、生成された画面の見た目と操作が使えるものか、足りないもの（関連、並べ替え、検索、列の型、日本語の表示名など）を、実際にアプリを作って洗い出す。手順は、新しいアプリを`inloop new`で作り、Claude Codeで開いて「○○を管理する機能を作って」と頼む。
 2. 利用者の判断待ち（困ったときに戻る）: 再依頼で、保留のあとも畳むか。行単位の差分が要るか。
 
 後回し（理由: 上の方針）: 他のクライアントでの確認、他のDB（PostgreSQLは上の保管中の作業）、Windows・Linux、署名と公証。
 
 ## 未検証事項
 
+- `inloop generate scaffold`（ADR-0038）を、実際のClaude Codeの会話でAIが使うこと。生成した画面のライトテーマ、狭い画面、`--desktop`のアプリでの表示。古い雛形のアプリ（目印がない）での案内。
 - 「AIがローカルのrepositoryを編集できる」ことと「MCP AppsのUIを表示できる」ことを、同じ画面で両立できるクライアント。
 - CodexのクライアントアプリのMCP Apps対応。
 - 実際のホストが、UIからの`sendMessage`を会話に入れ、AIの作業を再開させるか。

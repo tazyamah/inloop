@@ -388,3 +388,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - handoffが516行になったので、経緯（このファイル）、クライアント検証の結果、既知の制約、未決の方向性を別の文書に分け、handoffを現在地・次の一手・未検証事項だけの50行にした。内容は移しただけで書き換えていない（見出しの階層だけ変えた）。「決まっていること」の節は、ADR一覧と重なるので載せていない（消した内容はgitの履歴にある）。
 - 利用者の方針（2026-10-12）で、主なクライアントをClaude Code（デスクトップ）にし、他のクライアント・ミドルウェア・OSは後回しにした（ADR-0037、ADR-0006をSupersedes）。PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで保管した（PR 18は閉じた）。
 - 検証（macOS）: `npm test`が106 pass・13 skip・fail 0。コードは変えていないので、UIの`INLOOP_UI_E2E=1`は動かしていない。
+
+## 2026-10-12 scaffoldの生成と雛形の見た目（ADR-0038）
+
+- `inloop generate scaffold <名前> <列>...`（`src/scaffold.ts`）。表（`server/db.ts`）、API（`server/routes/`）、テスト、画面（`web/src/pages/`）を生成し、目印の行（`// inloop:tables`など）の直前に追記する。雛形に共通のCSS・メニューつきの画面の枠・目印を入れ、メモは`pages/Notes.tsx`に移した。`vite-env.d.ts`を足した（CSSのimportの型検査のため）。
+- 検証（macOS）: `npm test`が110 pass・14 skip・fail 0。`INLOOP_APP_E2E=1`で、生成したアプリの`npm install`、`npm test`（8 pass、`task`と`category`を生成した後）、`npm run build`が通った。生成したAPIの`buildPackets`で、`tasks`の読みと書き（列つき）が出て、動的なSQLの未解決がない。ブラウザ（ダークテーマ）で、一覧・追加・編集の表示と操作を確かめた。UIのe2e（`INLOOP_UI_E2E=1`）は、inloopの画面は変えていないので動かしていない。
+- 気づき: zshでは`due:date?`が展開されて失敗するので、省略できる列は`:optional`にした。
+- 未検証: 実際のClaude Codeの会話での使用、ライトテーマ・狭い画面・`--desktop`のアプリでの表示。

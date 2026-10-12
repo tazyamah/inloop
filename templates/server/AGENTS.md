@@ -7,6 +7,7 @@
 - `web/`: 画面（React、Vite）
 - `server/`: サーバー（Hono）。`/api` の要求を受ける
 - `server/db.ts`: データベース（SQLite、Node.js組み込みの `node:sqlite`）
+- `server/routes/`、`web/src/pages/`: `inloop generate scaffold` が作る資源ごとのAPIと画面。新しい資源（例: タスク）は、手で書かずに `inloop generate scaffold task title:text done:bool` で作る。型は `text`・`int`・`real`・`bool`・`date`、省略できる列は `note:text:optional`。作ったあとに足りないところ（独自の検証、画面の見た目）を直す。見た目の変数は `web/src/style.css`
 - `npm run dev` で両方を動かし、`npm test` でサーバーのテスト、`npm run build` で型検査と画面のビルド
 
 ## レビュー依頼（inloop）
