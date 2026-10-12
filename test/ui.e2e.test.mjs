@@ -299,21 +299,23 @@ test("再依頼の画面は、前回と同じコードで指摘のなかった�
 
 test("ファイル全体を3段目として開き、ファイル名#行の位置を入れられる（ADR-0034）", { skip: !enabled }, async () => {
   const repo = makeRepo("whole", { commit: true });
-  const base = "import { x } from \"./x.js\";\n\nexport function a(): number {\n  return 1;\n}\n";
+  // 先頭に変わっていない依存（畳まれる）があっても、開いているシンボルに操作が出る。
+  const base = "import { x } from \"./x.js\";\n\nexport function dep(): number {\n  return 0;\n}\n\nexport function a(): number {\n  return dep() + 1;\n}\n";
   writeFileSync(join(repo, "src", "whole.ts"), base);
   execFileSync("git", ["-C", repo, "add", "-A"]);
   execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "w"]);
-  writeFileSync(join(repo, "src", "whole.ts"), base.replace("return 1", "return 2"));
+  writeFileSync(join(repo, "src", "whole.ts"), base.replace("+ 1", "+ 2"));
   const { browser, view, positions, errors } = await setup({
     target: new Targets({ repo }),
     prepare: async () => ({ reviews: [{ viewpoint: "aの戻り値でよいか", symbols: ["src/whole.ts#a"] }], range: "HEAD" }),
   });
   try {
     const step = view.locator('.step[data-symbol="src/whole.ts#a"]');
-    assert.equal(await step.locator(".code.whole").count(), 0);
+    assert.equal(await view.locator(".code.whole").count(), 0);
+    assert.equal(await view.locator("button.whole").count(), 1, "畳まれたdepにはない");
     await step.locator("button.whole").click();
     await step.locator(".code.whole .ln").first().waitFor({ timeout: 5000 });
-    assert.equal(await step.locator(".code.whole .ln").count(), 5, "末尾の改行の後ろの空行は出さない");
+    assert.equal(await step.locator(".code.whole .ln").count(), 9, "末尾の改行の後ろの空行は出さない");
     await view.locator('.ln[data-ref="src/whole.ts#L1"]').click();
     await view.locator("#status", { hasText: "R1 src/whole.ts#L1" }).waitFor({ timeout: 5000 });
     assert.deepEqual(positions, ["R1 src/whole.ts#L1 "]);

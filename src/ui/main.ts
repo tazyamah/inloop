@@ -333,7 +333,9 @@ function symbolBox(p: ReviewPacket, s: ReviewStep, caller: boolean, uses: Map<st
     }, "link fold"));
   }
   const fileKey = `${p.id} ${s.file}`;
-  const wholeable = !caller && p.steps.find((x) => x.file === s.file) === s && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
+  // 同じファイルのシンボルのうち、コードが開いている最初のものにだけ、ファイル全体の操作を出す。
+  const opened = (x: ReviewStep) => !((p.prior?.same.includes(x.symbol) || (x.change === "unchanged" && !requested.has(x.symbol))) && !expanded.has(`${p.id} ${x.symbol}`));
+  const wholeable = !caller && p.steps.find((x) => x.file === s.file && opened(x)) === s && s.symbol !== s.file && !s.symbol.startsWith("HEAD:") && !s.file.startsWith("HEAD:");
   if (wholeable && !(foldable && folded)) {
     const open = wholeFiles.has(fileKey);
     const wb = button(open ? "ファイルを閉じる" : "ファイル全体", () => { void toggleFile(p, s.file); }, "link whole");
