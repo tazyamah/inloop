@@ -572,15 +572,20 @@ function statusAfter(list: Answer[]): RequestStatus {
   return "approved";
 }
 
+/** ファイル全体の行の指定に使える行番号の上限 */
+const MAX_FILE_LINES = 100_000;
+
 /** 参照が依頼票のシンボルと、その表示範囲内の行を指しているか。 */
 export function refInPacket(packet: ReviewPacket, ref: string): boolean {
   const m = /^(.*)#L(\d+)(?:-L(\d+))?$/.exec(ref);
   const symbol = m ? m[1] : ref;
   const step = packet.steps.find((s) => s.symbol === symbol);
+  const start = m ? Number(m[2]) : 0;
+  const end = m ? (m[3] ? Number(m[3]) : start) : 0;
+  // 依頼票に出ているファイルの、ファイル全体の行（ADR-0034）。ファイルの長さはここでは分からないので、行の下限だけ見る。
+  if (!step && m && packet.steps.some((s) => s.file === symbol && !s.symbol.startsWith("HEAD:"))) return start >= 1 && start <= end && end <= MAX_FILE_LINES;
   if (!step) return false;
   if (!m) return true;
-  const start = Number(m[2]);
-  const end = m[3] ? Number(m[3]) : start;
   const last = step.startLine + step.code.split("\n").length - 1;
   return start >= step.startLine && end <= last && start <= end;
 }
