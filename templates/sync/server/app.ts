@@ -2,6 +2,7 @@
 import { Hono } from "hono";
 import type { Db } from "./db.ts";
 import type { SyncApi } from "./sync/engine.ts";
+import { backupRoutes } from "./backup.ts";
 // inloop:imports
 
 export interface Note { uid: string; body: string; created_at: number; updated_at: number }
@@ -73,6 +74,9 @@ export function createApp(db: Db, now: () => number = Date.now, sync?: SyncApi) 
     await sync?.leave();
     return c.body(null, 204);
   });
+
+  // データの書き出しと読み込み（バックアップ）。読み込んだ行は、同期の対象になる。
+  app.route("/api/backup", backupRoutes(db, now, () => sync?.touch()));
 
   // inloop:routes（`inloop generate scaffold`が、ここに /api/<名前> を足す）
 

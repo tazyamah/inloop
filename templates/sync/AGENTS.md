@@ -12,6 +12,7 @@
 - 新しい資源（表）は、`inloop generate scaffold task title:text done:bool` で作る。共有のアプリでは、同期する表（下の列を持つ）、`server/sync-tables.ts` への登録、`uid`で扱うAPIと画面が作られる。手で足すときも、次の決まりに従う
 - 同期する表は、`uid`（文字列の主キー）、`created_at`・`updated_at`（ミリ秒）、`deleted`（消したら行を残して1にする）、`dirty` の列を持ち、`server/sync-tables.ts` に書く。API は、書き込みのたびに `dirty = 1` と `updated_at` を更新し、`sync?.touch()` を呼ぶ（`server/app.ts` の notes の例）
 - 同期の暗号・参加者の記録・中継の認可は、信頼境界ルール（`inloop.json`）に当たる。変更は、レビューを依頼する
+- `server/backup.ts`: データの書き出し・読み込み（「データ」画面）。表と列は、データベースの中にあるものと照らして使う。表を足しても、書き換えなくてよい（`sync_state`は書き出さない）
 - `npm run dev` で動かし、`npm test` でサーバーのテスト（Node.js）、`npm run build` で型検査と静的ファイルのビルド。配り方は [README.md](README.md)（PWAとして端末に入れる）。ネットワークのサーバーはなく、`fetch` で `/api` 以外を呼ぶとインターネットに出るので、宛先を決めてから使う
 
 ## レビュー依頼（inloop）

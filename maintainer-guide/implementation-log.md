@@ -434,3 +434,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（macOS）: `npm test`が114 pass・15 skip・fail 0。`INLOOP_APP_E2E=1`で、共有のアプリで`task`を生成して`npm install`・`npm test`・`npm run build`が通った。依頼票が、生成したAPIの表と列を読み取れる。
 - 未検証: 生成した表の、2台の実機での同期。
 
+## 2026-10-13 データの書き出し・読み込み（ADR-0043）
+
+- `templates/standalone/server/backup.ts`・`backup.test.ts`、`web/src/pages/Backup.tsx`、`app.ts`・`App.tsx`（標準の雛形に重ねる）。`--sync`の雛形にも、同じ画面と、読み込み後に`sync.touch()`を呼ぶ`app.ts`を入れた。`inloop.json`に`backup`ルール。
+- 検証（macOS）: `npm test`が114 pass・15 skip・fail 0（このリポジトリ）。生成した`--standalone`のアプリで6 pass、`--sync`のアプリで21 passで、`npm run build`が通った。Chromiumで、書き出し→別の保存領域へ読み込み→メモが戻る、不正なファイルを断る、を確認。
+- 気づき: (1) 書き出したファイルの`dirty`の値のまま読み込むと、共有先に送られないので、共有する表では`dirty = 1`にする。(2) ヘッドレスのChromiumは、ファイルの共有（`canShare`）が使えると答えるのに共有できないので、共有メニューは、タッチ操作の端末だけで使い、失敗したらダウンロードにする。(3) 同じアプリを2つの`INLOOP_HOME`なしで作ると、アプリ名が重なって断られる（テストで、別の`INLOOP_HOME`を使う）。
+- 未検証: iPhoneでの、共有メニューからの保存と、ファイルの読み込み。
+

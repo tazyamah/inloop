@@ -96,6 +96,17 @@
           ]
         }
       ]
+    },
+    {
+      "id": "backup",
+      "question": "バックアップの読み込みは、ファイルの内容（表名・列名・値の型・行数）を検証してから使っているか。外から来た名前をSQLに使っていないか。失敗したとき、元のデータが残るか。書き出しに、秘密（共有の鍵など）が入っていないか",
+      "match": [
+        {
+          "files": [
+            "server/backup.ts"
+          ]
+        }
+      ]
     }
   ],
   "layers": [
@@ -119,7 +130,8 @@
         "server/app.ts",
         "server/index.ts",
         "server/routes/*.ts",
-        "server/worker.ts"
+        "server/worker.ts",
+        "server/backup.ts"
       ],
       "mayUse": [
         "db"

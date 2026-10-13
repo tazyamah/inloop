@@ -241,7 +241,7 @@ test("inloop new --standaloneは、Nodeのサーバーを外し、Web WorkerでH
   const r = spawnSync(process.execPath, [BIN, "new", "solo app", "--standalone"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.equal(r.status, 0, r.stderr);
   const dir = join(parent, "solo app");
-  for (const f of ["server/app.ts", "server/db.ts", "server/sqlite-wasm.ts", "server/worker.ts", "web/src/local-api.ts", "web/src/offline.ts", "web/public/sw.js", "web/public/manifest.webmanifest", "web/public/icon.png", "vite.config.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
+  for (const f of ["server/app.ts", "server/db.ts", "server/sqlite-wasm.ts", "server/worker.ts", "web/src/local-api.ts", "web/src/offline.ts", "web/public/sw.js", "web/public/manifest.webmanifest", "web/public/icon.png", "server/backup.ts", "server/backup.test.ts", "web/src/pages/Backup.tsx", "vite.config.ts", ".gitignore"]) assert.ok(existsSync(join(dir, f)), f);
   // サーバーの起動と開発用の起動の仕組みは外す。
   for (const f of ["server/index.ts", "scripts"]) assert.ok(!existsSync(join(dir, f)), f);
   const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
@@ -265,7 +265,7 @@ test("inloop new --syncは、端末内で動く構成に、共有（同期・中
   const r = spawnSync(process.execPath, [BIN, "new", "fam note", "--sync"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.equal(r.status, 0, r.stderr);
   const dir = join(parent, "fam note");
-  for (const f of ["server/sync/engine.ts", "server/sync/crypto.ts", "server/sync/membership.ts", "server/sync/sync.test.ts", "server/sync-tables.ts", "server/sqlite-wasm.ts", "server/worker.ts", "relay/src/index.ts", "relay/src/room.ts", "relay/wrangler.jsonc", "relay/package.json", "web/src/pages/Share.tsx", "web/src/local-api.ts", "web/public/sw.js", "web/.env.production"]) assert.ok(existsSync(join(dir, f)), f);
+  for (const f of ["server/sync/engine.ts", "server/sync/crypto.ts", "server/sync/membership.ts", "server/sync/sync.test.ts", "server/sync-tables.ts", "server/sqlite-wasm.ts", "server/worker.ts", "relay/src/index.ts", "relay/src/room.ts", "relay/wrangler.jsonc", "relay/package.json", "web/src/pages/Share.tsx", "web/src/local-api.ts", "web/public/sw.js", "web/.env.production", "server/backup.ts", "web/src/pages/Backup.tsx"]) assert.ok(existsSync(join(dir, f)), f);
   assert.ok(!existsSync(join(dir, "server/index.ts")));
   // 同期する表は、uidの文字列を主キーにする（notesの例）。サーバー向けの雛形の整数のidのままではない。
   assert.match(readFileSync(join(dir, "server/db.ts"), "utf8"), /uid TEXT PRIMARY KEY/);
