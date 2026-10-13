@@ -14,18 +14,57 @@ AIは人間がレビューしきれない量のコードを生成できます。
 - **人の回答で後続タスクが動く。** 承認・修正依頼・質問・保留を構造化して返し、修正後は前回からの差分だけを再依頼します。
 - **AIクライアントの中で完結する。** MCPサーバーとして動き、レビューUIはMCP Appsとしてクライアント内に表示されます。自作のIDEやAPI課金を必要としません。
 
-## 状態
+## 画面
 
-MCPサーバー、レビューUI、`inloop`コマンドと、解析エンジンの最初の版（TypeScriptのシンボルと直接の依存を理解順に並べ、変更行に印を付ける）があります。信頼境界ルール、証拠の取り込み、SQLの解析はまだありません。
+レビュー依頼の画面（左: ライト、右: ダーク）。依存の図、理解順に並べたコード、証拠、承認・保留のボタンが並びます（固定データの例）。
+
+<p>
+  <img src="docs/images/review-light.png" alt="レビュー依頼の画面（ライト）" width="49%">
+  <img src="docs/images/review-dark.png" alt="レビュー依頼の画面（ダーク）" width="49%">
+</p>
+
+`inloop generate scaffold`で作れる画面などは[UIギャラリー](docs/gallery.md)にあります。
+
+## インストール
+
+必要なもの: Node.js 22.13以上、git、[Claude Code](https://claude.com/claude-code)。動作を確かめているのはmacOSです（Linux・Windowsは未確認）。
 
 ```sh
+git clone https://github.com/tazyamah/inloop.git
+cd inloop
 npm ci
 npm run build
-npm test
+export PATH="$PWD/bin:$PATH"   # シェルの設定ファイルにも足しておく
+inloop --help
 ```
 
-`bin/inloop`が`inloop`コマンドです（`new`・`init`・`apps`・`mcp`・`server`・`update`）。`inloop generate scaffold task title:text done:bool`のように、表・API・テスト・画面を決まった形で作れます。`inloop new <ディレクトリ>`で、標準の構成（React＋Hono＋SQLite、雛形は`templates/server/`）のアプリを作れます。AIクライアントへの登録と確認の手順は[docs/client-verification.md](docs/client-verification.md)にあります。
+`npm test`でテストを動かせます。更新は、`inloop update`です。AIクライアントへの登録の詳細は[docs/client-verification.md](docs/client-verification.md)にあります。
 
+## 使い方（最短の手順）
+
+```sh
+inloop new myapp                 # 標準の構成（React＋Hono＋SQLite）のアプリを作る
+cd myapp
+npm install
+npm run dev                      # 画面 http://127.0.0.1:5173
+inloop generate scaffold task title:text done:bool due:date:optional   # 表・API・テスト・画面を生成
+```
+
+`inloop new`は、アプリに`.mcp.json`を書きます。そのフォルダをClaude Codeで開き（初回はinloopのMCPサーバーを使うかを聞かれるので許可）、「○○を管理する機能を作って」と頼みます。AIが変更を作ると、信頼境界に触れた変更（認証、外部入力、DB書き込みなど）にはレビュー依頼が出ます。表示されるURL（`http://<アプリ名>.inloop.localhost:4656/r/R1`の形）をブラウザで開いて内容を確かめ、承認か保留を押します。`inloop check`で、必須の依頼がすべて承認済みかを確かめられます。
+
+`inloop new`の`--desktop`（Tauriのデスクトップアプリ）、`--standalone`（サーバーなし、ブラウザ・PWAで動く）、`--sync`（端末どうしの共有つき）で、ほかの構成も作れます。
+
+## 状態
+
+MCPサーバー、レビューUI、`inloop`コマンド、解析エンジン（TypeScriptとSQL）、信頼境界ルール、証拠の取り込み、アプリの雛形（サーバー向け、デスクトップ、端末内で動く、共有つき）があります。実際のクライアントで確かめているのは、macOSとClaude Code（デスクトップ）の構成です。確認済みの範囲と未検証の事項は[maintainer-guide/handoff.md](maintainer-guide/handoff.md)にあります。まだ0.0.0で、`package.json`は`private: true`です（npmには公開していません）。
+
+## ライセンス
+
+[MIT License](LICENSE)です。依存するパッケージのライセンス、`inloop new`が作るアプリに入る素材、アイコンの扱いは[docs/licensing.md](docs/licensing.md)にあります。
+
+## 文書
+
+- UIギャラリー: [docs/gallery.md](docs/gallery.md)
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)
 - 開発のイテレーション: [docs/iteration.md](docs/iteration.md)

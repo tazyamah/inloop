@@ -456,3 +456,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 気づき: 雛形のうち`--standalone`・`--sync`には、SQLを受け渡すだけの層と、実在する表名を引用して組み立てるバックアップがあり、規則に当たるので、理由つきの`secure.allow`にした。
 - 未検証: 実際のClaude Codeでの使用。既存のアプリでの偽陽性。`INLOOP_APP_E2E=1`の全体。
 
+
+## 2026-10-13 公開の準備（README・ライセンス・UIギャラリー）
+
+- `LICENSE`（MIT、Copyright 2026 Tatsuya Suzuki）、`package.json`の`license`、`README.md`（画面、インストール、最短の使い方、ライセンス）、`docs/gallery.md`と`docs/images/`、`docs/licensing.md`（依存・雛形・アイコンの扱い）を追加・更新した。コードの変更はない。
+- ライセンスの種類は、既存の方針がなく`open-questions.md`に「ライセンス」が未決とあったため、雛形をコピーして使う性質と依存（MIT、Apache-2.0、ISC）から、MITを既定にした。変えるときは`LICENSE`、`package.json`、README、`docs/licensing.md`を直す。
+- レビュー依頼の画面の写真は、`INLOOP_UI_E2E=1 INLOOP_SHOT_DIR`の固定データ。scaffoldの写真は利用者の`tasks-demo`の画面。
+- 検証: READMEの手順のうち`npm ci`、`npm run build`、`inloop --help`、`inloop new`を、Linuxで動かして通った。`npm install`以降（`npm run dev`、`inloop generate scaffold`）はこの手順では動かしていない。商標は未確認のまま。
