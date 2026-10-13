@@ -24,6 +24,7 @@
 - セキュアコードの検査（ADR-0045）: `inloop lint`と、雛形の`npm test`・`npm run build`、`inloop check`、scaffoldの生成での検査を実装した。自動テストまで。実際のClaude Codeでの使用と、既存のアプリでの偽陽性は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
+- 依頼票の図の文書[docs/diagrams.md](../docs/diagrams.md)を足した（2026-10-13）。図は依存の図の1種類で、ER図・データフロー図は生成しない。サンプルは`scripts/diagram-samples.mjs`で作り直す。`npm test`は`inloop new --sync`の1件が失敗する（この変更の前から。[implementation-log.md](implementation-log.md)の2026-10-13のセキュアコードの検査を参照）。
 - 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
 
 ## 次の一手

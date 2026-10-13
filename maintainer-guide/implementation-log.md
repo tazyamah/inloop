@@ -463,3 +463,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - ライセンスの種類は、既存の方針がなく`open-questions.md`に「ライセンス」が未決とあったため、雛形をコピーして使う性質と依存（MIT、Apache-2.0、ISC）から、MITを既定にした。変えるときは`LICENSE`、`package.json`、README、`docs/licensing.md`を直す。
 - レビュー依頼の画面の写真は、`INLOOP_UI_E2E=1 INLOOP_SHOT_DIR`の固定データ。scaffoldの写真は利用者の`tasks-demo`の画面。
 - 検証: READMEの手順のうち`npm ci`、`npm run build`、`inloop --help`、`inloop new`を、Linuxで動かして通った。`npm install`以降（`npm run dev`、`inloop generate scaffold`）はこの手順では動かしていない。商標は未確認のまま。
+
+## 2026-10-13 依頼票の図の文書（docs/diagrams.md）
+
+- `docs/diagrams.md`、`docs/diagrams/`（画像と`packets.json`）、`scripts/diagram-samples.mjs`を追加した。コードの変更はない。
+- 確かめたこと: 依頼票の図は「依存の図」の1種類だけで（`src/ui/graph.ts`）、ER図とデータフロー図を生成するコードはない（ADR-0020の「名前」）。ほかは、テーブルの一覧、境界・レイヤーの札、再依頼の畳み、未解決の参照の一覧。ADR-0002の本文には構成要素として「データの流れ」とあるが、実装はそこまでない。
+- サンプルは、`inloop new`・`inloop generate scaffold`で作ったアプリに変更を足し、実際の`request_review`とレビューUI（Chromium）から作った。スクリプトを2回動かして、`packets.json`が一致することを確かめた（Linux）。
+- 未検証: macOSでの再生成。証拠（`evidence`）の表示のサンプル（題材に設定がない）。

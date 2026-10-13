@@ -1,6 +1,6 @@
 # UIギャラリー
 
-inloopが出す画面の一覧です。写真の撮り直し方は[開発者向けの手順](../maintainer-guide/screenshots.md)にあります。
+inloopが出す画面の一覧です。写真の撮り直し方は[開発者向けの手順](../maintainer-guide/screenshots.md)にあります。依頼票の図の種類と作り方は[diagrams.md](diagrams.md)にあります。
 
 ## レビュー依頼の画面
 

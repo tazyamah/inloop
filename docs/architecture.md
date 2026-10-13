@@ -39,6 +39,8 @@ MCP Appsに対応しないクライアント向けに、同じUIをローカル�
 - 信頼境界ルールは、対象のリポジトリ直下の`inloop.json`に書く。エンジンが範囲の変更に当て、当たった単位ごとに必須の依頼を作る（[ADR-0022](../maintainer-guide/decisions/0022-trust-boundary-rules.md)）
 - `inloop.json`の`layers`で、ファイルのレイヤーを依頼票の`layer`に入れる。`minVersion`で必要なinloopの版を示す（[ADR-0023](../maintainer-guide/decisions/0023-config-layers-and-min-version.md)）。`mayUse`でレイヤー間の依存の向きを決め、反した使い方は必須の依頼になる（[ADR-0027](../maintainer-guide/decisions/0027-layer-direction.md)）
 
+依頼票に出る図と、その作り方は[diagrams.md](diagrams.md)にまとめています。
+
 最初の対象はTypeScriptとSQLです（[ADR-0005](../maintainer-guide/decisions/0005-typescript-first-and-self-hosting.md)）。重い処理は、将来Rust製モジュールへの差し替えを検討します。
 
 ## 利用枠の節約

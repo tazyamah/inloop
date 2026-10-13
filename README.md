@@ -65,6 +65,7 @@ MCPサーバー、レビューUI、`inloop`コマンド、解析エンジン（T
 ## 文書
 
 - UIギャラリー: [docs/gallery.md](docs/gallery.md)
+- 依頼票の図と、その作り方: [docs/diagrams.md](docs/diagrams.md)
 - 考え方: [docs/concept.md](docs/concept.md)
 - 構成: [docs/architecture.md](docs/architecture.md)
 - 開発のイテレーション: [docs/iteration.md](docs/iteration.md)
