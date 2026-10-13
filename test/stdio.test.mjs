@@ -255,6 +255,12 @@ test("inloop new --standaloneは、Nodeのサーバーを外し、Web WorkerでH
   assert.match(readFileSync(join(dir, "vite.config.ts"), "utf8"), /"node:sqlite":/);
   assert.equal(JSON.parse(readFileSync(join(dir, "web/public/manifest.webmanifest"), "utf8")).name, "solo-app");
   assert.doesNotMatch(readFileSync(join(dir, "AGENTS.md"), "utf8"), /__APP_NAME__/);
+  // Chrome拡張: アプリごとの鍵でIDが決まり、manifestに入る。
+  const manifest = JSON.parse(readFileSync(join(dir, "web/extension/manifest.json"), "utf8"));
+  assert.equal(manifest.name, "solo-app");
+  assert.match(manifest.key, /^[A-Za-z0-9+/=]{300,}$/);
+  assert.match(manifest.content_security_policy.extension_pages, /wasm-unsafe-eval/);
+  assert.ok(JSON.parse(readFileSync(join(dir, "package.json"), "utf8")).scripts["build:extension"]);
   const both = spawnSync(process.execPath, [BIN, "new", "x", "--standalone", "--desktop"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.notEqual(both.status, 0);
 });
@@ -272,6 +278,8 @@ test("inloop new --syncは、端末内で動く構成に、共有（同期・中
   assert.match(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /"name": "fam-note-relay"/);
   assert.doesNotMatch(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /__APP_NAME__/);
   assert.match(readFileSync(join(dir, "web/src/App.tsx"), "utf8"), /Share/);
+  // 拡張のオリジンを、中継が許す。
+  assert.match(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /"ALLOWED_ORIGINS": "https:\/\/fam-note\.pages\.dev,chrome-extension:\/\/[a-p]{32}"/);
   // 共有のアプリにも、scaffoldが使える（同期する表を作る。test/scaffold.test.mjs）。
   const g = spawnSync(process.execPath, [BIN, "generate", "scaffold", "task", "title:text"], { encoding: "utf8", cwd: dir, env: { ...process.env, INLOOP_HOME: home } });
   assert.equal(g.status, 0, g.stderr);

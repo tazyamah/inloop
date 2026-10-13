@@ -63,4 +63,5 @@
 | [0041](0041-approval-based-sync.md) | Accepted | 共有は、オーナーの承認と端末ごとの鍵で行い、別のオーナーを検出してアラートにし、標準のオプション`--sync`にする（ADR-0040の共有コードによる参加をSupersedes） |
 | [0042](0042-scaffold-for-sync-apps.md) | Accepted | `inloop generate scaffold`を共有（`--sync`）のアプリに対応させる（ADR-0041の「まだ使えない」の部分をSupersedes） |
 | [0043](0043-backup-export-import.md) | Accepted | 端末内で動くアプリに、データの書き出し・読み込み（バックアップ）を標準で付ける |
+| [0044](0044-chrome-extension.md) | Accepted | 端末内で動くアプリを、Chrome拡張（Manifest V3、アプリごとのID）としても出せるようにする |
 

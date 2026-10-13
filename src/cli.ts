@@ -1,5 +1,6 @@
 // inloopコマンド（ADR-0011）。
 import { execFileSync } from "node:child_process";
+import { createHash, generateKeyPairSync } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,6 +78,13 @@ function copyTemplate(from: string, to: string, name: string): void {
   }
 }
 
+/** Chrome拡張の鍵とID。公開鍵を manifest の key に入れると、読み込む場所によらず、IDが決まる（秘密鍵は要らない）。 */
+export function extensionKey(): { key: string; id: string } {
+  const der = generateKeyPairSync("rsa", { modulusLength: 2048 }).publicKey.export({ type: "spki", format: "der" });
+  const id = [...createHash("sha256").update(der).digest().subarray(0, 16)].map((b) => String.fromCharCode(97 + (b >> 4)) + String.fromCharCode(97 + (b & 15))).join("");
+  return { key: der.toString("base64"), id };
+}
+
 /** 新しいアプリのリポジトリを、標準の構成で作る（ADR-0011）。 */
 function create(args: string[]): void {
   const name = option(args, "--name");
@@ -109,6 +117,14 @@ function create(args: string[]): void {
     if (sync) copyTemplate(join(ROOT, "templates", "sync"), dir, appName);
     rmSync(join(dir, "server", "index.ts"));
     rmSync(join(dir, "scripts"), { recursive: true });
+    // Chrome拡張（npm run build:extension）。アプリごとに固定の鍵を作り、拡張のIDを決める。中継は、そのオリジンを許す。
+    const ext = extensionKey();
+    const manifest = join(dir, "web", "extension", "manifest.json");
+    writeFileSync(manifest, readFileSync(manifest, "utf8").replace("__EXTENSION_KEY__", ext.key));
+    const wrangler = join(dir, "relay", "wrangler.jsonc");
+    if (existsSync(wrangler)) {
+      writeFileSync(wrangler, readFileSync(wrangler, "utf8").replace(/("ALLOWED_ORIGINS": ")([^"]*)"/, `$1$2,chrome-extension://${ext.id}"`));
+    }
   }
   execFileSync("git", ["init", "-q", dir]);
   init([dir, "--name", appName]);

@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "__APP_NAME__",
+  "version": "0.0.1",
+  "description": "__APP_NAME__（端末の中だけで動く拡張機能）",
+  "key": "__EXTENSION_KEY__",
+  "action": { "default_popup": "index.html?popup=1", "default_title": "__APP_NAME__" },
+  "options_page": "index.html",
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" },
+  "icons": { "16": "icon.png", "48": "icon.png", "128": "icon.png" }
+}

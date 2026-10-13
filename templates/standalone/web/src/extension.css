@@ -1,0 +1,4 @@
+/* Chrome拡張のポップアップ（?popup=1）。ポップアップは、幅と高さを自分で決める。 */
+html.popup { width: 380px; min-height: 480px; }
+html.popup .app-main { padding: 12px 12px 24px; }
+html.popup .app-header-inner { gap: 8px; padding: 0 12px; }

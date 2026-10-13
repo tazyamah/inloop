@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineResource, parseFields, pluralOf } from "../dist/scaffold.js";
+import { extensionKey } from "../dist/cli.js";
 import { buildPackets } from "../dist/engine/build.js";
 
 const BIN = resolve(dirname(fileURLToPath(import.meta.url)), "..", "bin", "inloop");
@@ -28,6 +29,13 @@ test("複数形と列の定義を読む", () => {
   assert.throws(() => defineResource("Task", ["a:text"]), /使えない/);
   assert.throws(() => defineResource("note", ["a:text"]), /最初からあるメモ/);
   assert.equal(defineResource("task", ["a:text"], { label: "タスク" }).label, "タスク");
+});
+
+test("Chrome拡張のIDは、公開鍵のハッシュから決まる（a〜pの32文字）", () => {
+  const a = extensionKey();
+  assert.match(a.id, /^[a-p]{32}$/);
+  assert.match(a.key, /^[A-Za-z0-9+/=]+$/);
+  assert.notEqual(a.id, extensionKey().id);
 });
 
 function newApp(...flags) {
@@ -137,5 +145,7 @@ test("共有のアプリで生成したものの npm test と npm run build が�
   assert.equal(t.status, 0, t.stdout + t.stderr);
   const b = sh("npm run build");
   assert.equal(b.status, 0, b.stdout + b.stderr);
+  const x = sh("npm run build:extension");
+  assert.equal(x.status, 0, x.stdout + x.stderr);
+  assert.ok(existsSync(join(dir, "dist/extension/manifest.json")));
 });
-

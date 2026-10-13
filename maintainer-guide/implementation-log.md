@@ -441,3 +441,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 気づき: (1) 書き出したファイルの`dirty`の値のまま読み込むと、共有先に送られないので、共有する表では`dirty = 1`にする。(2) ヘッドレスのChromiumは、ファイルの共有（`canShare`）が使えると答えるのに共有できないので、共有メニューは、タッチ操作の端末だけで使い、失敗したらダウンロードにする。(3) 同じアプリを2つの`INLOOP_HOME`なしで作ると、アプリ名が重なって断られる（テストで、別の`INLOOP_HOME`を使う）。
 - 未検証: iPhoneでの、共有メニューからの保存と、ファイルの読み込み。
 
+## 2026-10-13 Chrome拡張（ADR-0044）
+
+- `templates/standalone/web/extension/manifest.json`、`vite.config.ts`（`--mode extension`）、`web/src/extension.css`、`main.tsx`・`offline.ts`の調整、`npm run build:extension`。`src/cli.ts`の`extensionKey()`（アプリごとのRSA鍵から、拡張のIDとmanifestの`key`）、`--sync`の中継に拡張のオリジンを許可。`templates/sync/package.json`は、標準の雛形と同じ内容の重複だったので消した。
+- 検証（macOS）: `npm test`が115 pass・15 skip・fail 0。生成した`--sync`のアプリで`npm run build:extension`が通り、Chrome for Testingに読み込んで、ポップアップのページの保存・再読み込み後の保持、拡張から、ローカルの中継（拡張のオリジンだけを許可）への共有の開始を確認。
+- 気づき: (1) Manifest V3の既定のCSPには`'wasm-unsafe-eval'`がなく、sqlite-wasmがCSPで断られる（manifestに足した）。(2) Viteは、`--mode extension`では`.env.production`を読まないので、`loadEnv("production")`で読んで`define`に入れた。(3) ヘッドレスのPlaywrightで拡張を読み込むには、`headless: false`に`--headless=new`を付け、`--load-extension`を渡す。
+- 未検証: 実際のChromeへの読み込みの画面操作と、ポップアップの見た目。
+
