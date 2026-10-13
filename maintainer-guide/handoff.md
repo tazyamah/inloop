@@ -11,7 +11,7 @@
 
 ## 現在地
 
-最終更新: 2026-10-12
+最終更新: 2026-10-13
 
 - 実装済み: MCPサーバーとレビューUI（会話内の埋め込みと、ブラウザの経路）、依頼と回答の記録（リポジトリごと）、解析エンジン（TypeScript＋SQLの依頼票、依存の図、畳み、証拠）、信頼境界ルールと必須の依頼、`inloop`コマンド（`new`・`init`・`apps`・`mcp`・`server`・`update`）、標準の構成の雛形（サーバー向け、`--desktop`のTauri）。詳細は[implementation-log.md](implementation-log.md)とADR。
 - 主なクライアントは **Claude Code（デスクトップクライアント）**、構成は「macOS＋Claude Code＋SQLite」（利用者の方針、2026-10-12、ADR-0037）。この構成で、`inloop-demo`を使った信頼境界ルール・依存の図・再依頼の畳みの確認まで終えた（[implementation-log.md](implementation-log.md)の「人の確認の途中結果」）。
@@ -24,6 +24,7 @@
 - セキュアコードの検査（ADR-0045）: `inloop lint`と、雛形の`npm test`・`npm run build`、`inloop check`、scaffoldの生成での検査を実装した。自動テストまで。実際のClaude Codeでの使用と、既存のアプリでの偽陽性は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
+- 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
 
 ## 次の一手
 
