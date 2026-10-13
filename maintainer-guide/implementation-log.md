@@ -447,4 +447,5 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（macOS）: `npm test`が115 pass・15 skip・fail 0。生成した`--sync`のアプリで`npm run build:extension`が通り、Chrome for Testingに読み込んで、ポップアップのページの保存・再読み込み後の保持、拡張から、ローカルの中継（拡張のオリジンだけを許可）への共有の開始を確認。
 - 気づき: (1) Manifest V3の既定のCSPには`'wasm-unsafe-eval'`がなく、sqlite-wasmがCSPで断られる（manifestに足した）。(2) Viteは、`--mode extension`では`.env.production`を読まないので、`loadEnv("production")`で読んで`define`に入れた。(3) ヘッドレスのPlaywrightで拡張を読み込むには、`headless: false`に`--headless=new`を付け、`--load-extension`を渡す。
 - 未検証: 実際のChromeへの読み込みの画面操作と、ポップアップの見た目。
+- 実機の確認（利用者のスクリーンショット、2026-10-13）: 買い物リストの拡張を、実際のChromeに「パッケージ化されていない拡張機能」として読み込めた。IDは、アプリごとに決めた値と一致。ポップアップに買い物リストが開き、品物の追加と、保存先の表示（OPFS）を確認。
 
