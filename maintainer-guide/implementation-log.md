@@ -478,3 +478,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（Linux）: `test/usecases.test.mjs`の11件が通る。`INLOOP_UI_E2E=1`でユースケース図のe2eが通る。サンプルの再生成で、`packets.json`は既存の部分が変わらず、`usecases`だけが増えた。
 - 未検証: 実際のClaude Codeでの使用、既存のアプリの偽陽性、`--standalone`・`--sync`・`--desktop`への適用、macOS。
 
+## 2026-10-13 紹介スライド（docs/slides/）
+
+- `docs/slides/inloop-intro.src.html`（本文）と`scripts/build-slides.mjs`（画像をdata URIにして単一HTMLにまとめる）、できた`docs/slides/inloop-intro.html`を追加した。コードの変更はない。19枚、日本語、各スライドに発表者ノートつき。内容はREADME、docs/、handoffの記載に合わせ、未実装・未検証のものは未と書いた。
+- 機能: 矢印・Space・Home/End、F（全画面）、P（発表者モード）、O（一覧）、T（ライト/ダーク）、`?`（ヘルプ）、スワイプ。発表者モードは別ウィンドウ（`?presenter`）で、現在・次のスライド、ノート、タイマー、現在時刻を出し、本体と`BroadcastChannel`（なければ`localStorage`のstorageイベント）で同期する。印刷（PDF）は1枚1ページ、常にライト。
+- 検証（Linux、Chromium 141、Playwright）: 1280×720でライト・ダークの全19枚を表示し、はみ出しを直した。`file://`で本体と発表者ウィンドウを開き、本体→発表者、発表者→本体、Home/End、テーマ、タイマーの同期を確認した。印刷は19ページのPDFになった。
+- `npm test`（Linux）: 149件中132件が通り、1件が失敗、16件が省略。失敗は`inloop new --sync`の1件で、この変更の前からの既知（上の2026-10-13の記録）。
+- 未検証: Safari、Firefox、macOSでの表示と印刷。ブラウザのポップアップ許可の違い。
+

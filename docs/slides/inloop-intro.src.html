@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>inloop 紹介スライド</title>
+<script>
+// 描画前にテーマを決める（保存値 → OSの設定）。印刷では常にライト。
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("inloop-slides-theme"); } catch (e) {}
+  if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", t);
+})();
+</script>
+<style>
+/* ---------- 配色（アイコンの青・緑に合わせる） ---------- */
+:root {
+  --bg: #f6f8fa; --surface: #ffffff; --surface2: #eef1f4; --text: #1f2328; --muted: #59636e;
+  --blue: #0969da; --green: #1a7f37; --amber: #9a6700; --red: #cf222e; --border: #d0d7de;
+  --code-bg: #f6f8fa; --shadow: 0 6px 24px rgba(31, 35, 40, .12);
+}
+:root[data-theme="dark"] {
+  --bg: #0d1117; --surface: #161b22; --surface2: #1c2330; --text: #e6edf3; --muted: #9198a1;
+  --blue: #4493f8; --green: #3fb950; --amber: #d29922; --red: #f85149; --border: #30363d;
+  --code-bg: #0d1117; --shadow: 0 6px 24px rgba(0, 0, 0, .5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); overflow: hidden;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", system-ui, sans-serif; }
+code, pre, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Noto Sans Mono CJK JP", monospace; }
+
+/* ---------- ステージ（1280×720 を画面に合わせて拡大縮小） ---------- */
+#stage { position: fixed; left: 50%; top: 50%; width: 1280px; height: 720px;
+  transform: translate(-50%, -50%) scale(var(--s, 1)); }
+.cell { position: absolute; inset: 0; display: none; }
+.cell.active { display: block; }
+.slide { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; transform-origin: 0 0;
+  background: var(--bg); color: var(--text); padding: 52px 72px 64px; display: flex; flex-direction: column; overflow: hidden; }
+.slide::before { content: ""; position: absolute; left: 0; top: 0; right: 0; height: 6px;
+  background: linear-gradient(90deg, var(--blue), var(--green)); }
+.slide .foot { position: absolute; left: 72px; right: 72px; bottom: 22px; display: flex; justify-content: space-between;
+  align-items: center; font-size: 16px; color: var(--muted); }
+.slide .foot .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.slide .foot .brand img { width: 20px; height: 20px; }
+h1, h2, h3, p { margin: 0; }
+h2 { font-size: 40px; line-height: 1.25; margin-bottom: 26px; letter-spacing: .01em; }
+h2 small { font-size: 20px; font-weight: 500; color: var(--muted); margin-left: 14px; }
+h3 { font-size: 24px; margin-bottom: 8px; }
+.lead { font-size: 26px; line-height: 1.6; }
+ul { margin: 0; padding-left: 1.2em; font-size: 25px; line-height: 1.6; }
+li + li { margin-top: 6px; }
+li::marker { color: var(--blue); }
+b, strong { font-weight: 700; }
+.blue { color: var(--blue); } .green { color: var(--green); } .muted { color: var(--muted); } .amber { color: var(--amber); } .red { color: var(--red); }
+.cols { display: flex; gap: 32px; flex: 1; min-height: 0; }
+.cols > * { flex: 1; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px 24px; }
+.card p, .card li { font-size: 22px; line-height: 1.55; }
+.card ul { font-size: 22px; }
+.tag { display: inline-block; font-size: 16px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; vertical-align: middle; margin-right: 6px; }
+pre.code { margin: 0; background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px;
+  font-size: 19px; line-height: 1.5; overflow: hidden; white-space: pre; }
+pre.code .c { color: var(--muted); } pre.code .k { color: var(--blue); } pre.code .s { color: var(--green); }
+.fig { display: block; border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); background: #fff; }
+.crop { overflow: hidden; border-radius: 12px; }
+.crop img { border-radius: 12px; width: 100%; }
+.cap { font-size: 18px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+.only-dark { display: none; }
+:root[data-theme="dark"] .only-dark { display: block; }
+:root[data-theme="dark"] .only-light { display: none; }
+table.tbl { border-collapse: collapse; width: 100%; font-size: 22px; }
+table.tbl th, table.tbl td { border: 1px solid var(--border); padding: 10px 16px; text-align: left; vertical-align: top; line-height: 1.5; }
+table.tbl th { background: var(--surface2); }
+table.tbl td { background: var(--surface); }
+.flow { display: flex; align-items: stretch; gap: 14px; }
+.flow .box { flex: 1; background: var(--surface); border: 2px solid var(--border); border-radius: 14px; padding: 16px 18px; font-size: 21px; line-height: 1.5; }
+.flow .box.b { border-color: var(--blue); } .flow .box.g { border-color: var(--green); }
+.flow .box h3 { font-size: 22px; }
+.flow .arrow { align-self: center; font-size: 36px; color: var(--muted); }
+.big { font-size: 34px; font-weight: 700; line-height: 1.45; }
+
+/* ---------- タイトル・章扉 ---------- */
+.slide.title { justify-content: center; align-items: center; text-align: center; gap: 18px; }
+.slide.title img.logo { width: 190px; height: 190px; }
+.slide.title h1 { font-size: 112px; letter-spacing: .02em; line-height: 1; }
+.slide.title .sub { font-size: 36px; font-weight: 600; }
+.slide.title .en { font-size: 22px; color: var(--muted); }
+.slide.title .meta { font-size: 20px; color: var(--muted); margin-top: 8px; }
+.slide.end { justify-content: center; }
+
+/* ---------- 操作UI ---------- */
+.hud { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; font-size: 13px; color: var(--muted); opacity: 0; transition: opacity .3s; z-index: 5; pointer-events: none; }
+body.hint .hud { opacity: .85; }
+body.overview .hud { display: none; }
+#help { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: none; align-items: center; justify-content: center; z-index: 20; }
+#help.show { display: flex; }
+#help .box { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 14px; padding: 22px 30px; font-size: 16px; line-height: 1.9; min-width: 360px; }
+#help kbd, .hud kbd { font-family: ui-monospace, Menlo, monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; background: var(--surface2); font-size: .9em; }
+
+/* ---------- 一覧（O） ---------- */
+body.overview { overflow: auto; }
+body.overview #stage { position: static; transform: none; width: auto; height: auto; padding: 24px; display: grid;
+  grid-template-columns: repeat(auto-fill, 320px); gap: 18px; justify-content: center; }
+body.overview .cell { position: relative; display: block; width: 320px; height: 180px; cursor: pointer; border: 2px solid var(--border); border-radius: 8px; overflow: hidden; }
+body.overview .cell.active { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue); }
+body.overview .slide { transform: scale(.25); pointer-events: none; }
+body.overview .cell::after { content: attr(data-n); position: absolute; right: 6px; bottom: 4px; font-size: 14px; font-weight: 700; color: var(--muted); }
+
+/* ---------- 発表者モード ---------- */
+#presenter { display: none; }
+body.presenter { overflow: hidden; }
+body.presenter #stage, body.presenter .hud { display: none; }
+body.presenter #presenter { display: grid; height: 100vh; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  gap: 14px 18px; padding: 14px 18px; }
+#presenter .bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+#presenter .timer { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+#presenter .clock { font-size: 18px; color: var(--muted); font-variant-numeric: tabular-nums; }
+#presenter .count { font-size: 20px; font-weight: 700; margin-left: auto; }
+#presenter button { font: inherit; font-size: 15px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; }
+#presenter button:hover { border-color: var(--blue); }
+#presenter .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+#presenter .label { font-size: 14px; color: var(--muted); font-weight: 700; }
+#presenter .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
+#presenter .frame .slide { transform-origin: 0 0; }
+#presenter .right { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#presenter .notes-box { flex: 1; min-height: 0; overflow: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; font-size: var(--nf, 22px); line-height: 1.7; }
+#presenter .notes-box p + p { margin-top: .7em; }
+#presenter .nextframe { max-width: 100%; }
+#presenter .leftcol { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#presenter .ptitle { font-size: 22px; font-weight: 700; }
+
+/* ---------- 発表者ノートは本体では隠す ---------- */
+.notes { display: none; }
+
+/* ---------- 印刷（PDF化）: 1枚1ページ、常にライト ---------- */
+@page { size: 1280px 720px; margin: 0; }
+@media print {
+  :root, :root[data-theme="dark"], :root[data-theme="light"] {
+    --bg: #f6f8fa; --surface: #ffffff; --surface2: #eef1f4; --text: #1f2328; --muted: #59636e;
+    --blue: #0969da; --green: #1a7f37; --amber: #9a6700; --red: #cf222e; --border: #d0d7de; --code-bg: #f6f8fa; --shadow: none;
+  }
+  html, body { overflow: visible; height: auto; background: #fff; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #stage, body.overview #stage { position: static; transform: none; width: auto; height: auto; padding: 0; display: block; }
+  .cell, body.overview .cell { display: block !important; position: relative; width: 1280px; height: 720px; border: 0; border-radius: 0;
+    overflow: hidden; break-after: page; page-break-after: always; box-shadow: none; }
+  .cell:last-child { break-after: auto; page-break-after: auto; }
+  .cell::after { display: none !important; }
+  .slide, body.overview .slide { transform: none; }
+  .only-dark { display: none !important; } .only-light { display: block !important; }
+  .hud, #help, #presenter { display: none !important; }
+  .notes { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<main id="stage" aria-live="polite">
+
+<!-- 1 タイトル -->
+<section class="slide title" data-title="inloop">
+  <img class="logo only-light" alt="inloop のアイコン" src="{{img:templates/desktop/src-tauri/icons/source/inloop-icon-light.svg}}">
+  <img class="logo only-dark" alt="inloop のアイコン" src="{{img:templates/desktop/src-tauri/icons/source/inloop-icon-dark.svg}}">
+  <h1>inloop</h1>
+  <p class="sub">AIコーディングに、人間の納得感を取り戻すためのレビュー基盤</p>
+  <p class="en">human-in-the-loop review for AI coding</p>
+  <p class="meta">v0.0.0（開発中）・MIT License・github.com/tazyamah/inloop</p>
+  <aside class="notes">
+    <p>inloop（インループ）の紹介です。AIがコードを書く開発で、人間を「判断の輪（human-in-the-loop）」の中に入れ続けるための、レビュー基盤です。</p>
+    <p>今日の流れは、解決したい課題、仕組み（信頼境界・図・lint）、使い方、画面の例、現状と今後、の順です。全部で15分前後を想定しています。</p>
+    <p>先に一点だけ。バージョンはまだ0.0.0で、開発中のツールです。実際に確かめた範囲と、まだ確かめていない範囲を分けてお話しします。</p>
+  </aside>
+</section>
+
+<!-- 2 課題 -->
+<section class="slide" data-title="解決する課題">
+  <h2>課題：生成速度と理解速度のずれ</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li>AIは、人がレビューしきれない量のコードを短時間で生成できる</li>
+        <li>人が書いたコードを信頼できるのは、<b>書く速度＝理解の速度</b>で、書きながらレビューしているから</li>
+        <li>理解が追いつかないまま、変更が積み上がる</li>
+      </ul>
+      <p class="big" style="margin-top:34px">問題の中心は、品質そのものではなく<br><span class="blue">生成速度と理解速度のずれ</span></p>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;justify-content:flex-end;padding:24px 28px">
+      <div style="display:flex;align-items:flex-end;justify-content:space-around;height:300px;gap:30px;border-bottom:2px solid var(--border)">
+        <div style="text-align:center;flex:1"><div style="height:290px;background:var(--blue);border-radius:10px 10px 0 0"></div></div>
+        <div style="text-align:center;flex:1"><div style="height:90px;background:var(--green);border-radius:10px 10px 0 0"></div></div>
+      </div>
+      <div style="display:flex;justify-content:space-around;gap:30px;font-size:22px;font-weight:700;margin-top:10px">
+        <span style="flex:1;text-align:center">AIの生成</span><span style="flex:1;text-align:center">人の理解</span>
+      </div>
+      <p class="cap" style="text-align:center">（ずれのイメージ図。実測値ではありません）</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>AIコーディングの弱点としてよく挙がるのは、ハルシネーション、境界条件の見落とし、脆弱なコード、規約違反、テストの形骸化などです。ただ、その多くは人間が書いたコードでも起こります。</p>
+    <p>それでも「人が書いたほうが信頼できる」と感じるのは、人は書きながらレビューしているからです。書く速度が理解の速度と一致しています。AIは、レビューしきれない量を一気に出せるので、そこがずれます。</p>
+    <p>なので、inloopが直したいのは品質ではなく、このずれです。右の図は、あくまでイメージです。</p>
+  </aside>
+</section>
+
+<!-- 3 二つの原則 -->
+<section class="slide" data-title="二つの原則">
+  <h2>二つの原則</h2>
+  <h3>① 納得感と保証を分ける</h3>
+  <table class="tbl" style="margin-bottom:22px">
+    <tr><th style="width:23%">対象</th><th style="width:20%">担い手</th><th>方法</th></tr>
+    <tr><td>機能の正しさ</td><td>人が<b>納得</b></td><td>仕様から書いた、人が読める受け入れテスト</td></tr>
+    <tr><td>安全性</td><td>機械が<b>保証</b></td><td>不変条件、静的解析、ルールによる検査</td></tr>
+    <tr><td>注意の配分</td><td>機械が示し、人が見る</td><td>信頼境界ルールによる強調と必須レビュー</td></tr>
+  </table>
+  <h3>② レビューの構造を、AIの推測に依存させない</h3>
+  <p class="lead" style="font-size:24px">対象・順序・影響範囲・証拠は、<b>コードから決定的に</b>作る。AIが書くのは問いの文だけ。</p>
+  <aside class="notes">
+    <p>一つ目の原則は、納得感と保証を分けることです。機能が意図どおり動くかは人が納得する。安全性、つまり意図しないことをしない、は人の注意力に頼らず機械が保証する。そして、危険な場所はどこかを機械が示して、人はそこに集中します。</p>
+    <p>二つ目は、依頼票の構造をAIの推測に任せないことです。どのコードを、どの順に、何を証拠に見せるかは、解析エンジンがコードから決めます。AIが書くのは、「この観点で見てほしい」という問いの文です。</p>
+    <p>なお、設計方針の表です。プロパティテストやファジングなど、方針としてはあるが未実装のものもあります。実装済みの範囲は「現状」のスライドで改めて示します。</p>
+  </aside>
+</section>
+
+<!-- 4 push型 -->
+<section class="slide" data-title="pull型からpush型へ">
+  <h2>探すレビューから、依頼されるレビューへ</h2>
+  <div class="flow" style="margin-bottom:26px">
+    <div class="box"><h3 class="muted">これまで（pull型）</h3>人が全体を眺めて、<br>見る対象を探す</div>
+    <div class="arrow">→</div>
+    <div class="box b"><h3 class="blue">inloop（push型）</h3>AIが機能ごとに「この観点で見てほしい」と依頼する。人が答えると後続タスクが動く</div>
+  </div>
+  <p class="lead" style="font-size:24px;margin-bottom:12px">push型の穴：<b>AIが依頼しなかった所は誰も見ない</b>。これを二層で塞ぐ。</p>
+  <div class="cols">
+    <div class="card" style="border-color:var(--red)"><h3><span class="tag red">必須</span>ルールで自動</h3><p>信頼境界に触れた変更は、解析エンジンが自動で依頼を作る。<b>AIは取り消せない。</b></p></div>
+    <div class="card" style="border-color:var(--blue)"><h3><span class="tag blue">任意</span>AIが追加</h3><p>設計判断や曖昧な仕様など、AIが自分で見てほしい点を依頼に足す。</p></div>
+  </div>
+  <aside class="notes">
+    <p>全体を眺めて見る対象を探すレビューは、探すこと自体が負担です。inloopは逆に、AIが機能ごとに「この観点で見てほしい」と依頼を出します。人が答えると、その結果で後続のタスクが動きます。</p>
+    <p>ただしpush型には、AIが依頼しなかった部分は誰も見ない、という穴があります。そこで二層にします。信頼境界に触れた変更は、ルールに基づいて解析エンジンが自動で必須の依頼を作り、AIは取り消せません。それ以外の設計判断などは、AIが任意の依頼として足します。</p>
+  </aside>
+</section>
+
+<!-- 5 構成 -->
+<section class="slide" data-title="全体の構成">
+  <h2>仕組み①：AIクライアントの中で完結する</h2>
+  <div class="flow" style="margin-bottom:22px">
+    <div class="box"><h3>AIクライアント</h3>人が普段使う画面。主な対象は<b>Claude Code（デスクトップ）</b>。コード編集はAIエージェントが行う</div>
+    <div class="arrow" title="request_review"><span style="font-size:15px;display:block;text-align:center" class="mono">request_review</span>→</div>
+    <div class="box b" style="flex:2.2">
+      <h3 class="blue">inloop MCPサーバー（クライアントが自動起動）</h3>
+      <div style="display:flex;gap:10px;margin-top:8px;font-size:19px">
+        <div class="card" style="padding:10px 12px;flex:1"><b>解析エンジン</b><br>依頼票をAIなしで組み立てる</div>
+        <div class="card" style="padding:10px 12px;flex:1"><b>記録</b><br>依頼・回答・承認状態（リポジトリの<span class="mono">.inloop/</span>）</div>
+        <div class="card" style="padding:10px 12px;flex:1"><b>レビューUI</b><br>MCP Apps、またはブラウザ</div>
+      </div>
+    </div>
+  </div>
+  <ul style="font-size:23px">
+    <li>人は普段どおりAIクライアントで開発し、<b>レビューが必要なときだけ</b>inloopの画面が現れる（自作のIDEもAPI課金も不要）</li>
+    <li>画面は、マシン全体で1つのサーバーが <span class="mono">http://&lt;アプリ名&gt;.inloop.localhost:4656/r/R1</span> の形で配る</li>
+    <li>AIの利用枠を節約：<span class="mono">request_review</span>の戻り値は依頼IDと状態だけ。中身は画面がサーバーから直接取る</li>
+  </ul>
+  <aside class="notes">
+    <p>inloopは、AIを呼び出すIDEではありません。人はいつもどおりAIクライアントで開発して、レビューが必要なときだけ、inloopの画面が現れます。MCPサーバーとして動き、クライアントが自動で起動します。</p>
+    <p>中身は三つ。依頼票を組み立てる解析エンジン、依頼と回答の記録、レビューUIです。UIはMCP Appsとして会話の中に出す経路と、ブラウザで開く経路があります。実際に確かめているのは、Claude Code（デスクトップ）の構成です。</p>
+    <p>利用枠の節約も設計に入れています。AIが受け取るのは依頼IDと状態だけで、依頼票の中身は人間が見る画面がサーバーから直接取得します。</p>
+  </aside>
+</section>
+
+<!-- 6 決定的な依頼票 -->
+<section class="slide" data-title="決定的に作る依頼票">
+  <h2>仕組み②：依頼票は、AIなしで決定的に作る</h2>
+  <div class="flow" style="margin-bottom:26px">
+    <div class="box"><h3>解析エンジン</h3>TypeScriptの型解決、git diff、SQL文字列の解析、<span class="mono">inloop.json</span>のルール</div>
+    <div class="arrow">→</div>
+    <div class="box b"><h3 class="blue">依頼票（JSON）</h3>対象シンボル、使う関係、呼び出し元、テーブル、未解決…<br>記録として<span class="mono">.inloop/</span>に残る</div>
+    <div class="arrow">→</div>
+    <div class="box g"><h3 class="green">レビューUI</h3>依頼票の項目だけを読んで描く。コードから関係を推し量らない</div>
+  </div>
+  <ul>
+    <li>同じcommit・同じ解析器・同じルールからは、<b>同じ依頼票</b>になる</li>
+    <li>行き先を決められなかった参照は、推測でつながず<b>「未解決」と表示</b>する</li>
+    <li>AIが書けるのは、<b>観点の文とシンボルIDの指定</b>だけ。図の箱・線・テーブルには関与できない</li>
+  </ul>
+  <aside class="notes">
+    <p>依頼票は、解析エンジンがコードから作ります。TypeScriptの型解決で宣言と参照を求め、git diffで変わった行を求め、SQL文字列から読む・書くテーブルを取り出し、inloop.jsonのルールを当てます。</p>
+    <p>できた依頼票はJSONで記録に残り、画面はその項目だけを読んで描きます。エンジンが確かめていない線は引きません。同じ入力からは同じ出力になることを、サンプルを作るスクリプトを2回動かして確かめています。</p>
+    <p>解析で行き先を決められない参照は、推測でつながずに未解決として出します。ここが「AIの言葉がもっともらしいだけ」を防ぐ要です。</p>
+  </aside>
+</section>
+
+<!-- 7 信頼境界 -->
+<section class="slide" data-title="信頼境界ルール">
+  <h2>仕組み③：信頼境界に触れたら、必ず依頼される</h2>
+  <div class="cols">
+    <div style="flex:1.15">
+      <pre class="code"><span class="c">// inloop.json（リポジトリ直下・commitする）</span>
+{
+  <span class="k">"format"</span>: 1,
+  <span class="k">"boundaries"</span>: [{
+    <span class="k">"id"</span>: <span class="s">"db"</span>,
+    <span class="k">"question"</span>: <span class="s">"DBに書く値は、検証した
+      入力だけから作っているか"</span>,
+    <span class="k">"match"</span>: [
+      { <span class="k">"import"</span>: <span class="s">"node:sqlite"</span> },
+      { <span class="k">"symbols"</span>: [<span class="s">"server/db.ts#Db"</span>] }
+    ]
+  }]
+}</pre>
+      <p class="cap">当て方は <span class="mono">import</span> / <span class="mono">global</span> / <span class="mono">files</span> / <span class="mono">symbols</span> の4種類。</p>
+    </div>
+    <div>
+      <ul style="font-size:22px">
+        <li>当たった変更の単位ごとに、エンジンが<b>必須の依頼</b>を作る。<span class="mono">question</span>が人への問いになる</li>
+        <li>会話の言葉では<b>承認できない</b>。必須の依頼は画面で人が答える</li>
+        <li>AIが<span class="mono">inloop.json</span>のルールを消しても、基点側のルールも効く。<span class="mono">inloop.json</span>の変更自体も必須の依頼</li>
+        <li>レイヤーの向き（<span class="mono">mayUse</span>）に反した使い方も必須の依頼</li>
+        <li><span class="mono">inloop check</span>で、必須の依頼がすべて承認済みかを確かめる</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>信頼境界ルールは、リポジトリ直下のinloop.jsonに書きます。左の例は、sqliteをimportしている、またはDBのシンボルを変えた、という変更に「DBに書く値は検証した入力だけから作っているか」という問いを付ける、というルールです。</p>
+    <p>当たった変更には、エンジンが必須の依頼を作ります。AIが依頼を取り消す経路を塞ぐために、必須の依頼は会話の「承認」という言葉では記録できず、画面で人が答えます。AIがルールを書き換えて弱めても、基点側のルールとの和を使うので、その範囲では効いたままです。inloop.jsonを変えること自体も必須の依頼になります。</p>
+    <p>最後にinloop checkで、必須の依頼がすべて承認済みかを確認できます。これがマージの条件です。</p>
+    <p>注意：実際のクライアントで、AIが必須の依頼を人に伝えるか、作業の終わりにinloop checkを動かすかは、まだ確かめていません。</p>
+  </aside>
+</section>
+
+<!-- 8 依存の図 -->
+<section class="slide" data-title="依頼票の図">
+  <h2>依頼票の図：依存の図</h2>
+  <div class="cols">
+    <div style="flex:1.6">
+      <img class="fig only-light" src="{{img:docs/diagrams/graph-light.png}}" alt="依存の図（ライト）" style="width:100%">
+      <img class="fig only-dark" src="{{img:docs/diagrams/graph-dark.png}}" alt="依存の図（ダーク）" style="width:100%">
+      <p class="cap">実際のエンジンが作った依頼票を、実際のレビューUIで撮ったもの（docs/diagrams.md）</p>
+    </div>
+    <div>
+      <ul style="font-size:22px">
+        <li>依頼に並べたシンボルどうしの「使う関係」。呼び出し元の列、変更・未解決の印つき</li>
+        <li>並べる順は<b>理解順</b>（定義が使用より先）</li>
+        <li>テーブルの一覧、レイヤーと境界の札、再依頼の畳みも同じ依頼票から描く</li>
+      </ul>
+      <div class="card" style="margin-top:14px;border-color:var(--amber);padding:14px 18px">
+        <p style="font-size:20px"><span class="tag amber">作らない</span><b>ER図とデータフロー図は生成しません。</b>値の流れは今の解析では追えず、作れないものを作れるふりをしないため、名前も「データの流れ」ではなく「依存の図」にしています。</p>
+      </div>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>依頼票に出る図の一つ目が依存の図です。依頼に並べたシンボルどうしの使う関係を、SVGで描きます。変更した箱、未解決の印、呼び出し元の列が付きます。</p>
+    <p>ここで正直にお伝えしておくと、ER図とデータフロー図は作っていません。値がどの引数からどこへ渡るかは、今の解析エンジン、つまり呼び出し関係までの解析では追えません。そのため図の名前も「データの流れ」ではなく「依存の図」にしています。作る場合は、新しい解析が要るので、改めて設計判断を立てます。</p>
+  </aside>
+</section>
+
+<!-- 9 ユースケース図 -->
+<section class="slide" data-title="ユースケース図">
+  <h2>依頼票の図：ユースケース図 <small>入口ごとのデータとテスト</small></h2>
+  <div class="cols">
+    <div style="flex:1.5">
+      <div class="crop" style="height:430px"><img class="fig" src="{{img:docs/diagrams/usecases-light.png}}" alt="ユースケース図"></div>
+      <p class="cap">docs/diagrams.md のサンプル（<span class="mono">tasks-demo</span>）</p>
+    </div>
+    <div>
+      <ul style="font-size:22px">
+        <li>HTTPの入口（ルート）ごとに、<b>読む・書くテーブルと列</b>、その入口へ要求を送る<b>テスト</b>を結ぶ</li>
+        <li><span class="mono">inloop.json</span>に<span class="mono">usecases</span>を書いたアプリだけ。<span class="mono">inloop usecases</span>で一覧も出せる</li>
+        <li>データフロー図ではない（入口・テーブル・テストを結ぶだけ）</li>
+      </ul>
+      <p class="cap" style="margin-top:14px"><span class="tag amber">未</span>実クライアントでの使用、既存アプリでの偽陽性、サーバー向け以外の雛形への適用は未確認</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>二つ目の図がユースケース図です。HTTPの入口ごとに、どのテーブルのどの列を読み書きするか、その入口に要求を送るテストはどれか、を結びます。「この機能はどのデータに触れて、どのテストで守られているか」を一目で見るためのものです。</p>
+    <p>inloop.jsonにusecasesを書いたアプリだけで出ます。サーバー向けの雛形に入れてあります。先ほど言ったとおり、値の流れを追うデータフロー図ではありません。自動テストとChromiumでの表示までは確認していますが、実際のClaude Codeでの使用や、既存アプリでの偽陽性は未確認です。</p>
+  </aside>
+</section>
+
+<!-- 10 lint -->
+<section class="slide" data-title="セキュアコードの検査">
+  <h2>仕組み④：危険な書き方を、書けなくする <small>inloop lint</small></h2>
+  <div class="cols">
+    <div>
+      <ul style="font-size:23px">
+        <li>IPAの注意喚起（2026-10-09）から導いた<b>14の規則</b>を、構文木で検査する</li>
+        <li class="mono" style="font-size:19px;list-style:none;margin-left:-1.2em;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:10px">sec-bind／sec-cors／sec-secret／sec-crypto／sec-tls／sec-cleartext／sec-log／sec-sql-literal／sec-shell／sec-eval／sec-html／sec-stack／sec-unchecked／secure-gate</li>
+        <li>コメントで無効にする書き方は<b>作らない</b>。例外は<span class="mono">inloop.json</span>に理由つきで書き、その変更は必須の依頼になる</li>
+        <li>検査器は、アプリではなくinloop本体にある（AIがコピーを書き換えられない）</li>
+      </ul>
+    </div>
+    <div>
+      <div class="card"><h3>違反すると失敗する場所</h3>
+        <ul style="font-size:21px">
+          <li><span class="mono">inloop check</span>（マージの条件）</li>
+          <li>雛形の<span class="mono">npm test</span>と<span class="mono">npm run build</span></li>
+          <li><span class="mono">inloop generate scaffold</span>の生成後</li>
+        </ul>
+      </div>
+      <p class="cap" style="margin-top:14px"><span class="tag amber">未</span>自動テストまで確認。実際のClaude Codeでの自力修正と、既存アプリでの偽陽性は未確認</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>もう一つ、人が見る前に「そもそも書かせない」ための仕組みがinloop lintです。IPAの注意喚起から導いた規則を、構文で決まる範囲に限って検査します。待ち受けをloopbackに限る、CORSを*にしない、秘密情報をコードに書かない、証明書検証を無効にしない、生のSQL文字列を組み立てない、などです。</p>
+    <p>構文で決まるものだけを対象にしたのは、同じ入力から同じ結果になり、AIの判断が挟まらないようにするためです。無効化コメントは用意していません。例外はinloop.jsonに理由つきで書き、その変更が必須の依頼になるので、AIが勝手に例外を足しても、人が理由を確かめるまではinloop checkが通りません。</p>
+    <p>こちらも自動テストまでの確認で、実際の会話での使い勝手や偽陽性は、これから確かめます。</p>
+  </aside>
+</section>
+
+<!-- 11 使い方 -->
+<section class="slide" data-title="使い方">
+  <h2>使い方：最短の手順</h2>
+  <div class="cols">
+    <div style="flex:1.25">
+      <pre class="code" style="font-size:17px"><span class="c"># 入れる（Node.js 22.13以上、git、Claude Code）</span>
+git clone https://github.com/tazyamah/inloop.git
+cd inloop &amp;&amp; npm ci &amp;&amp; npm run build
+export PATH="$PWD/bin:$PATH"
+
+<span class="c"># アプリを作る（React＋Hono＋SQLite）</span>
+inloop new myapp &amp;&amp; cd myapp
+npm install &amp;&amp; npm run dev
+
+<span class="c"># 表・API・テスト・画面を生成</span>
+inloop generate scaffold task title:text \
+  done:bool due:date:optional
+
+<span class="c"># 必須の依頼がすべて承認済みか</span>
+inloop check</pre>
+    </div>
+    <div>
+      <ol style="font-size:23px;line-height:1.6;margin:0;padding-left:1.3em">
+        <li><span class="mono">inloop new</span>が、アプリに<span class="mono">.mcp.json</span>を書く</li>
+        <li>そのフォルダをClaude Codeで開く（初回は、inloopのMCPサーバーの使用を許可）</li>
+        <li>「○○を管理する機能を作って」と頼む</li>
+        <li>信頼境界に触れた変更に、レビュー依頼が出る</li>
+        <li>表示されるURLをブラウザで開き、<b>承認か保留</b>を押す</li>
+      </ol>
+      <p class="cap" style="margin-top:14px">動作を確かめているのはmacOSです。Linux・Windowsは未確認。</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>使い方です。inloop本体をcloneしてビルドし、binをPATHに通します。Node.jsは22.13以上、gitとClaude Codeが要ります。</p>
+    <p>inloop newでアプリを作ると、標準の構成はReactとHonoとSQLiteです。inloop newはアプリに.mcp.jsonを書くので、そのフォルダをClaude Codeで開くと、inloopのMCPサーバーが使えます。「○○を管理する機能を作って」と頼むと、AIが変更を作り、信頼境界に触れた部分にレビュー依頼が出ます。</p>
+    <p>表示されるURLをブラウザで開いて内容を確かめ、承認か保留を押します。最後にinloop checkで、必須の依頼がすべて承認済みか確かめます。なお、動作確認はmacOSだけです。</p>
+  </aside>
+</section>
+
+<!-- 12 回答 -->
+<section class="slide" data-title="回答と再依頼">
+  <h2>人の回答で、後続のタスクが動く</h2>
+  <div class="cols">
+    <div style="flex:1.1">
+      <pre class="code" style="white-space:pre-wrap;font-size:17px"><span class="c">[inloop] レビュー回答。fixは修正後に
+request_reviewのfollowsで再依頼、askは会話で答える:</span>
+R12 ok
+R13 fix src/auth.ts#login#L42 "トークン期限切れは401で返す"
+R13 ask src/auth.ts#login#L50-L53 "リトライは冪等?"
+R15 hold</pre>
+      <p class="cap">回答は1行1件。まとめて1通でAIへ返る（docs/review-protocol.md）</p>
+    </div>
+    <div>
+      <table class="tbl" style="font-size:21px">
+        <tr><th>値</th><th>意味</th></tr>
+        <tr><td class="mono">ok</td><td>承認</td></tr>
+        <tr><td class="mono">fix</td><td>修正依頼（コメント必須）</td></tr>
+        <tr><td class="mono">ask</td><td>質問（コメント必須）</td></tr>
+        <tr><td class="mono">hold</td><td>保留</td></tr>
+      </table>
+      <ul style="font-size:21px;margin-top:14px">
+        <li>修正後は、<b>前回からの差分だけ</b>を再依頼（承認時のシンボル本文のハッシュと比べる）</li>
+        <li>マージの条件は、再依頼済みを除くすべての依頼が承認済みであること</li>
+      </ul>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>人の回答は、承認のok、修正依頼のfix、質問のask、保留のholdの4種類です。fixとaskはシンボルや行を指してコメントを付けられます。画面の「まとめて送信」で、1行1件の短い形式の1通にまとまってAIに返ります。</p>
+    <p>fixの場合、AIが直してから再依頼します。このとき、承認時に記録したシンボル本文のハッシュと比べて、変わった部分だけを見せます。承認済みの部分は畳みます。マージの条件は、再依頼済みを除くすべての依頼が承認済みであることです。</p>
+  </aside>
+</section>
+
+<!-- 13 画面 -->
+<section class="slide" data-title="画面：レビュー依頼">
+  <h2>画面の例：レビュー依頼 <small>左ライト／右ダーク</small></h2>
+  <div class="cols" style="gap:24px">
+    <div class="crop" style="height:400px"><img class="fig" src="{{img:docs/images/review-light.png}}" alt="レビュー依頼の画面（ライト）"></div>
+    <div class="crop" style="height:400px"><img class="fig" src="{{img:docs/images/review-dark.png}}" alt="レビュー依頼の画面（ダーク）"></div>
+  </div>
+  <p class="cap">上から、依頼の問い、依存の図、理解順の対象コード、未解決の参照、証拠、承認・保留のボタン（画面の上部を切り出し）。テスト用の固定データ（実際の変更ではない）を実ブラウザで表示したもの。</p>
+  <aside class="notes">
+    <p>レビュー依頼の画面です。上から、依頼の問い、依存の図、理解順に並べた対象コード、未解決の参照、証拠、そして承認・保留のボタンが並びます。必須の依頼には「必須」と、当たったルールが出ます。</p>
+    <p>これはテスト用の固定データを実ブラウザで表示したもので、実際の変更ではありません。ライトとダークの両方に対応しています。</p>
+  </aside>
+</section>
+
+<!-- 14 会話内 -->
+<section class="slide" data-title="画面：会話の中">
+  <h2>画面の例：Claude Codeの会話の中で</h2>
+  <div class="cols" style="align-items:flex-start">
+    <div style="flex:1.5"><img class="fig" src="{{img:docs/images/claude-code-review-widget.png}}" alt="会話内のレビュー依頼" style="width:100%;max-height:480px;object-fit:cover;object-position:top"></div>
+    <div>
+      <ul style="font-size:22px">
+        <li>AIが<span class="mono">request_review</span>を呼ぶと、依頼票が<b>会話の中のウィジェット</b>として出る</li>
+        <li>会話を離れずに、問い・依存の図・対象コードを読める</li>
+        <li>例：「完了していないタスクは削除できない」変更</li>
+      </ul>
+      <p class="cap" style="margin-top:12px">依頼票の中身は実際の解析エンジンの出力。会話の枠（依頼文、AIの返答）は<b>見え方を示すために組んだもの</b>で、実際のClaude Codeの画面そのものではありません。</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>MCP Appsに対応したクライアントでは、依頼票が会話の中のウィジェットとして出ます。会話を離れずに、問いと依存の図と対象コードが読めます。</p>
+    <p>注意点として、この画像の依頼票の中身は実際のエンジンの出力ですが、会話の枠は見え方を示すために組んだもので、実際のClaude Codeの画面のスクリーンショットではありません。実際のクライアントでは、ブラウザで開く経路で確認を進めています。</p>
+  </aside>
+</section>
+
+<!-- 15 scaffold -->
+<section class="slide" data-title="画面：scaffold">
+  <h2>画面の例：<span class="mono">inloop generate scaffold</span>が作る画面</h2>
+  <div class="cols" style="gap:20px;align-items:flex-start">
+    <div style="flex:1.2"><img class="fig only-light" src="{{img:docs/images/scaffold-light.png}}" alt="scaffoldの画面（ライト）" style="width:100%"><img class="fig only-dark" src="{{img:docs/images/scaffold-dark.png}}" alt="scaffoldの画面（ダーク）" style="width:100%"></div>
+    <div style="flex:.45"><img class="fig" src="{{img:docs/images/scaffold-mobile.png}}" alt="scaffoldの画面（狭い画面）" style="width:100%;max-height:430px;object-fit:cover;object-position:top"></div>
+    <div style="flex:.9">
+      <ul style="font-size:21px">
+        <li>表・API・テスト・画面を、決まった形で生成</li>
+        <li>一覧の表と、追加・編集のフォーム</li>
+        <li>ライト・ダーク、狭い画面に対応</li>
+      </ul>
+      <p class="cap" style="margin-top:12px"><span class="tag amber">未</span>実際のClaude Codeの会話でAIが使うことは未確認</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>inloop generate scaffoldは、列の定義から、表・API・テスト・画面を決まった形で生成します。一覧の表と追加・編集のフォームで、ライト、ダーク、スマートフォン幅に対応しています。</p>
+    <p>決まった形で作ることで、AIが毎回違う構造を書かず、レビューの対象も揃います。自動テストと、生成アプリのビルド・ブラウザでの表示までは確認済みですが、実際のClaude Codeの会話でAIがこれを使うかどうかは、まだ確認していません。</p>
+  </aside>
+</section>
+
+<!-- 16 アプリの形 -->
+<section class="slide" data-title="作れるアプリの形">
+  <h2><span class="mono">inloop new</span>で作れるアプリの形</h2>
+  <table class="tbl" style="font-size:21px">
+    <tr><th style="width:22%">指定</th><th style="width:40%">構成</th><th>確認の状況</th></tr>
+    <tr><td>（標準）</td><td>React＋Hono＋SQLite のWebアプリ</td><td>ブラウザで確認。信頼境界・依存の図・再依頼の畳みをmacOS＋Claude Codeで確認</td></tr>
+    <tr><td class="mono">--desktop</td><td>Tauriのデスクトップアプリ（サーバー同梱）</td><td>macOSでビルド（<span class="mono">.app</span> 約118MB）。署名と公証は未</td></tr>
+    <tr><td class="mono">--standalone</td><td>サーバーなし。ブラウザ・PWAで動く（sqlite-wasm＋OPFS）</td><td>Chromiumと、iPhoneのホーム画面PWAで確認。Androidは未</td></tr>
+    <tr><td class="mono">--sync</td><td>standalone＋端末どうしの共有（承認方式・暗号化・中継つき）</td><td>2つのブラウザと、iPhone実機2台での承認の流れを確認</td></tr>
+  </table>
+  <p class="cap" style="margin-top:14px">Chrome拡張の入れ物（<span class="mono">npm run build:extension</span>）とデータの書き出し・読み込みもあります（読み込み確認はChromiumまで）。</p>
+  <aside class="notes">
+    <p>inloop newには構成のバリエーションがあります。標準はサーバー付きのWebアプリ。--desktopはTauriのデスクトップアプリで、サーバーを同梱します。--standaloneはサーバーなしで、ブラウザのPWAとして端末の中で動きます。--syncはそれに端末どうしの共有を足したもので、承認方式と暗号化と中継が付きます。</p>
+    <p>確認の状況は右の列のとおりです。Androidや署名・公証、Windows・Linuxは未確認です。</p>
+  </aside>
+</section>
+
+<!-- 17 現状 -->
+<section class="slide" data-title="現状">
+  <h2>現状：ここまで動いて、ここから先は未確認</h2>
+  <div class="cols" style="gap:18px">
+    <div class="card" style="border-color:var(--green)"><h3 class="green">実装済み</h3>
+      <ul style="font-size:18px;line-height:1.45">
+        <li>MCPサーバー、レビューUI（会話内とブラウザ）</li>
+        <li>解析エンジン（TypeScript＋SQL）</li>
+        <li>信頼境界ルールと必須の依頼、証拠の取り込み</li>
+        <li><span class="mono">inloop</span>コマンド、雛形、scaffold</li>
+        <li><span class="mono">inloop lint</span>、ユースケース図</li>
+      </ul></div>
+    <div class="card" style="border-color:var(--blue)"><h3 class="blue">実環境で確認済み</h3>
+      <ul style="font-size:18px;line-height:1.45">
+        <li>macOS＋Claude Code（デスクトップ）で、信頼境界・依存の図・再依頼の畳み</li>
+        <li>standalone：Chromium、iPhone PWA</li>
+        <li>sync：iPhone実機2台で承認の流れ</li>
+        <li>Chrome拡張の読み込み</li>
+      </ul></div>
+    <div class="card" style="border-color:var(--amber)"><h3 class="amber">未実装・未確認</h3>
+      <ul style="font-size:18px;line-height:1.45">
+        <li>対象言語はTypeScriptとSQLのみ</li>
+        <li>他のクライアント（Claude Desktop、Codex、VS Code、CLI）</li>
+        <li>Windows・Linux、Android、署名と公証</li>
+        <li>lint・ユースケース図・scaffoldの実クライアントでの使用</li>
+                <li>0.0.0（npm未公開）</li>
+      </ul></div>
+  </div>
+  <aside class="notes">
+    <p>現状を三つに分けます。実装済みのもの、実環境で確かめたもの、未実装または未確認のものです。</p>
+    <p>実装済みは、MCPサーバーとレビューUI、TypeScriptとSQLの解析エンジン、信頼境界ルールと必須の依頼、inloopコマンド、雛形、scaffold、lint、ユースケース図です。実環境で確かめたのは、macOSとClaude Code（デスクトップ）の構成での信頼境界・依存の図・再依頼の畳みと、standaloneのChromiumとiPhone、syncのiPhone実機2台などです。</p>
+    <p>未確認は、他のクライアント、Windows・Linux・Android、署名と公証、lintやscaffoldの実クライアントでの使用です。ER図とデータフロー図は作らない方針です。バージョンは0.0.0で、npmには公開していません。</p>
+    <p>補足：2026-10-13時点のhandoffでは、npm testがinloop new --syncの1件で失敗する、という既知の状態が記録されています。</p>
+  </aside>
+</section>
+
+<!-- 18 今後 -->
+<section class="slide" data-title="今後">
+  <h2>今後</h2>
+  <div class="cols">
+    <div>
+      <h3>方針</h3>
+      <p class="lead" style="font-size:23px">まず、<b>Claude Code（デスクトップ）で、Webアプリとデスクトップアプリを楽に作れる</b>ようにする。他のクライアント・他のDB・他のOSは、それが済んでから。ただし設計は、後から足せるように保つ。</p>
+    </div>
+    <div>
+      <h3>次の一手</h3>
+      <ol style="font-size:22px;line-height:1.6;margin:0;padding-left:1.3em">
+        <li>scaffoldを実際のClaude Codeで使い、足りないもの（関連、並べ替え、検索、列の型など）を洗い出す</li>
+        <li>データの書き出し・読み込みのiPhone確認、拡張からの共有の実機確認</li>
+        <li>lint・ユースケース図の偽陽性を、既存アプリで確かめる</li>
+        <li>再依頼の畳み方（保留のあとも畳むか、行単位の差分が要るか）</li>
+      </ol>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>今後の方針は、利用者の方針として、まずClaude Code（デスクトップ）でWebアプリとデスクトップアプリを楽に作れるようにすることです。他のクライアント、DB、OSは、それが済んでからにします。ただし設計は、後から足せるようにしておきます。</p>
+    <p>次の一手は四つです。scaffoldを実際の会話で使って足りないものを洗い出す。データの書き出し・読み込みや共有の実機確認。lintとユースケース図の偽陽性の確認。それから、再依頼の畳み方の判断です。</p>
+  </aside>
+</section>
+
+<!-- 19 まとめ -->
+<section class="slide end" data-title="まとめ">
+  <h2>まとめ</h2>
+  <ul style="font-size:28px;margin-bottom:28px">
+    <li>課題は品質ではなく、<b>生成速度と理解速度のずれ</b></li>
+    <li>AIが人に依頼する。構造は<b>決定的</b>に作り、信頼境界に触れた変更は<b>必ず</b>依頼される</li>
+    <li>危険な書き方は<span class="mono">inloop lint</span>で書けなくし、人は境界に集中する</li>
+    <li>AIクライアントの中で完結し、回答で後続タスクが動く</li>
+  </ul>
+  <div class="card" style="font-size:22px;line-height:1.8">
+    <b>github.com/tazyamah/inloop</b><br>
+    <span class="muted">README／docs/concept.md（考え方）／docs/architecture.md（構成）／docs/gallery.md（UI）／docs/diagrams.md（図）／maintainer-guide/（ADR）</span>
+  </div>
+  <aside class="notes">
+    <p>まとめです。課題は品質ではなく、生成速度と理解速度のずれ。inloopは、AIが人に依頼する形にして、依頼票の構造は決定的に作り、信頼境界に触れた変更は必ず依頼されるようにします。危険な書き方はlintで書けなくして、人は境界に集中します。</p>
+    <p>詳しくはリポジトリのREADMEとdocsにあります。考え方はdocs/concept.md、構成はdocs/architecture.md、画面はdocs/gallery.md、図はdocs/diagrams.md、判断の経緯はmaintainer-guideのADRです。ご質問をどうぞ。</p>
+  </aside>
+</section>
+
+</main>
+
+<!-- 発表者モードの画面（?presenter で開く別ウィンドウ） -->
+<div id="presenter">
+  <div class="bar">
+    <span class="timer" id="p-timer">00:00</span>
+    <button id="p-toggle" type="button">開始 / 一時停止</button>
+    <button id="p-reset" type="button">リセット</button>
+    <span class="clock" id="p-clock"></span>
+    <button id="p-prev" type="button">◀ 前</button>
+    <button id="p-next" type="button">次 ▶</button>
+    <button id="p-fminus" type="button" title="ノートの文字を小さく">A−</button>
+    <button id="p-fplus" type="button" title="ノートの文字を大きく">A＋</button>
+    <span class="count" id="p-count"></span>
+  </div>
+  <div class="leftcol">
+    <div class="pane"><span class="label">現在のスライド</span><div class="frame" id="p-cur"></div></div>
+    <div class="ptitle" id="p-title"></div>
+  </div>
+  <div class="right">
+    <div class="pane"><span class="label">次のスライド</span><div class="frame" id="p-next-frame"></div></div>
+    <span class="label">発表者ノート</span>
+    <div class="notes-box" id="p-notes"></div>
+  </div>
+</div>
+
+<div class="hud"><kbd>←</kbd><kbd>→</kbd> 移動　<kbd>P</kbd> 発表者　<kbd>O</kbd> 一覧　<kbd>F</kbd> 全画面　<kbd>?</kbd> ヘルプ</div>
+<div id="help"><div class="box">
+  <b>キー操作</b><br>
+  <kbd>→</kbd> <kbd>Space</kbd> <kbd>PageDown</kbd>　次のスライド<br>
+  <kbd>←</kbd> <kbd>PageUp</kbd>　前のスライド<br>
+  <kbd>Home</kbd> / <kbd>End</kbd>　最初 / 最後<br>
+  <kbd>F</kbd>　全画面　<kbd>P</kbd>　発表者モード（別ウィンドウ）<br>
+  <kbd>O</kbd>　スライド一覧（<kbd>Esc</kbd>で閉じる）<br>
+  <kbd>T</kbd>　ライト / ダーク切り替え<br>
+  <kbd>?</kbd>　このヘルプ　／　印刷（<kbd>Ctrl/⌘+P</kbd>）でPDF
+</div></div>
+
+<script>
+(function () {
+  "use strict";
+  var W = 1280, H = 720;
+  var isPresenter = /[?&]presenter\b/.test(location.search);
+  var stage = document.getElementById("stage");
+  var slides = Array.prototype.slice.call(stage.querySelectorAll(":scope > .slide"));
+  var N = slides.length;
+  var cur = 0;
+  var notesHtml = [], titles = [];
+
+  // 各スライドに、フッター（番号つき）とラッパーを付け、ノートを取り出す
+  slides.forEach(function (s, i) {
+    var n = s.querySelector(":scope > .notes");
+    notesHtml.push(n ? n.innerHTML : "");
+    titles.push(s.getAttribute("data-title") || "");
+    if (n) s.removeChild(n);
+    if (i > 0) {
+      var f = document.createElement("div");
+      f.className = "foot";
+      f.innerHTML = '<span class="brand"><img class="only-light" alt="" src="' + iconSrc("light") + '"><img class="only-dark" alt="" src="' + iconSrc("dark") + '">inloop</span><span class="num">' + (i + 1) + " / " + N + "</span>";
+      s.appendChild(f);
+    }
+    var cell = document.createElement("div");
+    cell.className = "cell";
+    cell.setAttribute("data-n", String(i + 1));
+    stage.replaceChild(cell, s);
+    cell.appendChild(s);
+    cell.addEventListener("click", function () { if (document.body.classList.contains("overview")) { go(i); toggleOverview(false); } });
+  });
+  var cells = Array.prototype.slice.call(stage.querySelectorAll(":scope > .cell"));
+
+  function iconSrc(theme) { return slides[0].querySelector("img.only-" + theme).getAttribute("src"); }
+
+  // ---- 拡大縮小 ----
+  function fit() {
+    var s = Math.min(window.innerWidth / W, window.innerHeight / H);
+    document.documentElement.style.setProperty("--s", String(s));
+  }
+  window.addEventListener("resize", fit); fit();
+
+  // ---- 同期（BroadcastChannel、なければlocalStorageのstorageイベント） ----
+  var bc = null;
+  try { bc = "BroadcastChannel" in window ? new BroadcastChannel("inloop-slides") : null; } catch (e) { bc = null; }
+  function send(msg) {
+    if (bc) { try { bc.postMessage(msg); } catch (e) {} }
+    try { localStorage.setItem("inloop-slides-sync", JSON.stringify({ m: msg, r: Math.random(), t: Date.now() })); } catch (e) {}
+  }
+  function receive(msg) {
+    if (!msg) return;
+    if (msg.type === "go") go(msg.i, true);
+    else if (msg.type === "theme") setTheme(msg.v, true);
+    else if (msg.type === "hello" && !isPresenter) send({ type: "go", i: cur });
+  }
+  if (bc) bc.onmessage = function (e) { receive(e.data); };
+  window.addEventListener("storage", function (e) {
+    if (e.key !== "inloop-slides-sync" || !e.newValue) return;
+    try { receive(JSON.parse(e.newValue).m); } catch (err) {}
+  });
+
+  // ---- 移動 ----
+  function go(i, silent) {
+    i = Math.max(0, Math.min(N - 1, i | 0));
+    cur = i;
+    cells.forEach(function (c, k) { c.classList.toggle("active", k === i); });
+    try { history.replaceState(null, "", location.pathname + location.search + "#" + (i + 1)); } catch (e) {}
+    document.title = (i + 1) + "/" + N + " " + titles[i] + " - inloop 紹介スライド";
+    if (isPresenter) renderPresenter();
+    if (!silent) send({ type: "go", i: i });
+    if (document.body.classList.contains("overview")) {
+      var c = cells[i]; if (c && c.scrollIntoView) c.scrollIntoView({ block: "nearest" });
+    }
+  }
+  var next = function () { go(cur + 1); }, prev = function () { go(cur - 1); };
+
+  // ---- テーマ ----
+  function setTheme(t, silent) {
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem("inloop-slides-theme", t); } catch (e) {}
+    if (!silent) send({ type: "theme", v: t });
+  }
+  function toggleTheme() { setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark"); }
+
+  // ---- 一覧・全画面・ヘルプ ----
+  function toggleOverview(on) {
+    var b = document.body;
+    var want = typeof on === "boolean" ? on : !b.classList.contains("overview");
+    b.classList.toggle("overview", want);
+    if (want && cells[cur].scrollIntoView) cells[cur].scrollIntoView({ block: "center" });
+  }
+  function toggleFullscreen() {
+    var d = document;
+    if (d.fullscreenElement || d.webkitFullscreenElement) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); }
+    else { var el = d.documentElement; (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el); }
+  }
+  var help = document.getElementById("help");
+  help.addEventListener("click", function () { help.classList.remove("show"); });
+
+  // ---- 発表者モード ----
+  var presenterWin = null;
+  function openPresenter() {
+    var url = location.pathname + "?presenter#" + (cur + 1);
+    presenterWin = window.open(url, "inloop-presenter", "width=1280,height=800");
+    if (!presenterWin) alert("ポップアップがブロックされました。許可してからもう一度 P を押してください。");
+  }
+
+  var pCur, pNext, pNotes, pTitle, pCount, pTimerEl, pClock;
+  var nf = 22;
+  var timer = { running: false, base: 0, start: 0 };
+  function buildPresenter() {
+    document.body.classList.add("presenter");
+    pCur = document.getElementById("p-cur"); pNext = document.getElementById("p-next-frame");
+    pNotes = document.getElementById("p-notes"); pTitle = document.getElementById("p-title");
+    pCount = document.getElementById("p-count"); pTimerEl = document.getElementById("p-timer"); pClock = document.getElementById("p-clock");
+    document.getElementById("p-prev").onclick = prev;
+    document.getElementById("p-next").onclick = next;
+    document.getElementById("p-toggle").onclick = function () { timer.running ? stopTimer() : startTimer(); };
+    document.getElementById("p-reset").onclick = function () { timer.running = false; timer.base = 0; drawTimer(); };
+    document.getElementById("p-fplus").onclick = function () { setNf(nf + 2); };
+    document.getElementById("p-fminus").onclick = function () { setNf(nf - 2); };
+    try { var saved = parseInt(localStorage.getItem("inloop-slides-nf"), 10); if (saved >= 14 && saved <= 48) nf = saved; } catch (e) {}
+    setNf(nf);
+    setInterval(drawTimer, 250);
+    window.addEventListener("resize", fitFrames);
+    send({ type: "hello" });
+  }
+  function setNf(v) {
+    nf = Math.max(14, Math.min(48, v));
+    document.documentElement.style.setProperty("--nf", nf + "px");
+    try { localStorage.setItem("inloop-slides-nf", String(nf)); } catch (e) {}
+  }
+  function startTimer() { if (!timer.running) { timer.running = true; timer.start = Date.now(); } }
+  function stopTimer() { if (timer.running) { timer.base += Date.now() - timer.start; timer.running = false; } }
+  function drawTimer() {
+    var ms = timer.base + (timer.running ? Date.now() - timer.start : 0);
+    var s = Math.floor(ms / 1000), m = Math.floor(s / 60), h = Math.floor(m / 60);
+    var two = function (x) { return (x < 10 ? "0" : "") + x; };
+    pTimerEl.textContent = (h ? h + ":" : "") + two(m % 60) + ":" + two(s % 60);
+    var d = new Date();
+    pClock.textContent = "現在 " + two(d.getHours()) + ":" + two(d.getMinutes()) + ":" + two(d.getSeconds());
+  }
+  function mountFrame(box, idx) {
+    box.innerHTML = "";
+    if (idx < 0 || idx >= N) { box.style.visibility = "hidden"; return; }
+    box.style.visibility = "visible";
+    var clone = slides[idx].cloneNode(true);
+    clone.style.display = "flex";
+    box.appendChild(clone);
+  }
+  function fitFrames() {
+    [pCur, pNext].forEach(function (box) {
+      var sl = box.firstElementChild; if (!sl) return;
+      sl.style.transform = "scale(" + (box.clientWidth / W) + ")";
+    });
+  }
+  function renderPresenter() {
+    mountFrame(pCur, cur);
+    if (cur + 1 < N) { mountFrame(pNext, cur + 1); } else { pNext.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:var(--muted);font-size:20px">（最後のスライドです）</div>'; pNext.style.visibility = "visible"; }
+    fitFrames();
+    pNotes.innerHTML = notesHtml[cur] || "<p class='muted'>（このスライドにノートはありません）</p>";
+    pNotes.scrollTop = 0;
+    pTitle.textContent = (cur + 1) + ". " + titles[cur];
+    pCount.textContent = (cur + 1) + " / " + N;
+    if (cur > 0 && !timer.running && timer.base === 0) startTimer();
+  }
+
+  // ---- キー・スワイプ ----
+  var hintTimer;
+  function showHint() { document.body.classList.add("hint"); clearTimeout(hintTimer); hintTimer = setTimeout(function () { document.body.classList.remove("hint"); }, 2500); }
+  document.addEventListener("keydown", function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key, used = true;
+    if (help.classList.contains("show")) { help.classList.remove("show"); if (k === "Escape" || k === "?") { e.preventDefault(); return; } }
+    switch (k) {
+      case "ArrowRight": case "ArrowDown": case "PageDown": case " ": case "Enter": next(); break;
+      case "ArrowLeft": case "ArrowUp": case "PageUp": case "Backspace": prev(); break;
+      case "Home": go(0); break;
+      case "End": go(N - 1); break;
+      case "f": case "F": toggleFullscreen(); break;
+      case "p": case "P": if (!isPresenter) openPresenter(); break;
+      case "o": case "O": if (!isPresenter) toggleOverview(); break;
+      case "t": case "T": toggleTheme(); break;
+      case "?": help.classList.toggle("show"); break;
+      case "Escape": if (document.body.classList.contains("overview")) toggleOverview(false); break;
+      default: used = false;
+    }
+    if (used) { e.preventDefault(); if (!isPresenter) showHint(); }
+  });
+  var tx = null;
+  document.addEventListener("touchstart", function (e) { tx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", function (e) {
+    if (tx === null) return; var dx = e.changedTouches[0].clientX - tx; tx = null;
+    if (Math.abs(dx) > 50) { dx < 0 ? next() : prev(); }
+  }, { passive: true });
+  document.addEventListener("click", function (e) {
+    if (isPresenter || document.body.classList.contains("overview") || help.classList.contains("show")) return;
+    if (e.target.closest("a, button")) return;
+    e.clientX > window.innerWidth * 0.5 ? next() : prev();
+  });
+
+  // ---- 起動 ----
+  var m = /^#(\d+)$/.exec(location.hash);
+  var start = m ? Math.max(0, Math.min(N - 1, parseInt(m[1], 10) - 1)) : 0;
+  if (isPresenter) buildPresenter();
+  go(start, true);
+  if (!isPresenter) showHint();
+  window.addEventListener("beforeprint", function () { cells.forEach(function (c) { c.style.display = ""; }); });
+  window.__inloopSlides = { go: go, count: N, current: function () { return cur; } };
+})();
+</script>
+</body>
+</html>
