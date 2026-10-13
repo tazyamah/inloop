@@ -8,9 +8,10 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "build": "tsc --noEmit && vite build",
+    "build": "inloop lint && tsc --noEmit && vite build",
     "start": "tsx server/index.ts",
-    "test": "tsx --test \"server/**/*.test.ts\"",
+    "lint:secure": "inloop lint",
+    "test": "inloop lint && tsx --test \"server/**/*.test.ts\"",
     "tauri": "tauri",
     "dev:desktop": "tauri dev",
     "build:sidecar": "node scripts/build-sidecar.mjs",

@@ -8,10 +8,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:extension": "tsc --noEmit && vite build --mode extension",
+    "build": "inloop lint && tsc --noEmit && vite build",
+    "build:extension": "inloop lint && tsc --noEmit && vite build --mode extension",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "tsx --test \"server/**/*.test.ts\""
+    "lint:secure": "inloop lint",
+    "test": "inloop lint && tsx --test \"server/**/*.test.ts\""
   },
   "dependencies": {
     "@sqlite.org/sqlite-wasm": "^3.53.4-build2",

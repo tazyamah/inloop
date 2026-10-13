@@ -24,3 +24,24 @@
 - 作業を終える前に `inloop check --range main` を動かす。承認されていない必須の依頼があれば、`request_review`（`reviews` は空でよい）で依頼する
 - 特定のテーブルや列だけに必須の依頼を足したいときは、`inloop.json` の `match` に `{"table": "orders", "access": ["write"], "columns": ["status"]}` のように書く（`access` と `columns` は省ける。`columns` を足すと、その列に触れるSQLだけに当たる）
 - `inloop.json` を変えると、それ自体が必須の依頼になる。ルールを消したり弱めたりする変更は、人に理由を説明する
+
+## セキュアコードの規則（`inloop lint`）
+
+- `npm test`と`npm run build`の最初に`inloop lint`が動き、次の規則に反するコードがあると失敗する。IPAの注意喚起（2026-10-09）から導いた、構文だけで決まる規則で、書いた時点で気づくためにここに挙げる。違反を許す書き方（コメントで無効にするなど）はない
+  - `sec-sql-literal`: `prepare`・`exec`に渡すSQLは固定の文字列にし、値は`?`で渡す（文字列の連結・`${}`で組み立てない）
+  - `sec-shell`: `exec`・`execSync`・`shell: true`を使わない。`execFile`・`spawn`に引数の列で渡す
+  - `sec-eval`: `eval`、`new Function`、文字列の`setTimeout`を使わない
+  - `sec-html`: `dangerouslySetInnerHTML`、`innerHTML`への代入、`document.write`を使わない
+  - `sec-secret`: パスワード・鍵・トークンをコードに書かない。環境変数などから渡す
+  - `sec-crypto`: MD5・SHA-1・DES・ECB・`createCipher`を使わない。パスワードのハッシュは`crypto.scrypt`、トークンは`crypto.randomBytes`
+  - `sec-tls`: 証明書の検証を無効にしない（`rejectUnauthorized: false`など）
+  - `sec-cleartext`: 外部との通信は`https://`・`wss://`にする（`localhost`は除く）
+  - `sec-bind`: サーバーの待ち受けは`127.0.0.1`に限る（`serve`には`hostname: "127.0.0.1"`を付ける）
+  - `sec-cors`: CORSの許可元を`*`にしない
+  - `sec-cookie`: `setCookie`には`httpOnly: true`と`sameSite`を付ける
+  - `sec-log`: パスワード・トークン・`process.env`の値を`console`に出さない
+  - `sec-stack`: スタックトレース（`.stack`）を応答に載せない
+  - `sec-unchecked`: すべての`.ts`・`.tsx`を`tsconfig.json`の`include`に入れる（入っていないと検査できない）
+- どうしても例外が要るときは、`inloop.json`の`secure.allow`（`rule`、`files`、`reason`）に書く。`inloop.json`の変更は必須の依頼になるので、人が理由を確かめる。`package.json`・`tsconfig.json`の変更（検査を外す変更を含む）も必須の依頼になる
+- 作業を終える前の`inloop check`は、必須の依頼に加えて、この検査も動かす
+

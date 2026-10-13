@@ -153,6 +153,18 @@
           ]
         }
       ]
+    },
+    {
+      "id": "secure-gate",
+      "question": "セキュアコードの検査（inloop lint）を、package.jsonのscriptsから外したり、tsconfig.jsonのincludeを狭めて検査の対象から外したりしていないか。追加した依存は、必要で信頼できるものか",
+      "match": [
+        {
+          "files": [
+            "**/package.json",
+            "**/tsconfig.json"
+          ]
+        }
+      ]
     }
   ],
   "layers": [
@@ -209,5 +221,44 @@
       ],
       "mayUse": []
     }
-  ]
+  ],
+  "secure": {
+    "allow": [
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "server/backup.ts"
+        ],
+        "reason": "表名と列名は、実在する表・列と突き合わせたものだけを、識別子として引用（quote）して組み立てる。値は?で渡す"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "server/sqlite-wasm.ts"
+        ],
+        "reason": "node:sqliteと同じ形にして受け渡すだけの層。SQLの文字列は、呼び出し側が固定の文で渡す"
+      },
+      {
+        "rule": "sec-cleartext",
+        "files": [
+          "server/worker.ts"
+        ],
+        "reason": "Worker内でHonoに渡す仮のURL。ネットワークには出ない"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "relay/src/index.ts"
+        ],
+        "reason": "Durable ObjectのSQLiteを、RoomStoreのSql形に包むだけの層。SQLの文字列はRoomStoreが固定の文で渡す"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "server/sync/sync.test.ts"
+        ],
+        "reason": "テストで、node:sqliteをSql形に包むだけの層"
+      }
+    ]
+  }
 }

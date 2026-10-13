@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { changedFiles, changedLines, fileAtBase } from "./diff.js";
 import type { Declaration, TsProject } from "./project.js";
-import { type Config, CONFIG_FILE, CONFIG_QUESTION, columnsMatch, CONFIG_RULE, type EvidenceSpec, LAYER_RULE, type Layer, layerOf, matchesAny, mayUseLayer, mergeRules, parseFullConfig, type Rule, sameModule, tableMatches, versionLess } from "./rules.js";
+import { type Config, type SecureAllow, CONFIG_FILE, CONFIG_QUESTION, columnsMatch, CONFIG_RULE, type EvidenceSpec, LAYER_RULE, type Layer, layerOf, matchesAny, mayUseLayer, mergeRules, parseFullConfig, type Rule, sameModule, tableMatches, versionLess } from "./rules.js";
 import { INDIRECT_DEPTH, type TableUse, tablesOf } from "./sql.js";
 
 /** ルールに当たった単位。必須の依頼は、この単位ごとに1件作る。 */
@@ -34,7 +34,7 @@ export function inloopVersion(): string {
  * 範囲の基点と作業ツリーのinloop.jsonを読む（ADR-0022、ADR-0023）。ルールは和、レイヤーは作業ツリーのもの（なければ基点のもの）。
  * どちらも形が合わない、または`minVersion`が今のinloopより新しければ拒否する。
  */
-export function loadConfig(repo: string, base: string): { rules: Rule[]; layers: Layer[]; layerSets: Layer[][]; evidence: EvidenceSpec[] } {
+export function loadConfig(repo: string, base: string): { rules: Rule[]; layers: Layer[]; layerSets: Layer[][]; evidence: EvidenceSpec[]; secure: SecureAllow[] } {
   const atBase = fileAtBase(repo, base, CONFIG_FILE);
   const current = join(repo, CONFIG_FILE);
   const configs: Config[] = [];
@@ -48,7 +48,7 @@ export function loadConfig(repo: string, base: string): { rules: Rule[]; layers:
   }
   // 向きの検査（ADR-0027）には基点と作業ツリーのレイヤーの両方を使い、どちらかに反すれば当てる（ルールの和と同じ考え方）。
   const layerSets = [fromBase?.layers, fromTree?.layers].filter((l): l is Layer[] => l !== undefined && l.length > 0);
-  return { rules: mergeRules(fromBase?.rules ?? [], fromTree?.rules ?? []), layers: (fromTree ?? fromBase)?.layers ?? [], layerSets, evidence: (fromTree ?? fromBase)?.evidence ?? [] };
+  return { rules: mergeRules(fromBase?.rules ?? [], fromTree?.rules ?? []), layers: (fromTree ?? fromBase)?.layers ?? [], layerSets, evidence: (fromTree ?? fromBase)?.evidence ?? [], secure: (fromTree ?? fromBase)?.secure ?? [] };
 }
 
 /** 範囲の基点と作業ツリーのinloop.jsonを読み、ルールの和を返す。 */

@@ -64,4 +64,4 @@
 | [0042](0042-scaffold-for-sync-apps.md) | Accepted | `inloop generate scaffold`を共有（`--sync`）のアプリに対応させる（ADR-0041の「まだ使えない」の部分をSupersedes） |
 | [0043](0043-backup-export-import.md) | Accepted | 端末内で動くアプリに、データの書き出し・読み込み（バックアップ）を標準で付ける |
 | [0044](0044-chrome-extension.md) | Accepted | 端末内で動くアプリを、Chrome拡張（Manifest V3、アプリごとのID）としても出せるようにする |
-
+| [0045](0045-secure-code-lint.md) | Accepted | IPAの注意喚起から導いたセキュアコードの規則を`inloop lint`で検査し、違反すると雛形のテスト・ビルド、`inloop check`、scaffoldの生成を失敗させる |
