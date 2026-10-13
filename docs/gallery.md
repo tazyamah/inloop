@@ -1,6 +1,6 @@
 # UIギャラリー
 
-inloopが出す画面の一覧です。画面の写真は、ここに載せたもので全部ではありません。
+inloopが出す画面の一覧です。写真の撮り直し方は[開発者向けの手順](../maintainer-guide/screenshots.md)にあります。
 
 ## レビュー依頼の画面
 
@@ -11,6 +11,16 @@ AIが`request_review`で出した依頼を、人が読んで承認・保留を�
 | ライト | ダーク |
 |---|---|
 | ![レビュー依頼の画面（ライト）](images/review-light.png) | ![レビュー依頼の画面（ダーク）](images/review-dark.png) |
+
+## Claude Codeの会話の中での見え方
+
+Claude Code（デスクトップ）の会話に、AIが`request_review`を呼ぶと、依頼票が「inloop のウィジェット」として会話の中に出ます。問い、依存の図、理解順に並べた対象コードが、会話を離れずに読めます。写真は、メモ帳のデモアプリ（`server/app.ts`の`createApp`を変更）での実際の画面です。
+
+![Claude Codeの会話内に出たレビュー依頼（問いと依存の図）](images/claude-code-review-widget.png)
+
+続きの対象コード（変更行は緑、変更なしのシンボルは畳まれる）:
+
+![Claude Codeの会話内に出たレビュー依頼（対象コード）](images/claude-code-review-widget-code.png)
 
 ## `inloop generate scaffold`が出す画面
 
@@ -23,7 +33,3 @@ AIが`request_review`で出した依頼を、人が読んで承認・保留を�
 狭い画面（スマートフォン幅）:
 
 <img src="images/scaffold-mobile.png" alt="scaffoldの画面（狭い画面）" width="320">
-
-## 撮り直し
-
-画面を変えたら、写真も撮り直します。レビュー依頼の画面は上の環境変数で、scaffoldの画面は`inloop new`と`inloop generate scaffold`でアプリを作り、`npm run dev`の画面を撮ります。
