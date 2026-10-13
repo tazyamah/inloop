@@ -64,6 +64,7 @@ MCPサーバー、レビューUI、`inloop`コマンド、解析エンジン（T
 
 ## 文書
 
+- 紹介スライド（発表者モード・PDF印刷つき、単一HTML）: [docs/slides/inloop-intro.html](docs/slides/inloop-intro.html)（GitHub上ではソース表示になるので、手元に保存してブラウザで開く）
 - UIギャラリー: [docs/gallery.md](docs/gallery.md)
 - 依頼票の図と、その作り方: [docs/diagrams.md](docs/diagrams.md)
 - 考え方: [docs/concept.md](docs/concept.md)
