@@ -428,3 +428,9 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 気づき: `wrangler pages deploy`の直後は、数秒、522が返る。`ALLOWED_ORIGINS`は、Pagesの最初のデプロイで決まるURLを入れて、中継を置き直す必要がある（READMEの手順4）。
 - 実機の確認（利用者の発言、2026-10-13）: iPhone 2台で、新しい買い物リストの承認の流れが動いた。PR #20（端末内で動く構成、更新通知、承認方式の共有）がマージされた。別のオーナーの検出は、実機では見ていない（本番の中継は、偽の記録をその場で断るため。デモ用の中継の公開は見送り、テストでの確認にとどめた）。
 
+## 2026-10-13 scaffoldの`--sync`対応（ADR-0042）
+
+- `src/scaffold.ts`: `server/sync-tables.ts`があるアプリでは、`uid`・`deleted`・`dirty`つきの表、同期する表の定義、`uid`で扱うAPI・テスト・画面を作る。同期の仕組みの列の型に、`real`・`null`（省略できる列）・負の整数を足した（`templates/sync/server/sync/engine.ts`）。
+- 検証（macOS）: `npm test`が114 pass・15 skip・fail 0。`INLOOP_APP_E2E=1`で、共有のアプリで`task`を生成して`npm install`・`npm test`・`npm run build`が通った。依頼票が、生成したAPIの表と列を読み取れる。
+- 未検証: 生成した表の、2台の実機での同期。
+

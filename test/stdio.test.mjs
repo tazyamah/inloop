@@ -272,8 +272,8 @@ test("inloop new --syncは、端末内で動く構成に、共有（同期・中
   assert.match(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /"name": "fam-note-relay"/);
   assert.doesNotMatch(readFileSync(join(dir, "relay/wrangler.jsonc"), "utf8"), /__APP_NAME__/);
   assert.match(readFileSync(join(dir, "web/src/App.tsx"), "utf8"), /Share/);
-  // 共有のアプリには、まだscaffoldを使えない（案内して断る）。
+  // 共有のアプリにも、scaffoldが使える（同期する表を作る。test/scaffold.test.mjs）。
   const g = spawnSync(process.execPath, [BIN, "generate", "scaffold", "task", "title:text"], { encoding: "utf8", cwd: dir, env: { ...process.env, INLOOP_HOME: home } });
-  assert.notEqual(g.status, 0);
-  assert.match(g.stderr, /--sync/);
+  assert.equal(g.status, 0, g.stderr);
+  assert.ok(existsSync(join(dir, "server/routes/tasks.ts")));
 });

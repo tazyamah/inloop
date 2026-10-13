@@ -30,12 +30,12 @@ test("複数形と列の定義を読む", () => {
   assert.equal(defineResource("task", ["a:text"], { label: "タスク" }).label, "タスク");
 });
 
-function newApp() {
+function newApp(...flags) {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "inloop-home-")));
   const parent = realpathSync(mkdtempSync(join(tmpdir(), "inloop-scaffold-")));
   const env = { ...process.env, INLOOP_HOME: home };
   const run = (cwd, ...a) => spawnSync(process.execPath, [BIN, ...a], { encoding: "utf8", cwd, env });
-  const r = run(parent, "new", "app");
+  const r = run(parent, "new", "app", ...flags);
   assert.equal(r.status, 0, r.stderr);
   return { dir: join(parent, "app"), run };
 }
@@ -84,6 +84,38 @@ test("生成したAPIの表と列を、依頼票が読み取れる（動的なSQ
   assert.deepEqual(p.unresolved.filter((u) => u.includes("動的なSQL")), []);
 });
 
+test("共有（--sync）のアプリには、uid・deleted・dirtyつきの表と、同期する表の定義を作る（ADR-0041）", () => {
+  const { dir, run } = newApp("--sync");
+  const r = run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "n:int:optional", "price:real", "--label", "タスク");
+  assert.equal(r.status, 0, r.stderr);
+  const read = (f) => readFileSync(join(dir, f), "utf8");
+  assert.match(read("server/db.ts"), /CREATE TABLE IF NOT EXISTS tasks \(\n\s+uid TEXT PRIMARY KEY,\n\s+title TEXT NOT NULL,\n\s+done INTEGER NOT NULL,\n\s+due TEXT,\n\s+n INTEGER,\n\s+price REAL NOT NULL,\n\s+deleted INTEGER NOT NULL DEFAULT 0,\n\s+created_at INTEGER NOT NULL,\n\s+updated_at INTEGER NOT NULL,\n\s+dirty INTEGER NOT NULL DEFAULT 1/);
+  assert.match(read("server/sync-tables.ts"), /\{ name: "tasks", columns: \{ title: \{ type: "text", max: 1000 \}, done: \{ type: "bool" \}, due: \{ type: "text", max: 10, optional: true \}, n: \{ type: "int", optional: true \}, price: \{ type: "real" \} \} \},\n\s+\/\/ inloop:sync-tables/);
+  assert.match(read("server/app.ts"), /app\.route\("\/api\/tasks", tasksRoutes\(db, now, sync\)\);/);
+  const route = read("server/routes/tasks.ts");
+  assert.match(route, /export function tasksRoutes\(db: Db, now: \(\) => number, sync\?: SyncApi\)/);
+  assert.match(route, /SET deleted = 1, updated_at = \?, dirty = 1 WHERE uid = \?/);
+  assert.match(route, /sync\?\.touch\(\)/);
+  assert.doesNotMatch(route, /DELETE FROM/);
+  const page = read("web/src/pages/Tasks.tsx");
+  assert.match(page, /uid: string;/);
+  assert.match(page, /local-api-changed/);
+  assert.doesNotMatch(page, /item\.id|id: number/);
+  // 同じ資源の2回目は断る。
+  assert.match(run(dir, "generate", "scaffold", "task", "title:text").stderr, /すでにある/);
+});
+
+test("共有のアプリで生成したAPIの表と列を、依頼票が読み取れる", () => {
+  const { dir, run } = newApp("--sync");
+  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool").status, 0);
+  spawnSync("git", ["-C", dir, "add", "-A"]);
+  spawnSync("git", ["-C", dir, "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-qm", "init"]);
+  const p = buildPackets(dir, [{ id: "R1", group: "R1", viewpoint: "q", symbols: ["server/routes/tasks.ts#tasksRoutes"] }], "HEAD")[0];
+  const w = p.tables.find((t) => t.access === "write" && t.table === "tasks");
+  assert.ok(w && ["done", "title", "uid"].every((c) => w.columns.includes(c)));
+  assert.deepEqual(p.unresolved.filter((u) => u.includes("動的なSQL")), []);
+});
+
 // 生成したアプリが、実際に型検査・テスト・ビルドを通る。依存のインストールが要るので、INLOOP_APP_E2E=1のときだけ動かす。
 test("生成したアプリの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
   const { dir, run } = newApp();
@@ -95,3 +127,15 @@ test("生成したアプリの npm test と npm run build が通る", { skip: pr
   const b = sh("npm run build");
   assert.equal(b.status, 0, b.stdout + b.stderr);
 });
+
+test("共有のアプリで生成したものの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
+  const { dir, run } = newApp("--sync");
+  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int").status, 0);
+  const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8" });
+  assert.equal(sh("npm install").status, 0);
+  const t = sh("npm test");
+  assert.equal(t.status, 0, t.stdout + t.stderr);
+  const b = sh("npm run build");
+  assert.equal(b.status, 0, b.stdout + b.stderr);
+});
+

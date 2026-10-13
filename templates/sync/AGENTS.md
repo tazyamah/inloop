@@ -9,6 +9,7 @@
 - `server/db.ts`: データベース（SQLite）。コードは `node:sqlite` の使い方で書く（テストはNode.jsで動く）。ブラウザ向けのビルドでは、`vite.config.ts` が `node:sqlite` を `server/sqlite-wasm.ts`（sqlite-wasm、OPFSに保存）に差し替える。`DatabaseSync` の `exec`、`prepare` の `all`・`get`・`run` だけを使う（ほかは `sqlite-wasm.ts` に足してから）
 - `server/routes/`、`web/src/pages/`: `inloop generate scaffold` が作る資源ごとのAPIと画面。新しい資源（例: タスク）は、手で書かずに `inloop generate scaffold task title:text done:bool` で作る。型は `text`・`int`・`real`・`bool`・`date`、省略できる列は `note:text:optional`。作ったあとに足りないところ（独自の検証、画面の見た目）を直す。見た目の変数は `web/src/style.css`
 - `server/sync/`: 端末どうしの同期（`engine.ts`、`crypto.ts`、`membership.ts`）。`relay/`: 中継（Cloudflare Workers + Durable Objects）。仕組みは [README.md](README.md) の「共有のしくみ」と、inloopのADR-0041
+- 新しい資源（表）は、`inloop generate scaffold task title:text done:bool` で作る。共有のアプリでは、同期する表（下の列を持つ）、`server/sync-tables.ts` への登録、`uid`で扱うAPIと画面が作られる。手で足すときも、次の決まりに従う
 - 同期する表は、`uid`（文字列の主キー）、`created_at`・`updated_at`（ミリ秒）、`deleted`（消したら行を残して1にする）、`dirty` の列を持ち、`server/sync-tables.ts` に書く。API は、書き込みのたびに `dirty = 1` と `updated_at` を更新し、`sync?.touch()` を呼ぶ（`server/app.ts` の notes の例）
 - 同期の暗号・参加者の記録・中継の認可は、信頼境界ルール（`inloop.json`）に当たる。変更は、レビューを依頼する
 - `npm run dev` で動かし、`npm test` でサーバーのテスト（Node.js）、`npm run build` で型検査と静的ファイルのビルド。配り方は [README.md](README.md)（PWAとして端末に入れる）。ネットワークのサーバーはなく、`fetch` で `/api` 以外を呼ぶとインターネットに出るので、宛先を決めてから使う

@@ -20,7 +20,8 @@ export interface SocketLike {
 /** 同期する表。uid（文字列の主キー）、created_at、updated_at（ミリ秒）、deleted、dirty の列が要る。 */
 export interface SyncTable {
   name: string;
-  columns: Record<string, { type: "text" | "int" | "bool"; max?: number; optional?: boolean }>;
+  /** 列の型。text は max 文字まで（既定1000）、int は整数、real は数、bool は真偽。optional なら null も許す。 */
+  columns: Record<string, { type: "text" | "int" | "real" | "bool"; max?: number; optional?: boolean }>;
 }
 
 export type SyncState = "unavailable" | "off" | "connecting" | "online" | "offline" | "joining" | "stopped";
@@ -73,11 +74,11 @@ const infoOf = (room: string, epoch: number) => `inloop|${room}|${epoch}`;
 const INVITE_MS = 10 * 60 * 1000;
 
 /** 他の端末から届いた行を検証する。合わないものは捨てる（信頼しない）。 */
-export function validateRow(table: SyncTable, v: unknown): Record<string, string | number> | null {
+export function validateRow(table: SyncTable, v: unknown): Record<string, string | number | null> | null {
   if (typeof v !== "object" || v === null) return null;
   const o = v as Record<string, unknown>;
   if (o.table !== table.name || typeof o.uid !== "string" || !UID.test(o.uid)) return null;
-  const out: Record<string, string | number> = { uid: o.uid };
+  const out: Record<string, string | number | null> = { uid: o.uid };
   const flag = (x: unknown) => (x === true || x === 1 ? 1 : x === false || x === 0 ? 0 : null);
   const deleted = flag(o.deleted);
   if (deleted === null || !isInt(o.created_at) || !isInt(o.updated_at)) return null;
@@ -86,11 +87,16 @@ export function validateRow(table: SyncTable, v: unknown): Record<string, string
   out.updated_at = o.updated_at;
   for (const [name, c] of Object.entries(table.columns)) {
     const x = o[name];
-    if (c.type === "text") {
+    if (c.optional && x === null) {
+      out[name] = null;
+    } else if (c.type === "text") {
       if (typeof x !== "string" || x.length > (c.max ?? 1000) || (!c.optional && x.trim() === "")) return null;
       out[name] = x;
     } else if (c.type === "int") {
-      if (!isInt(x)) return null;
+      if (typeof x !== "number" || !Number.isSafeInteger(x)) return null;
+      out[name] = x;
+    } else if (c.type === "real") {
+      if (typeof x !== "number" || !Number.isFinite(x)) return null;
       out[name] = x;
     } else {
       const f = flag(x);
@@ -612,7 +618,7 @@ export class Sync implements SyncApi {
     this.opts.onChange?.();
   }
 
-  private upsert(table: SyncTable, row: Record<string, string | number>): void {
+  private upsert(table: SyncTable, row: Record<string, string | number | null>): void {
     const cols = ["uid", ...Object.keys(table.columns), "deleted", "created_at", "updated_at"];
     const sets = cols.filter((c) => c !== "uid").map((c) => `${c} = excluded.${c}`).join(", ");
     this.db.prepare(
@@ -635,13 +641,14 @@ export class Sync implements SyncApi {
     if (!keys || !this.socket || this.state !== "online") return;
     const epoch = Number(this.get("epoch") ?? "1");
     for (const t of this.opts.tables) {
-      const rows = this.db.prepare(`SELECT * FROM ${t.name} WHERE dirty = 1`).all() as unknown as Record<string, string | number>[];
+      const rows = this.db.prepare(`SELECT * FROM ${t.name} WHERE dirty = 1`).all() as unknown as Record<string, string | number | null>[];
       for (const row of rows) {
         const rid = await keys.rid(t.name, String(row.uid));
-        if (this.inflight.get(rid)?.ts === row.updated_at) continue;
-        this.inflight.set(rid, { table: t.name, uid: String(row.uid), ts: Number(row.updated_at) });
+        const ts = Number(row.updated_at);
+        if (this.inflight.get(rid)?.ts === ts) continue;
+        this.inflight.set(rid, { table: t.name, uid: String(row.uid), ts });
         const { dirty: _dirty, ...payload } = row;
-        this.send({ t: "put", rid, ts: row.updated_at, blob: await keys.encrypt({ table: t.name, ...payload }), epoch });
+        this.send({ t: "put", rid, ts, blob: await keys.encrypt({ table: t.name, ...payload }), epoch });
       }
     }
   }
