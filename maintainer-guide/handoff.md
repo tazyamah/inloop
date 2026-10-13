@@ -24,7 +24,8 @@
 - セキュアコードの検査（ADR-0045）: `inloop lint`と、雛形の`npm test`・`npm run build`、`inloop check`、scaffoldの生成での検査を実装した。自動テストまで。実際のClaude Codeでの使用と、既存のアプリでの偽陽性は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
-- 依頼票の図の文書[docs/diagrams.md](../docs/diagrams.md)を足した（2026-10-13）。図は依存の図の1種類で、ER図・データフロー図は生成しない。サンプルは`scripts/diagram-samples.mjs`で作り直す。`npm test`は`inloop new --sync`の1件が失敗する（この変更の前から。[implementation-log.md](implementation-log.md)の2026-10-13のセキュアコードの検査を参照）。
+- 依頼票の図の文書[docs/diagrams.md](../docs/diagrams.md)を足した（2026-10-13）。図は依存の図とユースケース図（下）の2種類で、ER図・データフロー図は生成しない。サンプルは`scripts/diagram-samples.mjs`で作り直す。`npm test`は`inloop new --sync`の1件が失敗する（この変更の前から。[implementation-log.md](implementation-log.md)の2026-10-13のセキュアコードの検査を参照）。
+- ユースケース図（ADR-0046）: `inloop.json`の`usecases`と命名規則の検査（`uc-*`）で、HTTPの入口ごとに、データ（テーブル・列）とテストを結ぶ。`inloop usecases`と、依頼票の画面の図。サーバー向けの雛形に入れた。自動テストとChromiumでの表示まで。値の流れは作らない。実クライアントでの使用、既存アプリの偽陽性、他の雛形（`--standalone`・`--sync`・`--desktop`）への適用は未。
 - 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
 
 ## 次の一手
@@ -40,6 +41,7 @@
 
 ## 未検証事項
 
+- ユースケース図（ADR-0046）を、実際のClaude Codeの会話で、AIが命名規則（`uc-*`）に反して書いたとき`inloop lint`の出力から直せるか。`usecases`を書いた既存アプリでの偽陽性。テストのない入口を違反にするか。
 - セキュアコードの検査（ADR-0045）を、実際のClaude Codeの会話で、AIが違反を書いたときに自力で直せるか。既存のアプリ（`~/work/shopping`など）での偽陽性。
 - `--standalone`（ADR-0039）で作ったアプリの、Android。Chrome拡張でのWASMとOPFS。複数タブ、容量、ブラウザのデータの自動削除。scaffoldで作った画面のブラウザ上の操作。
 - `inloop generate scaffold`（ADR-0038）を、実際のClaude Codeの会話でAIが使うこと。生成した画面のライトテーマ、狭い画面、`--desktop`のアプリでの表示。古い雛形のアプリ（目印がない）での案内。

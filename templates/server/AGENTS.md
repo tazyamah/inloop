@@ -45,3 +45,14 @@
 - どうしても例外が要るときは、`inloop.json`の`secure.allow`（`rule`、`files`、`reason`）に書く。`inloop.json`の変更は必須の依頼になるので、人が理由を確かめる。`package.json`・`tsconfig.json`の変更（検査を外す変更を含む）も必須の依頼になる
 - 作業を終える前の`inloop check`は、必須の依頼に加えて、この検査も動かす
 
+
+## ユースケースの命名規則（`inloop lint`の`uc-*`、`inloop usecases`）
+
+- 画面や外部から使われるHTTPの入口を「ユースケース」とし、入口ごとに、読む・書くテーブルと列、その入口へ要求を送るテストを、コードから決めて一覧にする（`inloop usecases`、レビュー依頼票の「ユースケース」）。結び付けは次の書き方に頼るので、外れると`inloop lint`・`npm test`が失敗する
+  - `uc-app-name`: Honoの変数は`const app = new Hono()`の名前にする
+  - `uc-route-literal`: 入口は`app.get("/path", …)`（`post`・`put`・`patch`・`delete`も）で登録し、パスは`/`で始まる文字列のリテラルにする。まとめて付けるときは`app.route("/prefix", xxxRoutes(db))`の形にする。`app.on`・`app.mount`・`app.all`は使わない
+  - `uc-route-duplicate`: 同じメソッドと同じパスの入口を2つ作らない
+  - `uc-test-request`: テストの`app.request(…)`は、パスを文字列かテンプレート（`/api/tasks/${id}`）で書き、メソッドは省略（GET）・`{ method: "POST" }`・`json("POST", …)`のどれかで書く
+- 入口のSQLは、入口のハンドラーか、そこから呼ぶ関数（2段まで）に、固定の文字列で書く。そうでないSQLは「未解決」として一覧に出る
+- 新しい入口を足したら、その入口へ要求を送るテストも足す。テストのない入口は、依頼票と`inloop usecases`に「テストなし」と出る
+- この対応は、値の流れ（どの入力がどの列に入るか）と、テストが何を確かめているかは示さない。入口を動かすテストがあることだけを示す

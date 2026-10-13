@@ -3,6 +3,7 @@
 import { App } from "@modelcontextprotocol/ext-apps";
 import type { Answer, AnswerRound, InboxItem, ReviewPacket, ReviewStep } from "../server/types.js";
 import { dependencyGraph, relationsOf } from "./graph.js";
+import { tableText, usecaseDiagram } from "./usecases.js";
 
 type Decision = "ok" | "hold";
 
@@ -282,6 +283,19 @@ function renderDetail() {
   $("own-box").hidden = own.length === 0;
   $("own").replaceChildren(...own.map((a) => el("li", undefined, answerText(a))));
 
+  // ユースケース図（ADR-0046）。inloop.jsonにusecasesを書いたアプリだけに出る。
+  const ucDiagram = usecaseDiagram(p.usecases, (symbol) => showStep(p, symbol));
+  $("usecases-box").hidden = p.usecases === undefined;
+  $("usecase-diagram").replaceChildren(...(ucDiagram ? [ucDiagram] : []));
+  $("usecases").replaceChildren(...((p.usecases ?? []).length ? p.usecases!.map((u) => {
+    const li = el("li");
+    li.append(button(u.id, () => showStep(p, u.symbol), "link"));
+    li.append(el("span", "muted", `（${u.file}:${u.line}）`));
+    const data = u.tables.length ? u.tables.map(tableText).join(" / ") : "読み取れるSQLなし";
+    li.append(el("div", undefined, `データ: ${data}`));
+    li.append(el("div", u.tests.length ? undefined : "uc-untested", u.tests.length ? `テスト: ${u.tests.map((t) => `${t.name}（${t.file}:${t.line}）`).join(" / ")}` : "テスト: なし（この入口へ要求を送るテストが見つからない）"));
+    return li;
+  }) : [el("li", "muted", "なし（対象のコードにつながる入口はない）")]));
   const graph = dependencyGraph(p, (symbol) => showStep(p, symbol));
   $("graph-box").hidden = !graph;
   $("graph").replaceChildren(...(graph ? [graph] : []));
@@ -293,8 +307,7 @@ function renderDetail() {
   $("callers-box").hidden = p.callers === undefined;
   $("callers").replaceChildren(...(callers.length ? callers.map((c) => symbolBox(p, c, true, uses, usedBy, requested)) : [el("div", "muted", "なし（このリポジトリに、対象を呼び出している別のシンボルはない）")]));
   $("tables-box").hidden = p.tables === undefined;
-  const label = { read: "読む", write: "書く", schema: "スキーマ" };
-  $("tables").replaceChildren(...((p.tables ?? []).length ? p.tables!.map((t) => el("li", undefined, `${t.symbol}: ${label[t.access]} ${t.table}${t.columns ? `(${t.columns.map((c) => (c === "*" ? "全列または不明" : c)).join(", ")})` : ""}${t.via ? `（${t.via.map((v) => v.slice(v.indexOf("#") + 1)).join(" → ")} 経由）` : ""}`)) : [el("li", "muted", "なし（対象のコードに、読み取れるSQLはない）")]));
+  $("tables").replaceChildren(...((p.tables ?? []).length ? p.tables!.map((t) => el("li", undefined, `${t.symbol}: ${tableText(t)}`)) : [el("li", "muted", "なし（対象のコードに、読み取れるSQLはない）")]));
   const un = $("unresolved");
   un.replaceChildren(...(p.unresolved.length ? p.unresolved.map((u) => el("li", undefined, u)) : [el("li", "muted", "なし")]));
   const ev = $("evidence");

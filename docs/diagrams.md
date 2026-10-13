@@ -4,7 +4,7 @@ inloopのレビュー依頼票（AIが`request_review`で出し、人が読ん�
 
 この文書の画像と抜粋は、手で描いたものではありません。実際のエンジン（`request_review`）が作った依頼票を、実際のレビューUIで開いて撮ったものです。作り直す手順は[末尾](#サンプルの作り直し)にあります。
 
-## 先に結論: 図は「依存の図」の1種類だけ
+## 先に結論: 図は「依存の図」と「ユースケース図」の2種類
 
 | 出力 | 形 | 何を表すか |
 |---|---|---|
@@ -13,8 +13,9 @@ inloopのレビュー依頼票（AIが`request_review`で出し、人が読ん�
 | [境界・レイヤーの印](#3-境界とレイヤーの印) | 見出しの札 | そのシンボルが属するレイヤーと、当たった信頼境界ルール |
 | [再依頼の畳み](#4-再依頼の畳み) | 見出しの札と折りたたみ | 前の依頼から変わっていないシンボル |
 | [未解決の参照](#5-未解決の参照) | 一覧と図の印 | 解析で行き先を決められなかった呼び出し |
+| [ユースケース図](#6-ユースケース図) | 図（SVG）と一覧 | HTTPの入口（ルート）ごとの、読む・書くテーブルと列、その入口へ要求を送るテスト。`inloop.json`に`usecases`を書いたアプリだけ |
 
-**ER図とデータフロー図は、生成しません。** 理由は次のとおりです。
+**ER図とデータフロー図は、生成しません。** ユースケース図は、データフロー図ではありません（入口とテーブルとテストを結ぶだけで、値の流れは追いません）。理由は次のとおりです。
 
 - データフロー図: 値がどの引数からどこへ渡るかは、今の解析エンジン（呼び出し関係までの解析）では追えません。作れないものを作れるふりをしないため、図の名前も「データの流れ」ではなく「依存の図」にしています（[ADR-0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)の「名前」）。[ADR-0002](../maintainer-guide/decisions/0002-deterministic-review-projection.md)には依頼票の構成要素として「データの流れ」と書かれていますが、実装はこの範囲までです。
 - ER図: テーブルの関係（外部キー、列の型）を図にする機能はありません。[データベースのテーブル](#2-データベースのテーブル)は、SQL文から読み取れる「どのコードがどのテーブルの何の列を読む・書くか」の一覧で、テーブルどうしの関係は含みません。
@@ -62,7 +63,7 @@ inloopのレビュー依頼票（AIが`request_review`で出し、人が読ん�
 3. 並べたシンボルどうしの使う関係を、種類つきで`edges`にする。
 4. 定義が先になる理解順に並べ、gitの差分から、変わった行（`changedLines`）と、追加・変更・変わっていないの別（`change`）を付ける。
 5. 並べたシンボルを呼び出している、ほかのシンボルを1段だけ探して`callers`にする（[ADR-0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)）。
-6. SQL文字列から、読む・書くテーブルを`tables`にする（[ADR-0026](../maintainer-guide/decisions/0026-sql-table-access.md)、[0030](../maintainer-guide/decisions/0030-indirect-sql-tables.md)、[0031](../maintainer-guide/decisions/0031-sql-columns.md)）。
+6. SQL文字列から、読む・書くテーブルを`tables`にする（[ADR-0026](../maintainer-guide/decisions/0026-sql-table-access.md)、[0030](../maintainer-guide/decisions/0030-indirect-sql-tables.md)、[0031](../maintainer-guide/decisions/0031-sql-columns.md)、[0046](../maintainer-guide/decisions/0046-usecase-map-and-naming-lint.md)）。
 7. 行き先を決められなかった参照を`unresolved`にする。
 8. `inloop.json`のルールを当てて、レイヤーと信頼境界の札を付ける。必須の依頼は、別の依頼票として足される（[ADR-0022](../maintainer-guide/decisions/0022-trust-boundary-rules.md)）。
 
@@ -217,6 +218,55 @@ inloopのレビュー依頼票（AIが`request_review`で出し、人が読ん�
 
 `removeTask → notifyRemoved`の線はあっても、`notifyRemoved`の中の`hooks[kind]`の呼び先は、線にしていません。
 
+## 6. ユースケース図
+
+**何を表すか**: HTTPの入口（`app.get("/path", …)`で登録したルート）を1つのユースケースとして、その入口のコードが読む・書くテーブルと列、その入口へ要求を送るテストを結んだ図です。左がテスト、中が入口、右がテーブルで、矢印は「テストが入口へ要求する」「入口がテーブルを読む・書く」の向きです。入口を押すと、その入口を登録しているコードへ移ります。入口のうちテストが見つからないものは、箱の右上に赤い点が付き、一覧に「テスト: なし」と出ます。
+
+**入力**: 対象のリポジトリの`inloop.json`の`usecases`（`routes`: 入口を書くファイル、`tests`: テストのファイル）と、命名規則に沿ったコード。`inloop new`の標準の構成（サーバー向け）の雛形には最初から入っています。`usecases`を書かないアプリには、何も出ません。解析は、構文とリテラルだけで決まり、AIの文は使いません（[ADR-0046](../maintainer-guide/decisions/0046-usecase-map-and-naming-lint.md)）。
+
+**例**（`tasksRoutes`の依頼）:
+
+![ユースケース図](diagrams/usecases-light.png)
+
+**この図の元（依頼票の抜粋）**: `usecases`の1件です（全体は[`diagrams/packets.json`](diagrams/packets.json)の`usecases`）。
+
+```json
+{
+  "id": "PUT /api/tasks/:id",
+  "symbol": "server/routes/tasks.ts#tasksRoutes",
+  "file": "server/routes/tasks.ts",
+  "line": 86,
+  "tables": [{ "table": "tasks", "access": "write", "columns": ["done", "due", "title", "updated_at"] }],
+  "tests": [
+    { "name": "タスクを更新して、削除できる", "file": "server/tasks.test.ts", "line": 26 },
+    { "name": "正しくない入力と、ないものは断る", "file": "server/tasks.test.ts", "line": 42 }
+  ]
+}
+```
+
+**結び付けの決まり**（`src/engine/usecases.ts`）:
+
+1. 入口は、`routes`のファイルの`app.<get|post|put|patch|delete>("/パス", …)`。`app.route("/接頭辞", xxxRoutes(db))`でマウントした先は、接頭辞をつないだ完全なパス（`PUT /api/tasks/:id`）にする。
+2. データは、入口のハンドラーのSQL、ハンドラーが呼ぶ関数のSQL、さらにその先（合わせて呼び出し2段）のSQL（[テーブルの一覧](#2-データベースのテーブル)と同じ読み方）。呼び出しの先のものは「経由」つきで出る。
+3. テストは、`tests`のファイルの`app.request("/パス", …)`。パスとメソッドをリテラルから読み、同じメソッドで、パスが合う入口に結ぶ。`/api/tasks/${id}`の`${id}`は、入口の`:id`とだけ対応する。複数の入口に合うときは、リテラルが多く一致する入口（`/tasks/new`と`/tasks/:id`なら前者）に結ぶ。どの入口にも合わない要求は、`inloop usecases`が「どの入口にも結び付かないテストの要求」として示す。
+4. 上の読み方に乗らない書き方（パスが変数、メソッドが変数、Honoの変数が`app`でない、など）は、`inloop lint`の`uc-*`で違反にして、結び付けの穴を作らない。
+
+**示さないもの**: 値の流れ（どの入力がどの列に入るか）、テストが確かめている内容（そのテストが入口を動かしていることだけを示す。結果の成功・失敗も結び付けていない）、ハンドラーが呼ぶ関数が3段以上先にあるSQL、`app.request`を通さないテスト（Playwrightなど）。ユースケースの名前も、`METHOD /パス`であって、利用者の言葉ではない。
+
+一覧は、コマンドでも出せます。
+
+```text
+$ inloop usecases
+PUT /api/tasks/:id	server/routes/tasks.ts:86
+  データ	書く tasks(done, due, title, updated_at)
+  テスト	タスクを更新して、削除できる	server/tasks.test.ts:26
+  テスト	正しくない入力と、ないものは断る	server/tasks.test.ts:42
+…
+ユースケース 8件、テストなし 1件、命名規則の違反 0件
+```
+
+（上の出力は抜粋です。実際は、依存を入れていないと`未解決`の行が並びます。）
+
 ## 作っていないもの（証拠の表示）
 
 依頼票の「証拠」（テストや静的解析の結果）も、一覧で出します（成功・失敗・未作成）。`inloop.json`に`evidence`を書いて`inloop evidence run`を動かしたときに出るもので、このサンプルの題材には設定がないため、この文書にサンプルはありません（[ADR-0024](../maintainer-guide/decisions/0024-evidence-runs.md)、[0025](../maintainer-guide/decisions/0025-evidence-symbol-binding.md)）。
@@ -247,4 +297,4 @@ node scripts/diagram-samples.mjs            # 出力先を変えるときは、�
 - [architecture.md](architecture.md): 構成と解析エンジンの方針
 - [review-protocol.md](review-protocol.md): 依頼票とツールの形
 - [gallery.md](gallery.md): 画面の写真
-- ADR: [0002](../maintainer-guide/decisions/0002-deterministic-review-projection.md)、[0015](../maintainer-guide/decisions/0015-typescript-analysis-engine-v1.md)、[0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)、[0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)、[0022](../maintainer-guide/decisions/0022-trust-boundary-rules.md)、[0026](../maintainer-guide/decisions/0026-sql-table-access.md)、[0029](../maintainer-guide/decisions/0029-folded-lines-and-reread-diff.md)、[0030](../maintainer-guide/decisions/0030-indirect-sql-tables.md)、[0031](../maintainer-guide/decisions/0031-sql-columns.md)
+- ADR: [0002](../maintainer-guide/decisions/0002-deterministic-review-projection.md)、[0015](../maintainer-guide/decisions/0015-typescript-analysis-engine-v1.md)、[0020](../maintainer-guide/decisions/0020-dependency-graph-view.md)、[0021](../maintainer-guide/decisions/0021-callers-in-dependency-graph.md)、[0022](../maintainer-guide/decisions/0022-trust-boundary-rules.md)、[0026](../maintainer-guide/decisions/0026-sql-table-access.md)、[0029](../maintainer-guide/decisions/0029-folded-lines-and-reread-diff.md)、[0030](../maintainer-guide/decisions/0030-indirect-sql-tables.md)、[0031](../maintainer-guide/decisions/0031-sql-columns.md)、[0046](../maintainer-guide/decisions/0046-usecase-map-and-naming-lint.md)

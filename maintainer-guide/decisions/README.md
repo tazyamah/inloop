@@ -65,3 +65,4 @@
 | [0043](0043-backup-export-import.md) | Accepted | 端末内で動くアプリに、データの書き出し・読み込み（バックアップ）を標準で付ける |
 | [0044](0044-chrome-extension.md) | Accepted | 端末内で動くアプリを、Chrome拡張（Manifest V3、アプリごとのID）としても出せるようにする |
 | [0045](0045-secure-code-lint.md) | Accepted | IPAの注意喚起から導いたセキュアコードの規則を`inloop lint`で検査し、違反すると雛形のテスト・ビルド、`inloop check`、scaffoldの生成を失敗させる |
+| [0046](0046-usecase-map-and-naming-lint.md) | Accepted | HTTPの入口（ユースケース）から、データ（テーブル・列）とテストへ結ぶ図を、命名規則の検査（`uc-*`）と`inloop.json`の`usecases`で作る。値の流れは作らない |

@@ -8,6 +8,7 @@ import { bindEvidence, readEvidence, testCoverage } from "./evidence.js";
 import { baseOf, changedLines, checkBase, fileAtBase } from "./diff.js";
 import { type Declaration, TsProject } from "./project.js";
 import { INDIRECT_DEPTH, tablesOf } from "./sql.js";
+import { usecaseMap, usecasesForPacket, type UseCaseMap } from "./usecases.js";
 import { CONFIG_FILE, type EvidenceSpec, type Layer, layerOf } from "./rules.js";
 import type { Evidence, ReviewCaller, ReviewEdge, ReviewKind, ReviewPacket, ReviewStep, ReviewTable } from "../server/types.js";
 
@@ -81,7 +82,9 @@ export function buildPackets(repo: string, reviews: PlannedReview[], range: stri
       if (!c) coverage.set(spec.id, (c = testCoverage(project, spec.tests ?? [])));
       return c;
     };
-    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers, specs: config.evidence, evidence, covered };
+    let ucMap: UseCaseMap | undefined;
+    const usecases = config.usecases ? () => (ucMap ??= usecaseMap(project, config.usecases!)) : undefined;
+    const ctx: Context = { project, repo, base, changed, boundaries, layers: config.layers, specs: config.evidence, evidence, covered, usecases };
     const packets = [...reviews, ...extra].map((r) => packetOf(ctx, r, range));
     const max = options.maxLines;
     if (max !== undefined) {
@@ -123,6 +126,8 @@ interface Context {
   evidence: Evidence[];
   /** `tests`を持つ検査が、呼び出す・newするシンボルのID（ADR-0025） */
   covered: (spec: EvidenceSpec) => Set<string>;
+  /** ユースケースの対応（ADR-0046）。`inloop.json`の`usecases`がなければundefined。 */
+  usecases?: () => UseCaseMap;
 }
 
 /** シンボルIDが指すものがあるか。`#`のないIDはファイル（作業ツリーか基点にあるもの）を指す（ADR-0022）。 */
@@ -203,6 +208,7 @@ function packetOf(ctx: Context, review: PlannedReview, range: string): ReviewPac
     edges: sortEdges(edges, steps, callers),
     callers,
     tables: sortTables(tables, steps),
+    ...(ctx.usecases ? { usecases: usecasesForPacket(ctx.usecases(), new Set(steps.map((s) => s.symbol))) } : {}),
     ...(review.prior ? { prior: { id: review.prior.id, same: steps.filter((s) => review.prior!.codes[s.symbol] === s.code).map((s) => s.symbol) } } : {}),
     unresolved: [...new Set(unresolved)],
     evidence: bindEvidence(ctx.specs, ctx.evidence, ctx.covered, [...new Set([...review.symbols, ...steps.filter((s) => s.change !== "unchanged").map((s) => s.symbol)])].filter((id) => id.includes("#"))),

@@ -64,6 +64,13 @@ const secureAllowSchema = z.strictObject({
   reason: z.string().trim().min(10).max(300),
 });
 
+/**
+ * ユースケースの対応（ADR-0046）。`routes`のファイルで`app.get("/path", …)`のように登録したHTTPの入口を1つのユースケースとし、
+ * `tests`のファイルの`app.request("/path", …)`から、そのユースケースを動かすテストに結び付ける。
+ * 書くと、命名規則の検査（`inloop lint`の`uc-*`）が働く。書かないアプリには何も変わらない。
+ */
+const usecasesSchema = z.strictObject({ routes: patterns, tests: patterns });
+
 const VERSION = /^\d+\.\d+\.\d+$/;
 
 const configSchema = z.strictObject({
@@ -74,17 +81,20 @@ const configSchema = z.strictObject({
   layers: z.array(layerSchema).optional(),
   evidence: z.array(evidenceSchema).optional(),
   secure: z.strictObject({ allow: z.array(secureAllowSchema) }).optional(),
+  usecases: usecasesSchema.optional(),
 });
 
 export type SecureAllow = z.infer<typeof secureAllowSchema>;
 export type Layer = z.infer<typeof layerSchema>;
 export type EvidenceSpec = z.infer<typeof evidenceSchema>;
+export type UseCaseSpec = z.infer<typeof usecasesSchema>;
 export interface Config {
   minVersion?: string;
   rules: Rule[];
   layers: Layer[];
   evidence: EvidenceSpec[];
   secure: SecureAllow[];
+  usecases?: UseCaseSpec;
 }
 
 export type Matcher = z.infer<typeof matcherSchema>;
@@ -130,7 +140,7 @@ export function parseFullConfig(text: string, where: string): Config {
     if (evidenceIds.has(e.id)) throw new Error(`${where}: 証拠のidが重なっている ${e.id}`);
     evidenceIds.add(e.id);
   }
-  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [], secure: r.data.secure?.allow ?? [] };
+  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [], secure: r.data.secure?.allow ?? [], usecases: r.data.usecases };
 }
 
 /**

@@ -12,6 +12,8 @@ import { answersOf } from "./server/wait.js";
 import { loadConfig } from "./engine/boundaries.js";
 import { runEvidence } from "./engine/evidence.js";
 import { formatFinding, lintRepo } from "./engine/secure.js";
+import { TsProject } from "./engine/project.js";
+import { usecaseMap } from "./engine/usecases.js";
 import { checkRequired } from "./server/check.js";
 import { defineResource, plan as scaffoldPlan, write as scaffoldWrite } from "./scaffold.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
@@ -32,6 +34,7 @@ const USAGE = `使い方: inloop <コマンド>
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
   check [--repo <dir>] [--range <範囲>]              信頼境界ルールが求める必須の依頼が、すべて承認済みかを確かめる
   lint [--repo <dir>]                                セキュアコードの規則（IPAの注意喚起から導いたもの）に反するコードがないかを検査する。反するものがあれば終了コード1
+  usecases [--repo <dir>]                            inloop.jsonのusecasesに沿って、入口（HTTPのルート）ごとのデータ（テーブル・列）とテストを一覧にする（ADR-0046）
   evidence run [<id>...] [--repo <dir>]              inloop.jsonに書いた検査（テストなど）を実行し、結果を依頼票の証拠にする
   update                                             inloopを更新してビルドし直す
 `;
@@ -234,10 +237,48 @@ function lint(args: string[]): boolean {
   const repoArg = option(args, "--repo");
   if (args.length > 0) throw new Error(`知らない引数 ${args.join(" ")}`);
   const repo = gitTopLevel(resolve(repoArg ?? "."));
-  const findings = lintRepo(repo, loadConfig(repo, "HEAD").secure);
+  const config = loadConfig(repo, "HEAD");
+  const findings = lintRepo(repo, config.secure);
+  // 命名規則（ADR-0046）。inloop.jsonにusecasesを書いたアプリだけに働く。例外の書き方は作らない。
+  if (config.usecases) {
+    const project = new TsProject(repo);
+    try {
+      findings.push(...usecaseMap(project, config.usecases).findings);
+    } finally {
+      project.close();
+    }
+  }
   for (const f of findings) process.stdout.write(`${formatFinding(f)}\n`);
   process.stdout.write(findings.length === 0 ? "セキュアコードの検査: 違反なし\n" : `セキュアコードの検査: 違反が${findings.length}件ある\n`);
   return findings.length === 0;
+}
+
+/** 入口ごとのデータとテストを一覧にする（ADR-0046）。命名規則の違反があれば終了コード1。 */
+function usecases(args: string[]): void {
+  const repoArg = option(args, "--repo");
+  if (args.length > 0) throw new Error(`知らない引数 ${args.join(" ")}`);
+  const repo = gitTopLevel(resolve(repoArg ?? "."));
+  const spec = loadConfig(repo, "HEAD").usecases;
+  if (!spec) throw new Error("inloop.json に usecases がない（routes と tests のファイルを書く）");
+  const project = new TsProject(repo);
+  try {
+    const map = usecaseMap(project, spec);
+    const w = (line: string) => process.stdout.write(`${line}\n`);
+    for (const u of map.usecases) {
+      w(`${u.id}\t${u.file}:${u.line}`);
+      for (const t of u.tables) w(`  データ\t${{ read: "読む", write: "書く", schema: "スキーマ" }[t.access]} ${t.table}${t.columns ? `(${t.columns.join(", ")})` : ""}${t.via ? `（${t.via.map((v) => v.slice(v.indexOf("#") + 1)).join(" → ")} 経由）` : ""}`);
+      if (u.tables.length === 0) w("  データ\t（読み取れるSQLなし）");
+      for (const t of u.tests) w(`  テスト\t${t.name}\t${t.file}:${t.line}`);
+      if (u.tests.length === 0) w("  テスト\t（なし）");
+      for (const x of u.unresolved) w(`  未解決\t${x}`);
+    }
+    for (const x of map.unlinked) w(`どの入口にも結び付かないテストの要求\t${x}`);
+    for (const f of map.findings) w(formatFinding(f));
+    w(`ユースケース ${map.usecases.length}件、テストなし ${map.usecases.filter((u) => u.tests.length === 0).length}件、命名規則の違反 ${map.findings.length}件`);
+    if (map.findings.length > 0) process.exitCode = 1;
+  } finally {
+    project.close();
+  }
 }
 
 /** inloop.jsonの`evidence`の検査を実行して記録する（ADR-0024）。1つでもfailなら終了コード1。 */
@@ -288,6 +329,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "lint":
         if (!lint(args)) process.exitCode = 1;
+        return;
+      case "usecases":
+        usecases(args);
         return;
       case "evidence":
         evidence(args);

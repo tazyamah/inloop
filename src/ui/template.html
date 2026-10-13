@@ -58,7 +58,7 @@ button:disabled{opacity:.5;cursor:default}
 #toast[hidden]{display:none}
 #toast.err{background:var(--req)}
 .muted{color:var(--muted);font-size:12px}
-#graph{overflow-x:auto;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--soft)}
+#graph,#usecase-diagram{overflow-x:auto;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--soft)}
 .graph{display:block}
 .g-node{cursor:pointer}
 .g-node rect{fill:var(--bg);stroke:var(--line)}
@@ -82,6 +82,14 @@ button:disabled{opacity:.5;cursor:default}
 .step.caller{border-style:dashed}
 .g-node.g-caller rect{fill:var(--bg);stroke-dasharray:4 3}
 .g-node.g-caller .g-name{font-weight:400}
+.g-node.u-test rect{fill:var(--soft)}
+.g-node.u-case .g-name{font-weight:600}
+.g-node.u-table rect{fill:var(--add)}
+.g-edge.u-write{stroke:var(--accent);stroke-width:2}
+.g-edge.u-request{stroke-width:1}
+.uc-untested{color:var(--req)}
+#usecases{padding-left:18px}
+#usecases li{margin-bottom:6px}
 </style>
 </head>
 <body>
@@ -99,6 +107,12 @@ button:disabled{opacity:.5;cursor:default}
     <div id="own-box" hidden>
       <h2>この依頼への回答</h2>
       <ul id="own"></ul>
+    </div>
+    <div id="usecases-box" hidden>
+      <h2>ユースケース図（対象のコードにつながる入口と、そのデータ・テスト）</h2>
+      <div class="muted">左: その入口へ要求を送るテスト。中: 入口（押すとコードへ移る）。右: 入口のSQLが読む・書くテーブル。値の流れ（どの入力がどの列に入るか）と、テストが確かめている内容は示さない。</div>
+      <div id="usecase-diagram"></div>
+      <ul id="usecases"></ul>
     </div>
     <div id="graph-box" hidden>
       <h2>依存の図（矢印は uses → used by（使う側 → 使われる側）。実線は呼び出し・new、破線は型・継承。太枠はAIの指定、点線の枠は呼び出し元）</h2>

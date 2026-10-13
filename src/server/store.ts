@@ -497,6 +497,19 @@ const packetSchema = z.object({
     columns: z.array(z.string().min(1)).min(1).optional(),
     via: z.array(z.string().min(1)).min(1).optional(),
   })).optional(),
+  usecases: z.array(z.object({
+    id: z.string().min(1),
+    symbol: z.string().min(1),
+    file: z.string(),
+    line: lineNumber,
+    tables: z.array(z.object({
+      table: z.string().min(1),
+      access: z.enum(["read", "write", "schema"]),
+      columns: z.array(z.string().min(1)).min(1).optional(),
+      via: z.array(z.string().min(1)).min(1).optional(),
+    })),
+    tests: z.array(z.object({ name: z.string(), file: z.string(), line: lineNumber })),
+  })).optional(),
   prior: z.object({ id: idSchema, same: z.array(z.string()) }).optional(),
   unresolved: z.array(z.string()),
   evidence: z.array(z.object({
@@ -518,6 +531,9 @@ const packetSchema = z.object({
   });
   p.tables?.forEach((t, i) => {
     if (!symbols.has(t.symbol)) ctx.addIssue({ code: "custom", path: ["tables", i], message: "依頼票にないシンボル" });
+  });
+  p.usecases?.forEach((u, i) => {
+    if (!symbols.has(u.symbol)) ctx.addIssue({ code: "custom", path: ["usecases", i], message: "依頼票にないシンボル" });
   });
   p.edges?.forEach((e, i) => {
     if (!(symbols.has(e.from) || callers.has(e.from)) || !symbols.has(e.to)) ctx.addIssue({ code: "custom", path: ["edges", i], message: "依頼票にないシンボル" });

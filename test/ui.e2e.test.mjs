@@ -379,3 +379,34 @@ test("呼び出し元を図の右の列に点線の枠で出し、コードは�
     await browser.close();
   }
 });
+
+test("ユースケース図: テスト→入口→テーブルを描き、入口を押すとコードへ移る。テストのない入口を示す（ADR-0046）", { skip: !enabled }, async () => {
+  const repo = makeRepo("usecases");
+  const hono = "declare class Hono { get(p: string, ...h: unknown[]): void; post(p: string, ...h: unknown[]): void; request(p: string, o?: unknown): Promise<unknown> }\ndeclare const db: { prepare(s: string): { all(): unknown[]; run(...a: unknown[]): unknown } };\n";
+  writeFileSync(join(repo, "src", "routes.ts"), `${hono}export function itemsRoutes() {\n  const app = new Hono();\n  app.get("/", () => db.prepare("SELECT id, name FROM items").all());\n  app.post("/", () => db.prepare("INSERT INTO items (name) VALUES (?)").run("x"));\n  app.get("/ping", () => "ok");\n  return app;\n}\n\nexport function createApp() {\n  const app = new Hono();\n  app.route("/api/items", itemsRoutes());\n  return app;\n}\n`.replace('  app.route("/api/items", itemsRoutes());\n', '  app.route("/api/items", itemsRoutes());\n'));
+  writeFileSync(join(repo, "src", "routes.test.ts"), `declare class Hono { request(p: string, o?: unknown): Promise<unknown> }\ndeclare const app: Hono;\ndeclare const test: (n: string, f: () => void) => void;\ntest("一覧と追加", async () => {\n  await app.request("/api/items");\n  await app.request("/api/items", { method: "POST" });\n});\n`);
+  writeFileSync(join(repo, "inloop.json"), JSON.stringify({ format: 1, boundaries: [], usecases: { routes: ["src/routes.ts"], tests: ["src/routes.test.ts"] } }));
+  execFileSync("git", ["-C", repo, "add", "-A"]);
+  execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "uc"]);
+  const { browser, page, view, errors } = await setup({
+    target: new Targets({ repo }),
+    prepare: async () => ({ reviews: [{ viewpoint: "入口のデータとテストは足りているか", symbols: ["src/routes.ts#itemsRoutes"] }], range: "HEAD" }),
+  });
+  try {
+    await view.locator("#usecases-box").waitFor({ state: "visible", timeout: 5000 });
+    assert.equal(await view.locator(".usecase-diagram .u-case").count(), 3);
+    assert.equal(await view.locator(".usecase-diagram .u-test").count(), 1, "テストは1つで、2つの入口につながる");
+    assert.equal(await view.locator(".usecase-diagram .u-table").count(), 1);
+    const x = async (sel) => (await view.locator(`.usecase-diagram ${sel}`).first().boundingBox()).x;
+    assert.ok(await x(".u-test") < await x(".u-case") && await x(".u-case") < await x(".u-table"), "左: テスト、中: 入口、右: テーブル");
+    assert.equal(await view.locator('.u-case[data-usecase="GET /api/items/ping"] .g-sub').textContent(), "テストなし");
+    assert.match(await view.locator("#usecases li", { hasText: "POST /api/items" }).textContent(), /データ: 書く items\(name\)[\s\S]*テスト: 一覧と追加（src\/routes\.test\.ts:6）/);
+    assert.match(await view.locator("#usecases .uc-untested").textContent(), /テスト: なし/);
+    await view.locator('.u-case[data-usecase="POST /api/items"]').click();
+    await view.locator('.step.flash[data-symbol="src/routes.ts#itemsRoutes"]').waitFor({ timeout: 5000 });
+    await shot(page, "usecase-diagram");
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
