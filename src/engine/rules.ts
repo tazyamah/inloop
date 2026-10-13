@@ -51,6 +51,19 @@ const evidenceSchema = z.strictObject({
   tests: z.array(z.string().min(1).max(300)).min(1).optional(),
 });
 
+/** セキュアコードの検査（ADR-0045）の規則id。 */
+export const SECURE_RULE_IDS = [
+  "sec-sql-literal", "sec-shell", "sec-eval", "sec-html", "sec-secret", "sec-crypto", "sec-tls",
+  "sec-cleartext", "sec-bind", "sec-cors", "sec-cookie", "sec-log", "sec-stack", "sec-unchecked",
+] as const;
+
+/** 検査の例外（ADR-0045）。ファイル単位で、理由を書く。inloop.jsonの変更なので、組み込みのルール`inloop-config`で人が確かめる。 */
+const secureAllowSchema = z.strictObject({
+  rule: z.enum(SECURE_RULE_IDS),
+  files: patterns,
+  reason: z.string().trim().min(10).max(300),
+});
+
 const VERSION = /^\d+\.\d+\.\d+$/;
 
 const configSchema = z.strictObject({
@@ -60,8 +73,10 @@ const configSchema = z.strictObject({
   boundaries: z.array(ruleSchema),
   layers: z.array(layerSchema).optional(),
   evidence: z.array(evidenceSchema).optional(),
+  secure: z.strictObject({ allow: z.array(secureAllowSchema) }).optional(),
 });
 
+export type SecureAllow = z.infer<typeof secureAllowSchema>;
 export type Layer = z.infer<typeof layerSchema>;
 export type EvidenceSpec = z.infer<typeof evidenceSchema>;
 export interface Config {
@@ -69,6 +84,7 @@ export interface Config {
   rules: Rule[];
   layers: Layer[];
   evidence: EvidenceSpec[];
+  secure: SecureAllow[];
 }
 
 export type Matcher = z.infer<typeof matcherSchema>;
@@ -114,7 +130,7 @@ export function parseFullConfig(text: string, where: string): Config {
     if (evidenceIds.has(e.id)) throw new Error(`${where}: 証拠のidが重なっている ${e.id}`);
     evidenceIds.add(e.id);
   }
-  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [] };
+  return { minVersion: r.data.minVersion, rules: r.data.boundaries, layers: r.data.layers ?? [], evidence: r.data.evidence ?? [], secure: r.data.secure?.allow ?? [] };
 }
 
 /**

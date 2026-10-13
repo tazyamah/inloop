@@ -71,6 +71,18 @@
           "import": "node:child_process"
         }
       ]
+    },
+    {
+      "id": "secure-gate",
+      "question": "セキュアコードの検査（inloop lint）を、package.jsonのscriptsから外したり、tsconfig.jsonのincludeを狭めて検査の対象から外したりしていないか。追加した依存は、必要で信頼できるものか",
+      "match": [
+        {
+          "files": [
+            "**/package.json",
+            "**/tsconfig.json"
+          ]
+        }
+      ]
     }
   ],
   "layers": [

@@ -21,6 +21,7 @@
 - 端末どうしの共有（ADR-0040、ADR-0041）: `inloop new <名前> --sync`で、承認方式・暗号化・中継つきの共有を作れる（ローカルの中継と2つのブラウザまで確認）。`~/work/shopping`は旧方式（ADR-0040）のままで、新しい雛形へ移し直す予定。iPhone実機2台で承認の流れを確認済み（2026-10-13）。別のオーナーの検出の実機での表示は未（テストで確認）。`inloop generate scaffold`は、`--sync`のアプリにも使える（ADR-0042、生成した表の実機での同期は未）。
 - データの書き出し・読み込み（ADR-0043）: `--standalone`・`--sync`の雛形に「データ」画面を入れた（Chromiumまで確認、iPhoneは未）。
 - Chrome拡張（ADR-0044）: `npm run build:extension`で`dist/extension`を出す。アプリごとのIDで、中継に拡張のオリジンを許可する（実際のChromeへの読み込みとポップアップでの動作を確認済み、2026-10-13）。
+- セキュアコードの検査（ADR-0045）: `inloop lint`と、雛形の`npm test`・`npm run build`、`inloop check`、scaffoldの生成での検査を実装した。自動テストまで。実際のClaude Codeでの使用と、既存のアプリでの偽陽性は未確認。
 - 保管中の作業: PostgreSQLの雛形とSQL解析は、ブランチ`claude/postgres-template`に未マージで置いてある（PR 18は閉じた。他のミドルウェアはずっと後の方針のため）。
 - npmでの名前の確保は行わない方針（`package.json`は`private: true`）。商標（J-PlatPat、USPTO）は未確認。
 
@@ -37,6 +38,7 @@
 
 ## 未検証事項
 
+- セキュアコードの検査（ADR-0045）を、実際のClaude Codeの会話で、AIが違反を書いたときに自力で直せるか。既存のアプリ（`~/work/shopping`など）での偽陽性。
 - `--standalone`（ADR-0039）で作ったアプリの、Android。Chrome拡張でのWASMとOPFS。複数タブ、容量、ブラウザのデータの自動削除。scaffoldで作った画面のブラウザ上の操作。
 - `inloop generate scaffold`（ADR-0038）を、実際のClaude Codeの会話でAIが使うこと。生成した画面のライトテーマ、狭い画面、`--desktop`のアプリでの表示。古い雛形のアプリ（目印がない）での案内。
 - 「AIがローカルのrepositoryを編集できる」ことと「MCP AppsのUIを表示できる」ことを、同じ画面で両立できるクライアント。

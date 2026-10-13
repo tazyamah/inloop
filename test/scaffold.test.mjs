@@ -128,7 +128,8 @@ test("共有のアプリで生成したAPIの表と列を、依頼票が読み�
 test("生成したアプリの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
   const { dir, run } = newApp();
   assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int").status, 0);
-  const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8" });
+  // 雛形のnpm testとnpm run buildは`inloop lint`を動かすので、inloopのbin/にパスを通す。
+  const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dirname(BIN)}:${process.env.PATH}` } });
   assert.equal(sh("npm install").status, 0);
   const t = sh("npm test");
   assert.equal(t.status, 0, t.stdout + t.stderr);
@@ -139,7 +140,8 @@ test("生成したアプリの npm test と npm run build が通る", { skip: pr
 test("共有のアプリで生成したものの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
   const { dir, run } = newApp("--sync");
   assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int").status, 0);
-  const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8" });
+  // 雛形のnpm testとnpm run buildは`inloop lint`を動かすので、inloopのbin/にパスを通す。
+  const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dirname(BIN)}:${process.env.PATH}` } });
   assert.equal(sh("npm install").status, 0);
   const t = sh("npm test");
   assert.equal(t.status, 0, t.stdout + t.stderr);

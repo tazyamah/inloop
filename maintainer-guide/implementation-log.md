@@ -449,3 +449,10 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 未検証: 実際のChromeへの読み込みの画面操作と、ポップアップの見た目。
 - 実機の確認（利用者のスクリーンショット、2026-10-13）: 買い物リストの拡張を、実際のChromeに「パッケージ化されていない拡張機能」として読み込めた。IDは、アプリごとに決めた値と一致。ポップアップに買い物リストが開き、品物の追加と、保存先の表示（OPFS）を確認。
 
+## 2026-10-13 セキュアコードの検査（ADR-0045）
+
+- `src/engine/secure.ts`（14の規則、構文木で検査）、`inloop lint`、`inloop check`と`inloop generate scaffold`からの呼び出し、`inloop.json`の`secure.allow`、`TsProject`の`tsconfig.json`の指定と`syntax()`、雛形4種の`package.json`・`inloop.json`（`secure-gate`、例外）・AGENTS.md、`test/secure.test.mjs`。
+- 検証: `npm test`で`test/secure.test.mjs`の7件が通る。全体は121 pass・15 skip・fail 1。失敗の1件は`inloop new --sync`のテストの`web/.env.production`で、この変更の前（`main`）でも同じに失敗する（クローンに`.env.production`が入っていない）。
+- 気づき: 雛形のうち`--standalone`・`--sync`には、SQLを受け渡すだけの層と、実在する表名を引用して組み立てるバックアップがあり、規則に当たるので、理由つきの`secure.allow`にした。
+- 未検証: 実際のClaude Codeでの使用。既存のアプリでの偽陽性。`INLOOP_APP_E2E=1`の全体。
+

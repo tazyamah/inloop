@@ -11,6 +11,7 @@ import { gitTopLevel } from "./server/target.js";
 import { answersOf } from "./server/wait.js";
 import { loadConfig } from "./engine/boundaries.js";
 import { runEvidence } from "./engine/evidence.js";
+import { formatFinding, lintRepo } from "./engine/secure.js";
 import { checkRequired } from "./server/check.js";
 import { defineResource, plan as scaffoldPlan, write as scaffoldWrite } from "./scaffold.js";
 import { appOrigin, ensureUiServer, probeUiServer, startUiServer, stopUiServer } from "./server/ui-server.js";
@@ -30,6 +31,7 @@ const USAGE = `使い方: inloop <コマンド>
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す
   check [--repo <dir>] [--range <範囲>]              信頼境界ルールが求める必須の依頼が、すべて承認済みかを確かめる
+  lint [--repo <dir>]                                セキュアコードの規則（IPAの注意喚起から導いたもの）に反するコードがないかを検査する。反するものがあれば終了コード1
   evidence run [<id>...] [--repo <dir>]              inloop.jsonに書いた検査（テストなど）を実行し、結果を依頼票の証拠にする
   update                                             inloopを更新してビルドし直す
 `;
@@ -144,6 +146,8 @@ function generate(args: string[]): void {
   const p = scaffoldPlan(repo, resource);
   scaffoldWrite(repo, p);
   process.stdout.write([...p.create.map((f) => `作りました: ${f.path}`), ...p.edit.map((f) => `書き換えました: ${f.path}`), "次に: npm test && npm run dev（画面の「" + resource.label + "」から使える）", ""].join("\n"));
+  // 生成したコードが、セキュアコードの規則（ADR-0045）に反していないかを確かめる。
+  if (!lint(["--repo", repo])) process.exitCode = 1;
 }
 
 /** cloneしたinloopを更新し、ビルドし直す。 */
@@ -216,12 +220,24 @@ function check(args: string[]): void {
   const lines = checkRequired(repo, range, new ReviewStore(existsSync(file) ? { file } : {}));
   for (const l of lines) process.stdout.write(`${l.state}\t${l.id ?? "-"}\t${l.symbol}\t${l.rules.join(",")}\n`);
   const bad = lines.filter((l) => l.state !== "ok").length;
-  if (bad === 0) {
-    process.stdout.write(`必須の依頼はすべて承認済み（${lines.length}件）\n`);
-    return;
+  if (bad === 0) process.stdout.write(`必須の依頼はすべて承認済み（${lines.length}件）\n`);
+  else {
+    process.stdout.write(`承認されていない必須の依頼がある（${bad}/${lines.length}件）。request_review を呼ぶと、必須の依頼が加わる\n`);
+    process.exitCode = 1;
   }
-  process.stdout.write(`承認されていない必須の依頼がある（${bad}/${lines.length}件）。request_review を呼ぶと、必須の依頼が加わる\n`);
-  process.exitCode = 1;
+  // セキュアコードの検査（ADR-0045）も、マージの条件に含める。
+  if (!lint([...(repoArg ? ["--repo", repoArg] : [])])) process.exitCode = 1;
+}
+
+/** セキュアコードの規則に反するコードを検査する（ADR-0045）。反するものがなければtrue。 */
+function lint(args: string[]): boolean {
+  const repoArg = option(args, "--repo");
+  if (args.length > 0) throw new Error(`知らない引数 ${args.join(" ")}`);
+  const repo = gitTopLevel(resolve(repoArg ?? "."));
+  const findings = lintRepo(repo, loadConfig(repo, "HEAD").secure);
+  for (const f of findings) process.stdout.write(`${formatFinding(f)}\n`);
+  process.stdout.write(findings.length === 0 ? "セキュアコードの検査: 違反なし\n" : `セキュアコードの検査: 違反が${findings.length}件ある\n`);
+  return findings.length === 0;
 }
 
 /** inloop.jsonの`evidence`の検査を実行して記録する（ADR-0024）。1つでもfailなら終了コード1。 */
@@ -269,6 +285,9 @@ export async function main(argv: string[]): Promise<void> {
         return;
       case "check":
         check(args);
+        return;
+      case "lint":
+        if (!lint(args)) process.exitCode = 1;
         return;
       case "evidence":
         evidence(args);

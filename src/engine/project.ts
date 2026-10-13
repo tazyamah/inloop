@@ -62,8 +62,9 @@ export class TsProject {
   private readonly files = new Map<string, string>();
   private readonly declarations = new Map<string, Declaration[]>();
 
-  constructor(private readonly repo: string) {
-    const config = join(repo, "tsconfig.json");
+  /** `configFile`は、リポジトリからのtsconfigのパス。既定は直下のtsconfig.json。 */
+  constructor(private readonly repo: string, configFile = "tsconfig.json") {
+    const config = join(repo, configFile);
     if (!existsSync(config)) throw new Error(`${repo}: tsconfig.json がない（TypeScriptのプロジェクトとして解析できない）`);
     this.api = new API({ cwd: repo });
     const project = this.api.updateSnapshot({ openProject: config }).getProjects()[0];
@@ -363,6 +364,11 @@ export class TsProject {
   /** ファイルの中身。プロジェクトにないファイルならundefined。 */
   text(relFile: string): string | undefined {
     return this.sourceOf(relFile)?.text;
+  }
+
+  /** ファイルの構文木（セキュアコードの検査、ADR-0045）。プロジェクトにないファイルならundefined。 */
+  syntax(relFile: string): SourceFile | undefined {
+    return this.sourceOf(relFile);
   }
 
   private sourceOf(relFile: string): SourceFile | undefined {
