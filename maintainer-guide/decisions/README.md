@@ -61,4 +61,7 @@
 | [0039](0039-standalone-in-browser-runtime.md) | Accepted | サーバーなしで端末内（ブラウザ・PWA）で動く構成`--standalone`を足す。HonoをWeb Workerで動かし、SQLiteはsqlite-wasm（OPFS）に差し替える |
 | [0040](0040-e2e-encrypted-sync-relay.md) | Accepted | 端末どうしの同期は、端末のSQLiteを正にし、暗号化した変更を小さな中継（Cloudflare Workers）で受け渡す |
 | [0041](0041-approval-based-sync.md) | Accepted | 共有は、オーナーの承認と端末ごとの鍵で行い、別のオーナーを検出してアラートにし、標準のオプション`--sync`にする（ADR-0040の共有コードによる参加をSupersedes） |
+| [0042](0042-scaffold-for-sync-apps.md) | Accepted | `inloop generate scaffold`を共有（`--sync`）のアプリに対応させる（ADR-0041の「まだ使えない」の部分をSupersedes） |
+| [0043](0043-backup-export-import.md) | Accepted | 端末内で動くアプリに、データの書き出し・読み込み（バックアップ）を標準で付ける |
+| [0044](0044-chrome-extension.md) | Accepted | 端末内で動くアプリを、Chrome拡張（Manifest V3、アプリごとのID）としても出せるようにする |
 

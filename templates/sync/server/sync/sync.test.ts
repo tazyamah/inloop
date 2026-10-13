@@ -421,6 +421,11 @@ test("届いた行の検証: 形の合わない行は捨てる", () => {
   const table = TEST_TABLE;
   const good = { table: "sync_test", uid: "11111111-1111-1111-1111-111111111111", body: "ok", deleted: 0, created_at: 1, updated_at: 2 };
   assert.ok(validateRow(table, good));
+  // 整数（負の数も）、数、省略できる列（null）。
+  const wide: SyncTable = { name: "wide", columns: { n: { type: "int" }, r: { type: "real" }, memo: { type: "text", optional: true, max: 5 }, ok: { type: "bool" } } };
+  const w = { table: "wide", uid: good.uid, n: -3, r: 1.5, memo: null, ok: true, deleted: 0, created_at: 1, updated_at: 2 };
+  assert.deepEqual(validateRow(wide, w), { uid: good.uid, deleted: 0, created_at: 1, updated_at: 2, n: -3, r: 1.5, memo: null, ok: 1 });
+  for (const bad of [{ ...w, n: 1.5 }, { ...w, r: Infinity }, { ...w, memo: "長すぎる文字列" }, { ...w, r: "1" }, { ...w, ok: "yes" }]) assert.equal(validateRow(wide, bad), null);
   for (const bad of [{ ...good, table: "other" }, { ...good, uid: "../x" }, { ...good, body: "" }, { ...good, body: "x".repeat(1001) }, { ...good, deleted: 2 }, { ...good, updated_at: -1 }, null, "x"]) {
     assert.equal(validateRow(table, bad), null);
   }

@@ -428,3 +428,24 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 気づき: `wrangler pages deploy`の直後は、数秒、522が返る。`ALLOWED_ORIGINS`は、Pagesの最初のデプロイで決まるURLを入れて、中継を置き直す必要がある（READMEの手順4）。
 - 実機の確認（利用者の発言、2026-10-13）: iPhone 2台で、新しい買い物リストの承認の流れが動いた。PR #20（端末内で動く構成、更新通知、承認方式の共有）がマージされた。別のオーナーの検出は、実機では見ていない（本番の中継は、偽の記録をその場で断るため。デモ用の中継の公開は見送り、テストでの確認にとどめた）。
 
+## 2026-10-13 scaffoldの`--sync`対応（ADR-0042）
+
+- `src/scaffold.ts`: `server/sync-tables.ts`があるアプリでは、`uid`・`deleted`・`dirty`つきの表、同期する表の定義、`uid`で扱うAPI・テスト・画面を作る。同期の仕組みの列の型に、`real`・`null`（省略できる列）・負の整数を足した（`templates/sync/server/sync/engine.ts`）。
+- 検証（macOS）: `npm test`が114 pass・15 skip・fail 0。`INLOOP_APP_E2E=1`で、共有のアプリで`task`を生成して`npm install`・`npm test`・`npm run build`が通った。依頼票が、生成したAPIの表と列を読み取れる。
+- 未検証: 生成した表の、2台の実機での同期。
+
+## 2026-10-13 データの書き出し・読み込み（ADR-0043）
+
+- `templates/standalone/server/backup.ts`・`backup.test.ts`、`web/src/pages/Backup.tsx`、`app.ts`・`App.tsx`（標準の雛形に重ねる）。`--sync`の雛形にも、同じ画面と、読み込み後に`sync.touch()`を呼ぶ`app.ts`を入れた。`inloop.json`に`backup`ルール。
+- 検証（macOS）: `npm test`が114 pass・15 skip・fail 0（このリポジトリ）。生成した`--standalone`のアプリで6 pass、`--sync`のアプリで21 passで、`npm run build`が通った。Chromiumで、書き出し→別の保存領域へ読み込み→メモが戻る、不正なファイルを断る、を確認。
+- 気づき: (1) 書き出したファイルの`dirty`の値のまま読み込むと、共有先に送られないので、共有する表では`dirty = 1`にする。(2) ヘッドレスのChromiumは、ファイルの共有（`canShare`）が使えると答えるのに共有できないので、共有メニューは、タッチ操作の端末だけで使い、失敗したらダウンロードにする。(3) 同じアプリを2つの`INLOOP_HOME`なしで作ると、アプリ名が重なって断られる（テストで、別の`INLOOP_HOME`を使う）。
+- 未検証: iPhoneでの、共有メニューからの保存と、ファイルの読み込み。
+
+## 2026-10-13 Chrome拡張（ADR-0044）
+
+- `templates/standalone/web/extension/manifest.json`、`vite.config.ts`（`--mode extension`）、`web/src/extension.css`、`main.tsx`・`offline.ts`の調整、`npm run build:extension`。`src/cli.ts`の`extensionKey()`（アプリごとのRSA鍵から、拡張のIDとmanifestの`key`）、`--sync`の中継に拡張のオリジンを許可。`templates/sync/package.json`は、標準の雛形と同じ内容の重複だったので消した。
+- 検証（macOS）: `npm test`が115 pass・15 skip・fail 0。生成した`--sync`のアプリで`npm run build:extension`が通り、Chrome for Testingに読み込んで、ポップアップのページの保存・再読み込み後の保持、拡張から、ローカルの中継（拡張のオリジンだけを許可）への共有の開始を確認。
+- 気づき: (1) Manifest V3の既定のCSPには`'wasm-unsafe-eval'`がなく、sqlite-wasmがCSPで断られる（manifestに足した）。(2) Viteは、`--mode extension`では`.env.production`を読まないので、`loadEnv("production")`で読んで`define`に入れた。(3) ヘッドレスのPlaywrightで拡張を読み込むには、`headless: false`に`--headless=new`を付け、`--load-extension`を渡す。
+- 未検証: 実際のChromeへの読み込みの画面操作と、ポップアップの見た目。
+- 実機の確認（利用者のスクリーンショット、2026-10-13）: 買い物リストの拡張を、実際のChromeに「パッケージ化されていない拡張機能」として読み込めた。IDは、アプリごとに決めた値と一致。ポップアップに買い物リストが開き、品物の追加と、保存先の表示（OPFS）を確認。
+

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
+import { Backup } from "./pages/Backup.tsx";
 import { Notes } from "./pages/Notes.tsx";
 import { Share } from "./pages/Share.tsx";
 // inloop:imports
@@ -7,6 +8,7 @@ import { Share } from "./pages/Share.tsx";
 const pages: { path: string; label: string; Page: ComponentType }[] = [
   { path: "notes", label: "メモ", Page: Notes },
   { path: "share", label: "共有", Page: Share },
+  { path: "backup", label: "データ", Page: Backup },
   // inloop:pages
 ];
 

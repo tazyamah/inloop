@@ -69,9 +69,21 @@ const sqlType: Record<FieldType, string> = { text: "TEXT", int: "INTEGER", real:
 const tsType: Record<FieldType, string> = { text: "string", int: "number", real: "number", bool: "boolean", date: "string" };
 const jsStr = (s: string): string => JSON.stringify(s);
 
-/** `CREATE TABLE`の文（`db.ts`の`db.exec`に入れる）。 */
-export function createTableSql(r: Resource): string {
+/** `CREATE TABLE`の文（`db.ts`の`db.exec`に入れる）。sync は、共有（`--sync`）のアプリ用（ADR-0041）。 */
+export function createTableSql(r: Resource, sync = false): string {
   const cols = r.fields.map((f) => `    ${f.name} ${sqlType[f.type]}${f.optional ? "" : " NOT NULL"}`);
+  if (sync) {
+    return [
+      `CREATE TABLE IF NOT EXISTS ${r.plural} (`,
+      "    uid TEXT PRIMARY KEY,",
+      ...cols.map((c) => `${c},`),
+      "    deleted INTEGER NOT NULL DEFAULT 0,",
+      "    created_at INTEGER NOT NULL,",
+      "    updated_at INTEGER NOT NULL,",
+      "    dirty INTEGER NOT NULL DEFAULT 1",
+      "  )",
+    ].join("\n  ");
+  }
   return [
     `CREATE TABLE IF NOT EXISTS ${r.plural} (`,
     "    id INTEGER PRIMARY KEY AUTOINCREMENT,",
@@ -367,6 +379,189 @@ ${r.fields.map(input).join("\n")}
 `;
 }
 
+// ── 共有（`--sync`）のアプリ用（ADR-0041）──
+// 同期する表は、uid（文字列の主キー）、created_at・updated_at（ミリ秒）、deleted（消したら行を残す）、dirty（中継に未送信）を持つ。
+
+/** `server/sync-tables.ts`に足す1行。 */
+export function syncTableEntry(r: Resource): string {
+  const col = (f: Field): string => {
+    const type = f.type === "date" ? "text" : f.type;
+    const max = f.type === "text" ? ", max: 1000" : f.type === "date" ? ", max: 10" : "";
+    return `${f.name}: { type: ${jsStr(type)}${max}${f.optional ? ", optional: true" : ""} }`;
+  };
+  return `{ name: ${jsStr(r.plural)}, columns: { ${r.fields.map(col).join(", ")} } },`;
+}
+
+export function syncRouteSource(r: Resource): string {
+  const T = pascal(r.name);
+  const cols = r.fields.map((f) => f.name);
+  const colList = ["uid", ...cols, "created_at", "updated_at"].join(", ");
+  const boolFields = r.fields.filter((f) => f.type === "bool");
+  const iface = [
+    "  uid: string;",
+    ...r.fields.map((f) => `  ${f.name}: ${tsType[f.type]}${f.optional ? " | null" : ""};`),
+    "  created_at: number;",
+    "  updated_at: number;",
+  ].join("\n");
+  const rowIface = [
+    "  uid: string;",
+    ...r.fields.map((f) => `  ${f.name}: ${f.type === "bool" ? "number" : tsType[f.type]}${f.optional ? " | null" : ""};`),
+    "  created_at: number;",
+    "  updated_at: number;",
+  ].join("\n");
+  const toItem = boolFields.length === 0
+    ? "const toItem = (row: Row): " + T + " => row;"
+    : `const toItem = (row: Row): ${T} => ({ ...row, ${boolFields.map((f) => `${f.name}: ${f.optional ? `row.${f.name} === null ? null : row.${f.name} !== 0` : `row.${f.name} !== 0`}`).join(", ")} });`;
+  const placeholders = cols.map(() => "?").join(", ");
+  const setList = [...cols.map((c) => `${c} = ?`), "updated_at = ?", "dirty = 1"].join(", ");
+  return `// ${r.label}（${r.name}）の API。\`inloop generate scaffold\` が作った。独自の検証や処理は、ここに足してよい。
+// 端末どうしで共有する表（ADR-0041）: 消すときは行を残して deleted を立て、書き込みのたびに updated_at と dirty を更新して、sync?.touch() を呼ぶ。
+import { Hono } from "hono";
+import type { Db } from "../db.ts";
+import type { SyncApi } from "../sync/engine.ts";
+
+export interface ${T} {
+${iface}
+}
+interface Row {
+${rowIface}
+}
+
+${toItem}
+
+/** YYYY-MM-DD の実在する日付か。 */
+const isDate = (s: string): boolean => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !Number.isNaN(Date.parse(\`\${s}T00:00:00Z\`)) && new Date(\`\${s}T00:00:00Z\`).toISOString().startsWith(s);
+
+/** 入力を検証して、SQLに渡す値（列の並び）にする。 */
+function parse(raw: unknown): { values: (string | number | null)[] } | { error: string } {
+  if (typeof raw !== "object" || raw === null) return { error: "JSON のオブジェクトを送る" };
+  const input = raw as Record<string, unknown>;
+  ${r.fields.map((f) => parseExpr(f)).join("\n  ")}
+  return { values: [${cols.join(", ")}] };
+}
+
+/** パスの uid を確かめる。形が違えば undefined。 */
+const uidOf = (s: string): string | undefined => (/^[0-9a-f-]{36}$/.test(s) ? s : undefined);
+
+export function ${camel(r.plural)}Routes(db: Db, now: () => number, sync?: SyncApi) {
+  const app = new Hono();
+
+  app.get("/", (c) => {
+    const rows = db.prepare("SELECT ${colList} FROM ${r.plural} WHERE deleted = 0 ORDER BY created_at DESC").all() as unknown as Row[];
+    return c.json(rows.map(toItem));
+  });
+
+  app.get("/:uid", (c) => {
+    const uid = uidOf(c.req.param("uid"));
+    const row = uid === undefined ? undefined : (db.prepare("SELECT ${colList} FROM ${r.plural} WHERE uid = ? AND deleted = 0").get(uid) as unknown as Row | undefined);
+    return row ? c.json(toItem(row)) : c.json({ error: "not found" }, 404);
+  });
+
+  app.post("/", async (c) => {
+    const parsed = parse(await c.req.json().catch(() => null));
+    if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+    const uid = crypto.randomUUID();
+    const t = now();
+    db.prepare("INSERT INTO ${r.plural} (uid, ${cols.join(", ")}, deleted, created_at, updated_at, dirty) VALUES (?, ${placeholders}, 0, ?, ?, 1)").run(uid, ...parsed.values, t, t);
+    sync?.touch();
+    return c.json({ uid }, 201);
+  });
+
+  app.put("/:uid", async (c) => {
+    const uid = uidOf(c.req.param("uid"));
+    if (uid === undefined) return c.json({ error: "not found" }, 404);
+    const parsed = parse(await c.req.json().catch(() => null));
+    if ("error" in parsed) return c.json({ error: parsed.error }, 400);
+    const result = db.prepare("UPDATE ${r.plural} SET ${setList} WHERE uid = ? AND deleted = 0").run(...parsed.values, now(), uid);
+    if (result.changes === 0) return c.json({ error: "not found" }, 404);
+    sync?.touch();
+    return c.json({ ok: true });
+  });
+
+  app.delete("/:uid", (c) => {
+    const uid = uidOf(c.req.param("uid"));
+    const result = uid === undefined ? undefined : db.prepare("UPDATE ${r.plural} SET deleted = 1, updated_at = ?, dirty = 1 WHERE uid = ? AND deleted = 0").run(now(), uid);
+    if (!result || result.changes === 0) return c.json({ error: "not found" }, 404);
+    sync?.touch();
+    return c.body(null, 204);
+  });
+
+  return app;
+}
+`;
+}
+
+export function syncTestSource(r: Resource): string {
+  const T = pascal(r.name);
+  const obj = (n: number) => `{ ${r.fields.map((f) => `${f.name}: ${sample(f, n)}`).join(", ")} }`;
+  const first = r.fields.find((f) => !f.optional);
+  const lines = [
+    `// ${r.label}（${r.name}）の API のテスト。\`inloop generate scaffold\` が作った。`,
+    'import { test } from "node:test";',
+    'import assert from "node:assert/strict";',
+    'import { createApp } from "./app.ts";',
+    'import { openDb } from "./db.ts";',
+    `import type { ${T} } from "./routes/${r.plural}.ts";`,
+    "",
+    "const json = (method: string, body?: unknown) => ({ method, headers: { \"content-type\": \"application/json\" }, body: body === undefined ? undefined : JSON.stringify(body) });",
+    "",
+    `test(${jsStr(`${r.label}を作って、一覧と1件で取れる`)}, async () => {`,
+    "  const app = createApp(openDb(\":memory:\"));",
+    `  const created = await app.request("/api/${r.plural}", json("POST", ${obj(1)}));`,
+    "  assert.equal(created.status, 201);",
+    "  const { uid } = (await created.json()) as { uid: string };",
+    `  const list = (await (await app.request("/api/${r.plural}")).json()) as ${T}[];`,
+    "  assert.equal(list.length, 1);",
+    `  const one = (await (await app.request(\`/api/${r.plural}/\${uid}\`)).json()) as ${T};`,
+    ...r.fields.map((f) => `  assert.equal(one.${f.name}, ${sample(f, 1)});`),
+    "});",
+    "",
+    `test(${jsStr(`${r.label}を更新して、削除できる（行は残り、同期の対象になる）`)}, async () => {`,
+    "  const db = openDb(\":memory:\");",
+    "  const app = createApp(db);",
+    `  const { uid } = (await (await app.request("/api/${r.plural}", json("POST", ${obj(1)}))).json()) as { uid: string };`,
+    `  const updated = await app.request(\`/api/${r.plural}/\${uid}\`, json("PUT", ${obj(2)}));`,
+    "  assert.equal(updated.status, 200);",
+    `  const one = (await (await app.request(\`/api/${r.plural}/\${uid}\`)).json()) as ${T};`,
+    ...r.fields.map((f) => `  assert.equal(one.${f.name}, ${sample(f, 2)});`),
+    `  assert.equal((await app.request(\`/api/${r.plural}/\${uid}\`, { method: "DELETE" })).status, 204);`,
+    `  assert.equal((await app.request(\`/api/${r.plural}/\${uid}\`)).status, 404);`,
+    `  const row = db.prepare("SELECT deleted, dirty FROM ${r.plural} WHERE uid = ?").get(uid) as { deleted: number; dirty: number };`,
+    "  assert.deepEqual({ ...row }, { deleted: 1, dirty: 1 });",
+    "});",
+    "",
+    `test(${jsStr("正しくない入力と、ないものは断る")}, async () => {`,
+    "  const app = createApp(openDb(\":memory:\"));",
+    `  assert.equal((await app.request("/api/${r.plural}", json("POST", {}))).status, ${first ? 400 : 201});`,
+    ...(first ? [`  assert.equal((await app.request("/api/${r.plural}", json("POST", { ...${obj(1)}, ${first.name}: ${bad(first)} }))).status, 400);`] : []),
+    `  const none = "00000000-0000-0000-0000-000000000000";`,
+    `  assert.equal((await app.request(\`/api/${r.plural}/\${none}\`)).status, 404);`,
+    `  assert.equal((await app.request("/api/${r.plural}/abc")).status, 404);`,
+    `  assert.equal((await app.request(\`/api/${r.plural}/\${none}\`, json("PUT", ${obj(1)}))).status, 404);`,
+    `  assert.equal((await app.request(\`/api/${r.plural}/\${none}\`, { method: "DELETE" })).status, 404);`,
+    "});",
+    "",
+  ];
+  return lines.join("\n");
+}
+
+/** 共有のアプリの画面は、サーバー向けの画面を、uid・ミリ秒の時刻・他の端末の変更の取り込みに合わせて直したもの。 */
+export function syncPageSource(r: Resource): string {
+  return pageSource(r)
+    .replace("  id: number;", "  uid: string;")
+    .replace("  created_at: string;", "  created_at: number;")
+    .replace("  updated_at: string;", "  updated_at: number;")
+    .replace("useState<number | null>(null)", "useState<string | null>(null)")
+    .replace("async (id: number)", "async (id: string)")
+    .replace("key={item.id}", "key={item.uid}")
+    .replace("setEditing(item.id)", "setEditing(item.uid)")
+    .replace("remove(item.id)", "remove(item.uid)")
+    .replace(
+      "  useEffect(() => { void load(); }, []);",
+      "  useEffect(() => {\n    void load();\n    // 他の端末の変更を取り込んだら、読み直す。\n    const on = () => void load();\n    window.addEventListener(\"local-api-changed\", on);\n    return () => window.removeEventListener(\"local-api-changed\", on);\n  }, []);",
+    );
+}
+
 /** 生成の結果。`write`が実際に書く。 */
 export interface Plan { create: { path: string; content: string }[]; edit: { path: string; content: string }[] }
 
@@ -376,6 +571,7 @@ const MARKERS = {
   routes: "// inloop:routes",
   pagesImport: "// inloop:imports",
   pages: "// inloop:pages",
+  syncTables: "// inloop:sync-tables",
 } as const;
 
 /** マーカーの行の直前に、同じ字下げで行を足す。 */
@@ -393,10 +589,8 @@ export function plan(repo: string, r: Resource): Plan {
     if (!existsSync(join(repo, p))) throw new Error(`${p} がない。inloop new で作ったアプリのリポジトリで動かす`);
     return readFileSync(join(repo, p), "utf8");
   };
-  // 共有（inloop new --sync）のアプリは、同期する表の列が違う（ADR-0041）。生成は、まだ対応していない。
-  if (existsSync(join(repo, "server/sync-tables.ts"))) {
-    throw new Error("共有（inloop new --sync）のアプリには、まだ scaffold を使えない。同期する表は、server/db.ts・server/sync-tables.ts・server/app.ts の notes の例にならって、手で足す");
-  }
+  // 共有（inloop new --sync）のアプリは、同期する表（uid、deleted、dirtyなどの列）を作る（ADR-0041）。
+  const sync = existsSync(join(repo, "server/sync-tables.ts"));
   const files = {
     route: `server/routes/${r.plural}.ts`,
     test: `server/${r.plural}.test.ts`,
@@ -406,15 +600,16 @@ export function plan(repo: string, r: Resource): Plan {
   const db = read("server/db.ts");
   const app = read("server/app.ts");
   const web = read("web/src/App.tsx");
-  if (new RegExp(`CREATE TABLE IF NOT EXISTS ${r.plural}\\b`, "i").test(db) || app.includes(`"/api/${r.plural}"`)) throw new Error(`${r.plural} はすでにある`);
+  const syncTables = sync ? read("server/sync-tables.ts") : "";
+  if (new RegExp(`CREATE TABLE IF NOT EXISTS ${r.plural}\\b`, "i").test(db) || app.includes(`"/api/${r.plural}"`) || syncTables.includes(`name: ${jsStr(r.plural)}`)) throw new Error(`${r.plural} はすでにある`);
 
-  const newDb = insertBefore("server/db.ts", db, MARKERS.tables, [`db.exec(\`${createTableSql(r)}\`);`]);
+  const newDb = insertBefore("server/db.ts", db, MARKERS.tables, [`db.exec(\`${createTableSql(r, sync)}\`);`]);
   const route = `${camel(r.plural)}Routes`;
   const newApp = insertBefore(
     "server/app.ts",
     insertBefore("server/app.ts", app, MARKERS.routesImport, [`import { ${route} } from "./routes/${r.plural}.ts";`]),
     MARKERS.routes,
-    [`app.route("/api/${r.plural}", ${route}(db));`],
+    [sync ? `app.route("/api/${r.plural}", ${route}(db, now, sync));` : `app.route("/api/${r.plural}", ${route}(db));`],
   );
   const newWeb = insertBefore(
     "web/src/App.tsx",
@@ -427,6 +622,7 @@ export function plan(repo: string, r: Resource): Plan {
     { path: "server/app.ts", content: newApp },
     { path: "web/src/App.tsx", content: newWeb },
   ];
+  if (sync) edit.push({ path: "server/sync-tables.ts", content: insertBefore("server/sync-tables.ts", syncTables, MARKERS.syncTables, [syncTableEntry(r)]) });
   // レイヤーの定義に、生成した資源のAPIを加える（すでに含まれていれば何もしない）。
   const cfg = join(repo, "inloop.json");
   if (existsSync(cfg)) {
@@ -439,9 +635,9 @@ export function plan(repo: string, r: Resource): Plan {
   }
   return {
     create: [
-      { path: files.route, content: routeSource(r) },
-      { path: files.test, content: testSource(r) },
-      { path: files.page, content: pageSource(r) },
+      { path: files.route, content: sync ? syncRouteSource(r) : routeSource(r) },
+      { path: files.test, content: sync ? syncTestSource(r) : testSource(r) },
+      { path: files.page, content: sync ? syncPageSource(r) : pageSource(r) },
     ],
     edit,
   };

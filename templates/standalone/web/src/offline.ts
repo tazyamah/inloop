@@ -2,7 +2,7 @@
 // キャッシュに入れる。開発中（vite dev）は登録しない。
 // 置き場所に新しい版があれば、画面の下に「更新」を出す。押すとキャッシュを捨てて読み込み直す（データは消えない）。
 export function registerOffline(): void {
-  if (import.meta.env.DEV || !("serviceWorker" in navigator)) return;
+  if (import.meta.env.DEV || import.meta.env.MODE === "extension" || !("serviceWorker" in navigator)) return;
   window.addEventListener("load", async () => {
     try {
       await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`);
