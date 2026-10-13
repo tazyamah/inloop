@@ -14,13 +14,15 @@ AIが`request_review`で出した依頼を、人が読んで承認・保留を�
 
 ## Claude Codeの会話の中での見え方
 
-Claude Code（デスクトップ）の会話に、AIが`request_review`を呼ぶと、依頼票が「inloop のウィジェット」として会話の中に出ます。問い、依存の図、理解順に並べた対象コードが、会話を離れずに読めます。写真は、メモ帳のデモアプリ（`server/app.ts`の`createApp`を変更）での実際の画面です。
+Claude Code（デスクトップ）の会話に、AIが`request_review`を呼ぶと、依頼票が「inloop のウィジェット」として会話の中に出ます。問い、依存の図、理解順に並べた対象コードが、会話を離れずに読めます。
 
-![Claude Codeの会話内に出たレビュー依頼（問いと依存の図）](images/claude-code-review-widget.png)
+下の画面は、`inloop new`と`inloop generate scaffold task title:text done:bool due:date:optional`で作ったタスク管理アプリで、「完了していないタスクは削除できない」変更をした例です。依頼票の中身は実際の解析エンジンの出力で、会話の枠（依頼文、AIの返答）は見え方を示すために組んだものです。実際のClaude Codeの画面そのものではありません。
 
-続きの対象コード（変更行は緑、変更なしのシンボルは畳まれる）:
+![会話内のレビュー依頼（問いと依存の図）](images/claude-code-review-widget.png)
 
-![Claude Codeの会話内に出たレビュー依頼（対象コード）](images/claude-code-review-widget-code.png)
+続き。変更した行（緑）、読み書きするテーブル、必須の依頼（信頼境界ルールが自動で出したもの）と承認・保留のボタンです。
+
+![会話内のレビュー依頼（対象コードと回答）](images/claude-code-review-widget-code.png)
 
 ## `inloop generate scaffold`が出す画面
 
