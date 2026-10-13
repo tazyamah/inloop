@@ -6,6 +6,7 @@ import { SyntaxKind } from "typescript/unstable/ast";
 import type { Node, SourceFile } from "typescript/unstable/ast";
 import { matchesAny, type SecureAllow } from "./rules.js";
 import { TsProject } from "./project.js";
+import { USECASE_RULES } from "./usecases.js";
 
 /** 規則のid、IPAの文書のどの対策に当たるか、違反したときに何をするか。 */
 export const SECURE_RULES: Record<string, { ipa: string; fix: string }> = {
@@ -372,5 +373,5 @@ export function lintRepo(repo: string, allow: SecureAllow[] = []): SecureFinding
 
 /** 違反を1行ずつの文字列にする。 */
 export function formatFinding(f: SecureFinding): string {
-  return `${f.rule}\t${f.file}:${f.line}\t${f.message}\t→ ${SECURE_RULES[f.rule]?.fix ?? ""}`;
+  return `${f.rule}\t${f.file}:${f.line}\t${f.message}\t→ ${(SECURE_RULES[f.rule] ?? USECASE_RULES[f.rule])?.fix ?? ""}`;
 }

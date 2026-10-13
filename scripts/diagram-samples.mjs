@@ -161,6 +161,12 @@ export function tasksRoutes(db: Db) {`);
     packets.unresolved = excerpt(ps[ids[0]]);
   });
 
+  // E: ユースケース図。入口（HTTPのルート）ごとに、読む・書くテーブルと、その入口へ要求を送るテストを結ぶ。
+  await session(request(["server/routes/tasks.ts#tasksRoutes"], "タスクのAPIの入口ごとに、データとテストが足りているか"), "light", async ({ view, ids, packets: ps }) => {
+    await shotOf(view, "#usecases-box", "usecases-light.png");
+    packets.usecases = { id: ps[ids[0]].id, usecases: ps[ids[0]].usecases };
+  });
+
   // C: 再依頼。コードを少し直し、`follows`で出し直すと、変わらなかったシンボルは「から変更なし」で畳まれる。
   {
     const client = await connect();

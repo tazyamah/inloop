@@ -369,8 +369,183 @@
       "server/routes/tasks.ts:62 hooks[kind]"
     ]
   },
+  "usecases": {
+    "id": "R8",
+    "usecases": [
+      {
+        "id": "GET /api/tasks",
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "line": 68,
+        "tables": [
+          {
+            "table": "tasks",
+            "access": "read",
+            "columns": [
+              "created_at",
+              "done",
+              "due",
+              "id",
+              "title",
+              "updated_at"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "name": "タスクを作って、一覧と1件で取れる",
+            "file": "server/tasks.test.ts",
+            "line": 15
+          }
+        ]
+      },
+      {
+        "id": "GET /api/tasks/:id",
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "line": 73,
+        "tables": [
+          {
+            "table": "tasks",
+            "access": "read",
+            "columns": [
+              "created_at",
+              "done",
+              "due",
+              "id",
+              "title",
+              "updated_at"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "name": "タスクを作って、一覧と1件で取れる",
+            "file": "server/tasks.test.ts",
+            "line": 17
+          },
+          {
+            "name": "タスクを更新して、削除できる",
+            "file": "server/tasks.test.ts",
+            "line": 28
+          },
+          {
+            "name": "正しくない入力と、ないものは断る",
+            "file": "server/tasks.test.ts",
+            "line": 40
+          }
+        ]
+      },
+      {
+        "id": "POST /api/tasks",
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "line": 79,
+        "tables": [
+          {
+            "table": "tasks",
+            "access": "write",
+            "columns": [
+              "done",
+              "due",
+              "title"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "name": "タスクを作って、一覧と1件で取れる",
+            "file": "server/tasks.test.ts",
+            "line": 12
+          },
+          {
+            "name": "タスクを更新して、削除できる",
+            "file": "server/tasks.test.ts",
+            "line": 25
+          },
+          {
+            "name": "正しくない入力と、ないものは断る",
+            "file": "server/tasks.test.ts",
+            "line": 38
+          }
+        ]
+      },
+      {
+        "id": "PUT /api/tasks/:id",
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "line": 86,
+        "tables": [
+          {
+            "table": "tasks",
+            "access": "write",
+            "columns": [
+              "done",
+              "due",
+              "title",
+              "updated_at"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "name": "タスクを更新して、削除できる",
+            "file": "server/tasks.test.ts",
+            "line": 26
+          },
+          {
+            "name": "正しくない入力と、ないものは断る",
+            "file": "server/tasks.test.ts",
+            "line": 42
+          }
+        ]
+      },
+      {
+        "id": "DELETE /api/tasks/:id",
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "line": 95,
+        "tables": [
+          {
+            "table": "tasks",
+            "access": "read",
+            "columns": [
+              "done",
+              "id"
+            ],
+            "via": [
+              "server/routes/tasks.ts#removeTask",
+              "server/routes/tasks.ts#isDone"
+            ]
+          },
+          {
+            "table": "tasks",
+            "access": "write",
+            "columns": [
+              "*"
+            ],
+            "via": [
+              "server/routes/tasks.ts#removeTask"
+            ]
+          }
+        ],
+        "tests": [
+          {
+            "name": "タスクを更新して、削除できる",
+            "file": "server/tasks.test.ts",
+            "line": 32
+          },
+          {
+            "name": "正しくない入力と、ないものは断る",
+            "file": "server/tasks.test.ts",
+            "line": 43
+          }
+        ]
+      }
+    ]
+  },
   "rerequest": {
-    "id": "R8-1",
+    "id": "R9-1",
     "kind": "optional",
     "triggeredBy": [],
     "requestedSymbols": [
@@ -496,7 +671,7 @@
     ],
     "unresolved": [],
     "prior": {
-      "id": "R8",
+      "id": "R9",
       "same": [
         "server/db.ts#Db",
         "server/routes/tasks.ts#isDone",

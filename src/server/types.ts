@@ -58,6 +58,21 @@ export interface ReviewCaller {
   code: string;
 }
 
+/**
+ * HTTPの入口1つ（ユースケース、ADR-0046）と、そこから結び付いたデータとテスト。コードの構造とリテラルから決め、AIの申告は混ざらない。
+ * `symbol`は、画面で押したときに移る先で、依頼票に並んだシンボル。入口を登録している宣言が並んでいればそれ、なければ入口が呼び出しでたどれる並んだ宣言。
+ * 値の流れ（どの入力がどの列に入るか）は追わない。`tables`は入口のコードが触るテーブルで、`tests`は入口へ要求を送っているテスト。
+ */
+export interface ReviewUseCase {
+  /** `POST /api/tasks/:id`のような、メソッドと完全なパス */
+  id: string;
+  symbol: string;
+  file: string;
+  line: number;
+  tables: Omit<ReviewTable, "symbol">[];
+  tests: { name: string; file: string; line: number }[];
+}
+
 export interface Evidence {
   kind: "test" | "static";
   name: string;
@@ -100,6 +115,11 @@ export interface ReviewPacket {
    * この項目がない依頼票（ADR-0026より前の記録）は、調べていない。
    */
   tables?: ReviewTable[];
+  /**
+   * 対象のコードにつながるユースケースと、そのデータ・テスト（ADR-0046）。`inloop.json`の`usecases`を書いたアプリだけに付く。
+   * この項目がない依頼票は、調べていない（ADR-0046より前の記録、または`usecases`なし）。
+   */
+  usecases?: ReviewUseCase[];
   /**
    * 再依頼で、前の依頼票（id）と同じコードのまま、指摘の対象でもなかったシンボル（ADR-0029）。
    * 人が読み直さなくてよいものとして、画面は畳み、行数の上限にも数えない。この項目がない依頼票は再依頼ではないか、ADR-0029より前の記録。

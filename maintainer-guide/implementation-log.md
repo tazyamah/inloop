@@ -470,3 +470,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 確かめたこと: 依頼票の図は「依存の図」の1種類だけで（`src/ui/graph.ts`）、ER図とデータフロー図を生成するコードはない（ADR-0020の「名前」）。ほかは、テーブルの一覧、境界・レイヤーの札、再依頼の畳み、未解決の参照の一覧。ADR-0002の本文には構成要素として「データの流れ」とあるが、実装はそこまでない。
 - サンプルは、`inloop new`・`inloop generate scaffold`で作ったアプリに変更を足し、実際の`request_review`とレビューUI（Chromium）から作った。スクリプトを2回動かして、`packets.json`が一致することを確かめた（Linux）。
 - 未検証: macOSでの再生成。証拠（`evidence`）の表示のサンプル（題材に設定がない）。
+
+## 2026-10-13 ユースケース図と命名規則の検査（ADR-0046）
+
+- `src/engine/usecases.ts`（入口・データ・テストの結び付け、`uc-*`の4規則）、`inloop usecases`、`inloop lint`・`inloop check`への組み込み、`inloop.json`の`usecases`、依頼票の`usecases`（省略できる項目）と記録の読み込みの検査、`src/ui/usecases.ts`（ユースケース図）、`templates/server`の`inloop.json`と`AGENTS.md`、`docs/diagrams.md`の6節、サンプル（`scripts/diagram-samples.mjs`、`docs/diagrams/usecases-light.png`）。
+- 確かめたこと（雛形に`scaffold`を足した8入口のアプリ）: 入口・データ・テストは、構文とリテラルから確実に結べる。値の流れ（入力→列）は結べない。ADR-0025のシンボル参照は、HTTP越しのテストには働かない（テストは`app.request("/api/…")`で、シンボルを呼ばない）ので、パスとメソッドのリテラルで結んだ。
+- 検証（Linux）: `test/usecases.test.mjs`の11件が通る。`INLOOP_UI_E2E=1`でユースケース図のe2eが通る。サンプルの再生成で、`packets.json`は既存の部分が変わらず、`usecases`だけが増えた。
+- 未検証: 実際のClaude Codeでの使用、既存のアプリの偽陽性、`--standalone`・`--sync`・`--desktop`への適用、macOS。
+
