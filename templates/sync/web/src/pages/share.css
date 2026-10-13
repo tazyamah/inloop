@@ -1,0 +1,19 @@
+
+/* 共有 */
+.note-list { list-style: none; margin: 0; padding: 0; display: grid; }
+.note-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); word-break: break-word; }
+.note-list li:last-child { border-bottom: 0; }
+.share-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.share-row input[type="text"] { flex: 1 1 12rem; min-width: 0; }
+.share-form { display: grid; gap: 8px; }
+.share-code { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.share-code code { padding: 6px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); word-break: break-all; user-select: all; }
+.share-digits { font-size: 1.6rem; font-weight: 700; letter-spacing: 0.2em; font-variant-numeric: tabular-nums; }
+.share-members { list-style: none; margin: 0; padding: 0; display: grid; }
+.share-members li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.share-members li:last-child { border-bottom: 0; }
+.share-request { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.share-request:last-child { border-bottom: 0; }
+.share-alert { border-color: var(--danger); }
+.share-alert h3 { color: var(--danger); margin-top: 0; }
+.badge { margin-left: 8px; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }

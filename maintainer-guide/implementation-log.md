@@ -395,3 +395,35 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 検証（macOS）: `npm test`が110 pass・14 skip・fail 0。`INLOOP_APP_E2E=1`で、生成したアプリの`npm install`、`npm test`（8 pass、`task`と`category`を生成した後）、`npm run build`が通った。生成したAPIの`buildPackets`で、`tasks`の読みと書き（列つき）が出て、動的なSQLの未解決がない。ブラウザ（ダークテーマ）で、一覧・追加・編集の表示と操作を確かめた。UIのe2e（`INLOOP_UI_E2E=1`）は、inloopの画面は変えていないので動かしていない。
 - 気づき: zshでは`due:date?`が展開されて失敗するので、省略できる列は`:optional`にした。
 - 未検証: 実際のClaude Codeの会話での使用、ライトテーマ・狭い画面・`--desktop`のアプリでの表示。
+
+## 2026-10-12 端末内で動く構成`--standalone`（ADR-0039）
+
+- 利用者の方針（2026-10-12）: 作ったアプリを、デスクトップ・iPhone・Android・Chrome拡張で、サーバーなしで使いたい。iOSは自作アプリの署名が7日で失効するため、PWAにする。Tauriのモバイルはsidecarが使えず、ADR-0019の構成が成り立たない。
+- 使い捨ての検証（Hono＋sqlite-wasm＋OPFS）: アプリ内ブラウザで保存と再読み込みの持続、iOS 16.0のシミュレーターではOPFSが使えずメモリに切り替わる（`The local OPFS API is too old`）、iPhone実機（iOS 26.6.2）はClaude Artifactの検証ページで`opfs-sahpool`（利用者のスクリーンショット）。持続は利用者の報告。
+- 実装: `templates/standalone/`（`server/sqlite-wasm.ts`、`server/worker.ts`、`server/db.ts`、`web/src/local-api.ts`、`offline.ts`、`web/public/sw.js`など）と、`inloop new --standalone`（`src/cli.ts`）。`node:sqlite`を`vite.config.ts`のaliasで差し替えるので、`server/`のコードとscaffold、Node.jsのテストは変わらない。
+- 検証（macOS）: 生成したアプリで`inloop generate scaffold`、`npm test`（5 pass）、`npm run build`が通った。Chrome for Testingで、APIの作成と一覧、再読み込みでデータが残ること、サービスワーカーの登録、オフラインで開き直してもデータが読めることを確認した（アプリ内ブラウザはサービスワーカーを登録できず、検証には使えなかった）。
+- 気づき: iOSシミュレーターの起動で、Macの`SafariBookmarksSyncAgent`が落ちるダイアログが出た。シミュレーターは終了した。
+- 実機の確認（利用者の発言、2026-10-12）: `inloop new memo --standalone`で作ったアプリを、Cloudflare Pages（無料、`wrangler pages deploy dist/web --project-name memo --branch production`）に置き、iPhone（iOS 26.6.2）のホーム画面に「Webアプリとして開く」で追加。メモの保存、終了後の再起動での保持、機内モードでの表示と追加ができた。Safariのタブとホーム画面のアプリは保存領域が別。
+- 気づき: `--branch`を付けないと、gitにcommitがないためプレビュー扱いのURLになる。固定のURL（`<プロジェクト>.pages.dev`）に出すには`--branch production`。URLが変わると保存領域も別になる。保存領域を開けないことに気づけるよう、画面の下に保存先の状態を出すようにした（`web/src/local-api.ts`）。
+- 更新通知（`web/src/offline.ts`、`vite.config.ts`の`build-id`、`web/public/sw.js`）: ビルドごとの識別子を`version.txt`に出し、開いたときと画面に戻ったときに置き場所の値と見比べ、違えば「更新」を出す。押すとキャッシュを捨てて読み込み直す。Chromiumで、版を上げて再ビルドすると表示が出て、押すと消えることを確認（実機は未確認）。
+- 機能カタログのデモアプリ（`~/work/catalog`、雛形の外。Cloudflare Pagesの`catalog`）: PWAで使える31の機能（SQLite、保存容量、ファイル、通知、バッジ、センサー、カメラ、マイク、読み上げ、共有、パスキーなど）を試す画面と、試した結果をSQLiteに残す履歴（`inloop generate scaffold trial`で生成）。Chromium（狭い画面）で、12の機能の実行と履歴の保存を確認。カメラ・マイク・通知・センサーなどの実機での動作は未確認。
+- 気づき: `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗する。空のディレクトリで`--force`を付けて作る（初回だけ）。
+
+## 2026-10-12 買い物リストと端末どうしの同期（ADR-0040）
+
+- 利用者の方針（2026-10-12）: 少人数で共有する買い物リストを使いたい。通信が必要な共有系も、可能な限りスタンドアロン・オフラインで動かす（無料の範囲）。
+- `~/work/shopping`（inloopの外のアプリ。`inloop new --standalone`で作成）: 買い物リスト、同期しやすい構造（`uid`、`updated_at`、`deleted`、`dirty`）、同期（`server/sync.ts`、`sync-crypto.ts`）、中継（`relay/`、Cloudflare Workers＋Durable Objects）、共有の画面（`web/src/pages/Share.tsx`）。Cloudflare Pagesの`shopping`と、Workersの`shopping-relay`に置いた。
+- 無料枠は、Cloudflareの公式ドキュメント（Durable Objectsの料金と制限、Workersの制限、WebSocketの休止）で確認した。SQLite版のDurable Objectsは無料プランで使える。
+- 検証: アプリの`npm test`が17 pass（同期の2台のテスト、不正な行、中継の部屋）。本物の中継と2つのブラウザで、参加・追加・チェックの伝わりを確認。許可外のオリジンは403。未検証: iPhone実機、実際の回線の切断からの再接続、休止からの復帰。
+- 気づき: Playwrightの`setOffline`は、既存のWebSocketを切らない。`wrangler@4.149`と`@cloudflare/workers-types`は、`^5`が必要（`^4`だとnpmの依存が解決しない）。
+
+## 2026-10-12 承認方式の共有と、標準のオプション`--sync`（ADR-0041）
+
+- 利用者の方針（2026-10-12）: 承認方式にする。別のオーナーがいたらアラートを出す。端末間の同期をするPWAを作るときの標準オプションにして、オプション一発で使えるようにする。無料枠を使い切られる嫌がらせへの備えも要る。
+- 実装: `templates/sync/`（`server/sync/`の`crypto.ts`・`membership.ts`・`engine.ts`、`relay/`、共有の画面`Share.tsx`、同期する表の例`notes`、READMEとAGENTS.md、`inloop.json`の追加ルール）と、`inloop new --sync`（`src/cli.ts`、`--standalone`の上に重ねる）。`inloop generate scaffold`は、`--sync`のアプリには断る（`src/scaffold.ts`）。
+- 検証（macOS）: このリポジトリの`npm test`が112 pass・14 skip・fail 0。生成したアプリの`npm test`が17 pass（5回続けて動かし、1回、負荷で時間切れがあったので、待ち時間を8秒にした）。ローカルの中継（`wrangler dev`）と2つのブラウザで、承認までの流れと取り外し後のアラートを確認。
+- 気づき: (1) メッセージの処理は、届いた順に1つずつにしないと、承認の直後の「記録の追加」が二重に処理されて止まった（直した）。(2) `@cloudflare/workers-types`の型は、DOMの型と違うので、`crypto.ts`に型の断り（`as`）が要った。(3) `wrangler pages project create`は、`package.json`にHonoがあると別の自動設定に回って失敗するので、空のディレクトリで`--force`を付けて作る。
+- 未検証: 実機（iPhone）、本物のCloudflare上の中継、実ブラウザでの再接続・休止からの復帰、オーナー鍵の複製のアラートの実ブラウザでの表示。
+- 買い物リストを`inloop new shoppinglist --sync`で作り直し（`~/work/shoppinglist`、inloopの外のアプリ）、Cloudflareに置いた（画面: `shoppinglist-b35.pages.dev`、中継: `shoppinglist-relay.suzuki-4f2.workers.dev`）。アプリの`npm test`が21 pass。本物のCloudflare上で、2つのブラウザの間の承認から取り外しまでを確認。同期のテストを、アプリの表に依らない専用の表に直した（アプリが表を変えても、同期のテストが壊れないように）。
+- 気づき: `wrangler pages deploy`の直後は、数秒、522が返る。`ALLOWED_ORIGINS`は、Pagesの最初のデプロイで決まるURLを入れて、中継を置き直す必要がある（READMEの手順4）。
+

@@ -1,0 +1,8 @@
+{
+  "name": "__APP_NAME__-relay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy" },
+  "devDependencies": { "@cloudflare/workers-types": "^5.20261006.1", "wrangler": "^4.149.0" }
+}
