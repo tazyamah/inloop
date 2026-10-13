@@ -1,0 +1,507 @@
+{
+  "graph": {
+    "id": "R1",
+    "kind": "optional",
+    "triggeredBy": [],
+    "requestedSymbols": [
+      "server/routes/tasks.ts#removeTask"
+    ],
+    "range": "HEAD",
+    "steps": [
+      {
+        "order": 1,
+        "symbol": "server/db.ts#Db",
+        "file": "server/db.ts",
+        "layer": "db",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 2,
+        "symbol": "server/routes/tasks.ts#isDone",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write"
+        ],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "order": 3,
+        "symbol": "server/routes/tasks.ts#notifyRemoved",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "order": 4,
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write"
+        ],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "server/routes/tasks.ts#isDone",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/routes/tasks.ts#isDone",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/routes/tasks.ts#notifyRemoved",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#removeTask",
+        "kind": "call"
+      }
+    ],
+    "callers": [
+      {
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "startLine": 65
+      }
+    ],
+    "tables": [
+      {
+        "symbol": "server/routes/tasks.ts#isDone",
+        "table": "tasks",
+        "access": "read",
+        "columns": [
+          "done",
+          "id"
+        ]
+      },
+      {
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "table": "tasks",
+        "access": "write",
+        "columns": [
+          "*"
+        ]
+      }
+    ],
+    "unresolved": []
+  },
+  "required": {
+    "id": "R5",
+    "kind": "required",
+    "triggeredBy": [
+      "db-write",
+      "http-input"
+    ],
+    "requestedSymbols": [
+      "server/routes/tasks.ts#tasksRoutes"
+    ],
+    "range": "HEAD",
+    "steps": [
+      {
+        "order": 1,
+        "symbol": "server/db.ts#Db",
+        "file": "server/db.ts",
+        "layer": "db",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 2,
+        "symbol": "server/routes/tasks.ts#Row",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 3,
+        "symbol": "server/routes/tasks.ts#toItem",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 4,
+        "symbol": "server/routes/tasks.ts#parse",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 5,
+        "symbol": "server/routes/tasks.ts#idOf",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 6,
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write"
+        ],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      },
+      {
+        "order": 7,
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write",
+          "http-input"
+        ],
+        "change": "modified",
+        "changedLines": [
+          33,
+          34,
+          35
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "server/routes/tasks.ts#toItem",
+        "to": "server/routes/tasks.ts#Row",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#Row",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#toItem",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#parse",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#idOf",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#removeTask",
+        "kind": "call"
+      },
+      {
+        "from": "server/app.ts#createApp",
+        "to": "server/routes/tasks.ts#tasksRoutes",
+        "kind": "call"
+      }
+    ],
+    "callers": [
+      {
+        "symbol": "server/app.ts#createApp",
+        "file": "server/app.ts",
+        "startLine": 9
+      }
+    ],
+    "tables": [
+      {
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "table": "tasks",
+        "access": "read",
+        "columns": [
+          "done",
+          "id"
+        ],
+        "via": [
+          "server/routes/tasks.ts#isDone"
+        ]
+      },
+      {
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "table": "tasks",
+        "access": "write",
+        "columns": [
+          "*"
+        ]
+      },
+      {
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "table": "tasks",
+        "access": "read",
+        "columns": [
+          "created_at",
+          "done",
+          "due",
+          "id",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "table": "tasks",
+        "access": "write",
+        "columns": [
+          "done",
+          "due",
+          "title",
+          "updated_at"
+        ]
+      }
+    ],
+    "unresolved": [
+      "server/routes/tasks.ts:62 hooks[kind]"
+    ]
+  },
+  "unresolved": {
+    "id": "R7",
+    "kind": "optional",
+    "triggeredBy": [],
+    "requestedSymbols": [
+      "server/routes/tasks.ts#notifyRemoved"
+    ],
+    "range": "HEAD",
+    "steps": [
+      {
+        "order": 1,
+        "symbol": "server/routes/tasks.ts#notifyRemoved",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/routes/tasks.ts#notifyRemoved",
+        "kind": "call"
+      }
+    ],
+    "callers": [
+      {
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "file": "server/routes/tasks.ts",
+        "startLine": 49
+      }
+    ],
+    "tables": [],
+    "unresolved": [
+      "server/routes/tasks.ts:62 hooks[kind]"
+    ]
+  },
+  "rerequest": {
+    "id": "R8-1",
+    "kind": "optional",
+    "triggeredBy": [],
+    "requestedSymbols": [
+      "server/routes/tasks.ts#removeTask"
+    ],
+    "range": "HEAD",
+    "steps": [
+      {
+        "order": 1,
+        "symbol": "server/db.ts#Db",
+        "file": "server/db.ts",
+        "layer": "db",
+        "boundaries": [],
+        "change": "unchanged",
+        "changedLines": []
+      },
+      {
+        "order": 2,
+        "symbol": "server/routes/tasks.ts#isDone",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write"
+        ],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "order": 3,
+        "symbol": "server/routes/tasks.ts#notifyRemoved",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4
+        ]
+      },
+      {
+        "order": 4,
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "file": "server/routes/tasks.ts",
+        "layer": "http",
+        "boundaries": [
+          "db-write"
+        ],
+        "change": "added",
+        "changedLines": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      }
+    ],
+    "edges": [
+      {
+        "from": "server/routes/tasks.ts#isDone",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/db.ts#Db",
+        "kind": "type"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/routes/tasks.ts#isDone",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#removeTask",
+        "to": "server/routes/tasks.ts#notifyRemoved",
+        "kind": "call"
+      },
+      {
+        "from": "server/routes/tasks.ts#tasksRoutes",
+        "to": "server/routes/tasks.ts#removeTask",
+        "kind": "call"
+      }
+    ],
+    "callers": [
+      {
+        "symbol": "server/routes/tasks.ts#tasksRoutes",
+        "file": "server/routes/tasks.ts",
+        "startLine": 65
+      }
+    ],
+    "tables": [
+      {
+        "symbol": "server/routes/tasks.ts#isDone",
+        "table": "tasks",
+        "access": "read",
+        "columns": [
+          "done",
+          "id"
+        ]
+      },
+      {
+        "symbol": "server/routes/tasks.ts#removeTask",
+        "table": "tasks",
+        "access": "write",
+        "columns": [
+          "*"
+        ]
+      }
+    ],
+    "unresolved": [],
+    "prior": {
+      "id": "R8",
+      "same": [
+        "server/db.ts#Db",
+        "server/routes/tasks.ts#isDone",
+        "server/routes/tasks.ts#notifyRemoved"
+      ]
+    }
+  }
+}
