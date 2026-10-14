@@ -27,7 +27,7 @@
 - 依頼票の図の文書[docs/diagrams.md](../docs/diagrams.md)を足した（2026-10-13）。図は依存の図とユースケース図（下）の2種類で、ER図・データフロー図は生成しない。サンプルは`scripts/diagram-samples.mjs`で作り直す。`npm test`は`inloop new --sync`の1件が失敗する（この変更の前から。[implementation-log.md](implementation-log.md)の2026-10-13のセキュアコードの検査を参照）。
 - ユースケース図（ADR-0046）: `inloop.json`の`usecases`と命名規則の検査（`uc-*`）で、HTTPの入口ごとに、データ（テーブル・列）とテストを結ぶ。`inloop usecases`と、依頼票の画面の図。サーバー向けの雛形に入れた。自動テストとChromiumでの表示まで。値の流れは作らない。実クライアントでの使用、既存アプリの偽陽性、他の雛形（`--standalone`・`--sync`・`--desktop`）への適用は未。
 - 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
-- 紹介スライド（`docs/slides/inloop-intro.html`、19枚、発表者モード・PDF印刷つきの単一HTML、2026-10-13）。本文は`inloop-intro.src.html`で、`node scripts/build-slides.mjs`でまとめ直す。Chromiumでの表示と発表者モードの同期まで確認。Safari・Firefox・macOSは未。
+- 紹介スライド（`docs/slides/inloop-intro.html`、19枚、4枚目の直後に画面のイメージ、発表者モード・PDF印刷つきの単一HTML、2026-10-13）。本文は`inloop-intro.src.html`で、`node scripts/build-slides.mjs`でまとめ直す。Chromiumでの表示と発表者モードの同期まで確認。Safari・Firefox・macOSは未。
 
 ## 次の一手
 

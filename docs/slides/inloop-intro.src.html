@@ -168,7 +168,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   <p class="meta">v0.0.0（開発中）・MIT License・github.com/tazyamah/inloop</p>
   <aside class="notes">
     <p>inloop（インループ）の紹介です。AIがコードを書く開発で、人間を「判断の輪（human-in-the-loop）」の中に入れ続けるための、レビュー基盤です。</p>
-    <p>今日の流れは、解決したい課題、仕組み（信頼境界・図・lint）、使い方、画面の例、現状と今後、の順です。全部で15分前後を想定しています。</p>
+    <p>今日の流れは、解決したい課題と考え方、画面のイメージ、仕組み（信頼境界・図・lint）、使い方、画面の例、現状と今後、の順です。全部で15分前後を想定しています。</p>
     <p>先に一点だけ。バージョンはまだ0.0.0で、開発中のツールです。実際に確かめた範囲と、まだ確かめていない範囲を分けてお話しします。</p>
   </aside>
 </section>
@@ -241,7 +241,28 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 5 構成 -->
+<!-- 5 会話内 -->
+<section class="slide" data-title="画面のイメージ">
+  <h2>まず画面で見る：会話の中のレビュー依頼</h2>
+  <div class="cols" style="align-items:flex-start">
+    <div style="flex:1.5"><img class="fig" src="{{img:docs/images/claude-code-review-widget.png}}" alt="会話内のレビュー依頼" style="width:100%;max-height:480px;object-fit:cover;object-position:top"></div>
+    <div>
+      <ul style="font-size:22px">
+        <li>AIが<span class="mono">request_review</span>を呼ぶと、依頼票が<b>会話の中のウィジェット</b>として出る</li>
+        <li>会話を離れずに、問い・依存の図・対象コードを読める</li>
+        <li>例：「完了していないタスクは削除できない」変更。<b>仕組みの詳細は、このあと順に説明します</b></li>
+      </ul>
+      <p class="cap" style="margin-top:12px">依頼票の中身は実際の解析エンジンの出力。会話の枠（依頼文、AIの返答）は<b>見え方を示すために組んだもの</b>で、実際のClaude Codeの画面そのものではありません。</p>
+    </div>
+  </div>
+  <aside class="notes">
+    <p>ここまでで「AIが人に依頼する」という考え方を話したので、先に実際の画面を見ていただきます。MCP Appsに対応したクライアントでは、依頼票が会話の中のウィジェットとして出ます。会話を離れずに、問いと、依存の図と、対象コードが読めます。</p>
+    <p>今は細かい中身は気にしなくて大丈夫です。この問いはどこから来るのか、図はどう作られるのか、必須とは何か、は次のスライドから順に説明します。</p>
+    <p>注意点として、この画像の依頼票の中身は実際のエンジンの出力ですが、会話の枠は見え方を示すために組んだもので、実際のClaude Codeの画面のスクリーンショットではありません。実際のクライアントでは、ブラウザで開く経路で確認を進めています。</p>
+  </aside>
+</section>
+
+<!-- 6 構成 -->
 <section class="slide" data-title="全体の構成">
   <h2>仕組み①：AIクライアントの中で完結する</h2>
   <div class="flow" style="margin-bottom:22px">
@@ -268,7 +289,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 6 決定的な依頼票 -->
+<!-- 7 決定的な依頼票 -->
 <section class="slide" data-title="決定的に作る依頼票">
   <h2>仕組み②：依頼票は、AIなしで決定的に作る</h2>
   <div class="flow" style="margin-bottom:26px">
@@ -290,7 +311,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 7 信頼境界 -->
+<!-- 8 信頼境界 -->
 <section class="slide" data-title="信頼境界ルール">
   <h2>仕組み③：信頼境界に触れたら、必ず依頼される</h2>
   <div class="cols">
@@ -328,7 +349,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 8 依存の図 -->
+<!-- 9 依存の図 -->
 <section class="slide" data-title="依頼票の図">
   <h2>依頼票の図：依存の図</h2>
   <div class="cols">
@@ -354,7 +375,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 9 ユースケース図 -->
+<!-- 10 ユースケース図 -->
 <section class="slide" data-title="ユースケース図">
   <h2>依頼票の図：ユースケース図 <small>入口ごとのデータとテスト</small></h2>
   <div class="cols">
@@ -377,7 +398,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 10 lint -->
+<!-- 11 lint -->
 <section class="slide" data-title="セキュアコードの検査">
   <h2>仕組み④：危険な書き方を、書けなくする <small>inloop lint</small></h2>
   <div class="cols">
@@ -407,7 +428,7 @@ body.presenter #presenter { display: grid; height: 100vh; grid-template-columns:
   </aside>
 </section>
 
-<!-- 11 使い方 -->
+<!-- 12 使い方 -->
 <section class="slide" data-title="使い方">
   <h2>使い方：最短の手順</h2>
   <div class="cols">
@@ -446,7 +467,7 @@ inloop check</pre>
   </aside>
 </section>
 
-<!-- 12 回答 -->
+<!-- 13 回答 -->
 <section class="slide" data-title="回答と再依頼">
   <h2>人の回答で、後続のタスクが動く</h2>
   <div class="cols">
@@ -479,7 +500,7 @@ R15 hold</pre>
   </aside>
 </section>
 
-<!-- 13 画面 -->
+<!-- 14 画面 -->
 <section class="slide" data-title="画面：レビュー依頼">
   <h2>画面の例：レビュー依頼 <small>左ライト／右ダーク</small></h2>
   <div class="cols" style="gap:24px">
@@ -490,26 +511,6 @@ R15 hold</pre>
   <aside class="notes">
     <p>レビュー依頼の画面です。上から、依頼の問い、依存の図、理解順に並べた対象コード、未解決の参照、証拠、そして承認・保留のボタンが並びます。必須の依頼には「必須」と、当たったルールが出ます。</p>
     <p>これはテスト用の固定データを実ブラウザで表示したもので、実際の変更ではありません。ライトとダークの両方に対応しています。</p>
-  </aside>
-</section>
-
-<!-- 14 会話内 -->
-<section class="slide" data-title="画面：会話の中">
-  <h2>画面の例：Claude Codeの会話の中で</h2>
-  <div class="cols" style="align-items:flex-start">
-    <div style="flex:1.5"><img class="fig" src="{{img:docs/images/claude-code-review-widget.png}}" alt="会話内のレビュー依頼" style="width:100%;max-height:480px;object-fit:cover;object-position:top"></div>
-    <div>
-      <ul style="font-size:22px">
-        <li>AIが<span class="mono">request_review</span>を呼ぶと、依頼票が<b>会話の中のウィジェット</b>として出る</li>
-        <li>会話を離れずに、問い・依存の図・対象コードを読める</li>
-        <li>例：「完了していないタスクは削除できない」変更</li>
-      </ul>
-      <p class="cap" style="margin-top:12px">依頼票の中身は実際の解析エンジンの出力。会話の枠（依頼文、AIの返答）は<b>見え方を示すために組んだもの</b>で、実際のClaude Codeの画面そのものではありません。</p>
-    </div>
-  </div>
-  <aside class="notes">
-    <p>MCP Appsに対応したクライアントでは、依頼票が会話の中のウィジェットとして出ます。会話を離れずに、問いと依存の図と対象コードが読めます。</p>
-    <p>注意点として、この画像の依頼票の中身は実際のエンジンの出力ですが、会話の枠は見え方を示すために組んだもので、実際のClaude Codeの画面のスクリーンショットではありません。実際のクライアントでは、ブラウザで開く経路で確認を進めています。</p>
   </aside>
 </section>
 
