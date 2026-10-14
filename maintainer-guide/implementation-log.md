@@ -514,4 +514,5 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 中継の`blobChars`を4096から56000へ上げ、参加時の行を約512KiBごとに分けて送るようにした（最後の1通だけが最新の`seq`を持つ）。テンプレートの`Backup.tsx`に、保存領域の使用量と`persist()`の要求を足した。
 - `npm run build`後の`test/scaffold.test.mjs`が通る（追加1件）。`INLOOP_APP_E2E=1`で、画像の列を含む資源を生成した通常のアプリと`--sync`のアプリが、`npm test`（中継の上限いっぱいの行と分割送信を含む）と`npm run build`（`--sync`は`build:extension`も）を通った。Chromiumで`shrinkImage`の動作を確認した。
 - 未検証: iPhone実機（WebP書き出し、写真の選択、向き）、2台での画像の同期、本物の中継、`persist()`の許可、実際の容量。既存の中継は再デプロイするまで古い上限のまま。
+- 2026-10-14: `npm test`で落ちていた`inloop new --sync`の1件を直した。テストが、gitの管理外（`.gitignore`の`.env.*`）の`web/.env.production`が生成物にあることを求めていたため、クローンでは必ず落ちていた。このファイルは中継のURLを入れて各自が作るもの（README）なので、期待するファイルの一覧から外した。注意: 手元の`templates/sync/web/`に`.env.production`が残っていると、`inloop new --sync`の生成物にコピーされる。
 

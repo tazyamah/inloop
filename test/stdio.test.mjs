@@ -275,7 +275,7 @@ test("inloop new --syncは、端末内で動く構成に、共有（同期・中
   const r = spawnSync(process.execPath, [BIN, "new", "fam note", "--sync"], { encoding: "utf8", cwd: parent, env: { ...process.env, INLOOP_HOME: home } });
   assert.equal(r.status, 0, r.stderr);
   const dir = join(parent, "fam note");
-  for (const f of ["server/sync/engine.ts", "server/sync/crypto.ts", "server/sync/membership.ts", "server/sync/sync.test.ts", "server/sync-tables.ts", "server/sqlite-wasm.ts", "server/worker.ts", "relay/src/index.ts", "relay/src/room.ts", "relay/wrangler.jsonc", "relay/package.json", "web/src/pages/Share.tsx", "web/src/local-api.ts", "web/public/sw.js", "web/.env.production", "server/backup.ts", "web/src/pages/Backup.tsx"]) assert.ok(existsSync(join(dir, f)), f);
+  for (const f of ["server/sync/engine.ts", "server/sync/crypto.ts", "server/sync/membership.ts", "server/sync/sync.test.ts", "server/sync-tables.ts", "server/sqlite-wasm.ts", "server/worker.ts", "relay/src/index.ts", "relay/src/room.ts", "relay/wrangler.jsonc", "relay/package.json", "web/src/pages/Share.tsx", "web/src/local-api.ts", "web/public/sw.js", "server/backup.ts", "web/src/pages/Backup.tsx"]) assert.ok(existsSync(join(dir, f)), f);
   assert.ok(!existsSync(join(dir, "server/index.ts")));
   // 同期する表は、uidの文字列を主キーにする（notesの例）。サーバー向けの雛形の整数のidのままではない。
   assert.match(readFileSync(join(dir, "server/db.ts"), "utf8"), /uid TEXT PRIMARY KEY/);
