@@ -11,6 +11,7 @@ import { createServer as createNetServer } from "node:net";
 import { Client } from "@modelcontextprotocol/client";
 import { ReviewStore } from "../dist/server/store.js";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
+import { parse } from "smol-toml";
 
 
 test("実プロセスとしてstdioで起動し、依頼を受け付ける", async () => {
@@ -172,6 +173,9 @@ test("inloop newは、標準の構成のリポジトリを作って登録する"
   assert.deepEqual(JSON.parse(readFileSync(join(home, "apps.json"), "utf8")).apps, { "my-app": dir });
   // Claude Code向けの登録。端末固有のパスを含めない（PATHのinloopを使う）。
   assert.deepEqual(JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")), { mcpServers: { inloop: { command: "inloop", args: ["mcp", "--ui", "browser"] } } });
+  const codex = readFileSync(join(dir, ".codex", "config.toml"), "utf8");
+  assert.deepEqual({ ...parse(codex).mcp_servers.inloop }, { command: "inloop", args: ["mcp", "--ui", "browser"] });
+  assert.ok(!codex.includes(parent), "端末固有の絶対パスを登録しない");
 
   assert.match(run("new", "My App").stderr, /アプリ名「my-app」は .* が使っている/);
   assert.match(run("new", "My App", "--name", "other").stderr, /空ではない/);

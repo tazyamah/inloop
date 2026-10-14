@@ -11,7 +11,7 @@
 
 ## 現在地
 
-最終更新: 2026-10-13
+最終更新: 2026-10-14
 
 - 実装済み: MCPサーバーとレビューUI（会話内の埋め込みと、ブラウザの経路）、依頼と回答の記録（リポジトリごと）、解析エンジン（TypeScript＋SQLの依頼票、依存の図、畳み、証拠）、信頼境界ルールと必須の依頼、`inloop`コマンド（`new`・`init`・`apps`・`mcp`・`server`・`update`）、標準の構成の雛形（サーバー向け、`--desktop`のTauri）。詳細は[implementation-log.md](implementation-log.md)とADR。
 - 主なクライアントは **Claude Code（デスクトップクライアント）**、構成は「macOS＋Claude Code＋SQLite」（利用者の方針、2026-10-12、ADR-0037）。この構成で、`inloop-demo`を使った信頼境界ルール・依存の図・再依頼の畳みの確認まで終えた（[implementation-log.md](implementation-log.md)の「人の確認の途中結果」）。
@@ -29,6 +29,8 @@
 - 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
 - 紹介スライド（`docs/slides/inloop-intro.html`、19枚、4枚目の直後に画面のイメージ、発表者モード・PDF印刷つきの単一HTML、2026-10-13）。本文は`inloop-intro.src.html`で、`node scripts/build-slides.mjs`でまとめ直す。Chromiumでの表示と発表者モードの同期まで確認。Safari・Firefox・macOSは未。
 
+- Codex対応（ADR-0047）: init・newでプロジェクトMCP設定を生成する。既存設定を保持し、対象repoを全ツール呼び出しへ渡す。実クライアントの往復は未検証。最新mainへ統合済み。ADR番号の修正後のinit（R8-1）と、既存雛形の例外を本体のlint設定へ反映した変更（R9）は、人の承認済み（2026-10-14）。npm testは137 pass・16 skip・fail 0、inloop lintは違反なし。
+
 ## 次の一手
 
 利用者の方針（2026-10-12）: まず、Claude Code（デスクトップ）で、webアプリとデスクトップアプリを楽に作れるようにする。ほかのクライアント（Claude Desktop、Codex、VS Code、Claude Code CLI）、他のミドルウェア（DBなど）、他のOSは、それが済んでからでよい。ただし設計は、後から足せるように保つ。
@@ -38,7 +40,9 @@
 3. `--standalone`（ADR-0039）の次: Chrome拡張の入れ物（MV3）を足す。データの書き出し・読み込み。配る手順（Cloudflare Pagesへの`wrangler pages deploy`）の雛形への反映。
 4. 利用者の判断待ち（困ったときに戻る）: 再依頼で、保留のあとも畳むか。行単位の差分が要るか。
 
-後回し（理由: 上の方針）: 他のクライアントでの確認、他のDB（PostgreSQLは上の保管中の作業）、Windows・Linux、署名と公証。
+Codex対応は2026-10-14の依頼で先行した（ADR-0047）。次はCodexで依頼・UI表示・人の回答取得を確認する。
+
+後回し（理由: 上の方針）: Codex以外の他のクライアントでの確認、他のDB（PostgreSQLは上の保管中の作業）、Windows・Linux、署名と公証。
 
 ## 未検証事項
 

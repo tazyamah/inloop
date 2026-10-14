@@ -1,6 +1,6 @@
 # クライアント検証の手順
 
-最小のMCPサーバー（固定の依頼票を返す）を、実際のAIクライアントに登録して確かめる手順です。目的は、次の二つを同じ画面で両立できるクライアントを見つけることです。
+MCPサーバーを実際のAIクライアントに登録し、対象コードから生成したレビュー依頼票を確認する手順です。会話内の埋め込みと、ブラウザで開く経路を分けて検証します。
 
 - AIがローカルのrepositoryを編集できる
 - MCP AppsのレビューUIが表示され、回答が会話に戻る
@@ -78,17 +78,36 @@ claude mcp add inloop-code -s local -- <node> <repo>/dist/server/main.js --ui br
 
 Claude Codeは作業フォルダ（roots）を知らせるので、`--state-dir`も`--repo`も付けずに、セッションのフォルダのリポジトリが対象になります（2026-10-11、`initialize`の`capabilities`で`roots`を確認）。
 
-対象のリポジトリは、先に`inloop init`で登録しておきます。`request_review`が`http://<アプリ名>.inloop.localhost:4656/r/R1`の形のURLを返すので、それをブラウザで開いて回答します（[ADR-0013](../maintainer-guide/decisions/0013-machine-wide-ui-server.md)）。画面のサーバーはマシン全体で1つで、MCPサーバーが起動時に、動いていなければ起動します。ポートは`INLOOP_PORT`で変えられます。AIは`get_review_result`の`wait`で回答を待ちます。
+対象のリポジトリは、先に`inloop init`で登録しておきます。`request_review`が`http://<アプリ名>.inloop.localhost:4656/r/R1`の形のURLを返すので、それをブラウザで開いて回答します（[ADR-0013](../maintainer-guide/decisions/0013-machine-wide-ui-server.md)）。画面のサーバーはマシン全体で1つで、MCPサーバーが起動時に、動いていなければ起動します。ポートは`INLOOP_PORT`で変えられます。AIはURLを示して会話を待ち、人が回答したと伝えたら`get_review_result`で取得します（ADR-0018）。
 
 ### Codex
 
-`~/.codex/config.toml`:
+`inloop init <アプリのリポジトリ>`と`inloop new`は、Claude Codeの`.mcp.json`に加えて、Codexの`.codex/config.toml`を生成します。既存ファイルのコメントと他の設定は残し、inloopの登録がなければ追記します。既存のinloop登録は上書きしません。不正なTOMLや追記できないインラインテーブルは、登録前に拒否します。
+
+```toml
+[mcp_servers.inloop]
+command = "inloop"
+args = ["mcp", "--ui", "browser"]
+```
+
+Codexは、信頼したプロジェクトでだけプロジェクト設定を読みます。対象アプリのフォルダをCodexで開き、信頼の確認が出たら内容を確認して承認してください。設定を追加したあとはMCPサーバーを再接続してください。`.mcp.json`だけではCodexへの登録になりません。[公式のMCP設定](https://developers.openai.com/codex/mcp)を参照してください。
+
+生成した設定は、`PATH`から`inloop`を起動します。GUIでコマンドが見つからない場合は、利用者の`~/.codex/config.toml`に次の登録を置けます。`<node>`はNode.jsの絶対パス、`<inloop-repo>`はinloop本体の絶対パスです。端末固有のパスはアプリのリポジトリへcommitしません。
 
 ```toml
 [mcp_servers.inloop]
 command = "<node>"
-args = ["<repo>/dist/server/main.js", "--state-dir", "<state>"]
+args = ["<inloop-repo>/dist/server/main.js", "--ui", "browser"]
 ```
+
+CLIで同じ利用者設定を追加する場合は、次を実行できます。すでにinloopを登録している場合は、既存設定を確認してから変更してください。
+
+```sh
+codex mcp add inloop -- <node> <inloop-repo>/dist/server/main.js --ui browser
+codex mcp get inloop
+```
+
+Codexでのroots通知は未確認です。`request_review`・`get_review_result`・`answer_review`のすべてで、対象アプリのgit作業ツリーの絶対パスを`repo`に渡します。`--state-dir`は互換用の固定依頼票になるので、コードをレビューする登録には付けません。Codexが返されたURLをアプリ内ブラウザで開ける場合は表示し、人の回答を待ちます。承認・保留ボタンは人が押します。ブラウザの回答は会話へ自動送信されないため、人が会話に「回答した」と伝えたら`get_review_result`で読みます。`inloop wait`による自動再開やMCP Appsの埋め込みは、実クライアントで確認するまで利用可能と断定しません。
 
 ### VS Code
 
@@ -104,16 +123,13 @@ args = ["<repo>/dist/server/main.js", "--state-dir", "<state>"]
 
 ## 試し方
 
-会話で次のように頼みます。
+`inloop new`で作ったアプリをAIクライアントで開き、会話で次のように頼みます。
 
-> inloopのrequest_reviewで「発送済みの注文をキャンセルしようとした時、409で返す方針でよいか」をレビュー依頼して。対象は src/db/orders.ts#cancelOrder。
+> inloopのrequest_reviewで「メモの入力検証と保存方法を確認したい」をレビュー依頼して。対象はserver/app.ts#createApp。repoにはこのアプリのgit作業ツリーの絶対パス、rangeにはHEADを渡して。
 
-UIが表示されたら、コード行（例: 44行目）をクリックして修正依頼にし、コメントを書いて「まとめて送信」を押します。会話に次のような1通が届き、AIが続きの作業を始めれば成功です。
+ブラウザの経路では、返ってきたURLを開いてください。依頼票に対象の実コードが出ることを確かめます。コード行をクリックし、コピーされた`R1 server/app.ts#createApp#L行:`を会話へ貼り、質問や修正依頼を書いてください。会話内の埋め込みでは、位置が会話へ入るかも確かめます。
 
-```text
-[inloop] レビュー回答。fixは修正後にrequest_reviewのfollowsで再依頼、askは会話で答える:
-R1 fix src/db/orders.ts#cancelOrder#L44 "..."
-```
+内容に納得できたら、人が「承認」を押してください。ブラウザの経路では会話に「回答した」と伝えます。AIが`get_review_result`で`R1 ok`を受け取れば、依頼・表示・回答取得の往復は成功です。保留の確認には別の依頼を作り、人が「保留」を押します。画面は「回答済み（保留）」、取得結果は`R2 hold`になることを確かめます。UIのコメント欄と「まとめて送信」はADR-0018で廃止されています。
 
 ## 確認項目
 
@@ -123,10 +139,10 @@ R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 |---|---|---|
 | 1 | サーバーに接続できる | クライアントのMCP設定画面、またはAIにツール一覧を尋ねる |
 | 2 | AIに見えるツールが`request_review`・`get_review_result`・`answer_review`の3つだけ | AIにinloopのツール一覧を尋ねる。`inloop_get_request`・`inloop_submit`・`inloop_reopen`が見えたら、visibilityが効いていない |
-| 3 | `request_review`の結果が`R1 pending`だけ | ツール呼び出しの詳細表示 |
-| 4 | レビューUIが表示される | 会話内に依頼票が出る |
-| 5 | 回答が会話に戻り、AIが続きを始める | 「まとめて送信」後の会話 |
-| 6 | 「大きく表示」が使える | ボタンが表示され、押すと全画面になる |
+| 3 | 戻り値がID・状態だけ（ブラウザの経路はURL、必須依頼は`required`も含む） | ツール呼び出しの詳細表示。コード本文を含まない |
+| 4 | レビューUIが表示される | 会話内または返されたURLに、対象の実コードを含む依頼票が出る |
+| 5 | 人の回答をAIが受け取る | 承認・保留の押下後、埋め込みの会話への通知または`get_review_result`の結果 |
+| 6 | 埋め込みでは「大きく表示」が使える | ボタンを押すと全画面になる。ブラウザの経路では対象外 |
 | 7 | 同じ画面で、AIがローカルのrepositoryを編集できる | 適当なファイルの変更を頼む |
 | 8 | AIの文脈に入る量が記録される | サーバーログの`model-bound`行 |
 
@@ -134,6 +150,6 @@ R1 fix src/db/orders.ts#cancelOrder#L44 "..."
 
 `npm test`は、MCPクライアントからのツール呼び出し、ツールの見え方の設定、戻り値の大きさ、回答の検証、stdioでの起動を確認します。
 
-`INLOOP_UI_E2E=1 npm test`（Playwrightが必要）は、テスト用の最小ホスト（`test/harness/host.mjs`）でUIを実ブラウザに表示し、行クリック、まとめての回答、会話へのメッセージ送信、全画面表示の要求、ダークテーマを確認します。
+`INLOOP_UI_E2E=1 npm test`（Playwrightが必要）は、テスト用の最小ホスト（`test/harness/host.mjs`）でUIを実ブラウザに表示し、行クリック、承認・保留の即時記録、会話へのメッセージ送信、全画面表示の要求、ダークテーマを確認します。
 
 これらは実際のクライアントでの動作を保証しません。特に、ツールをAIから隠せるか、会話へのメッセージを受け付けるか、全画面表示に対応するかはホストの実装次第です。

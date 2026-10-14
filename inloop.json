@@ -70,5 +70,89 @@
         }
       ]
     }
-  ]
+  ],
+  "secure": {
+    "allow": [
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/standalone/server/backup.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。表名と列名は、実在する表・列と突き合わせたものだけを、識別子として引用（quote）して組み立てる。値は?で渡す"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/standalone/server/sqlite-wasm.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。node:sqliteと同じ形にして受け渡すだけの層。SQLの文字列は、呼び出し側が固定の文で渡す"
+      },
+      {
+        "rule": "sec-cleartext",
+        "files": [
+          "templates/standalone/server/worker.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。Worker内でHonoに渡す仮のURL。ネットワークには出ない"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/sync/server/backup.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。表名と列名は、実在する表・列と突き合わせたものだけを、識別子として引用（quote）して組み立てる。値は?で渡す"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/sync/server/sqlite-wasm.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。node:sqliteと同じ形にして受け渡すだけの層。SQLの文字列は、呼び出し側が固定の文で渡す"
+      },
+      {
+        "rule": "sec-cleartext",
+        "files": [
+          "templates/sync/server/worker.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。Worker内でHonoに渡す仮のURL。ネットワークには出ない"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/sync/relay/src/index.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。Durable ObjectのSQLiteを、RoomStoreのSql形に包むだけの層。SQLの文字列はRoomStoreが固定の文で渡す"
+      },
+      {
+        "rule": "sec-sql-literal",
+        "files": [
+          "templates/sync/server/sync/sync.test.ts"
+        ],
+        "reason": "本体に保管する雛形についても、生成先の既存の例外と同じ理由を適用する。テストで、node:sqliteをSql形に包むだけの層"
+      },
+      {
+        "rule": "sec-bind",
+        "files": [
+          "src/server/ui-server.ts"
+        ],
+        "reason": "listenの共通関数に渡す宛先は127.0.0.1と::1だけで、IPv4とIPv6のloopbackで待ち受ける（ADR-0013）。外部公開の宛先は受け付けない"
+      },
+      {
+        "rule": "sec-unchecked",
+        "files": [
+          "templates/desktop/server/index.ts",
+          "templates/sync/server/app.test.ts",
+          "templates/sync/server/app.ts",
+          "templates/sync/server/db.ts",
+          "templates/sync/server/sync-tables.ts",
+          "templates/sync/server/sync/engine.ts",
+          "templates/sync/server/sync/sync.test.ts",
+          "templates/sync/server/worker.ts",
+          "templates/sync/web/src/App.tsx",
+          "templates/sync/web/src/pages/Notes.tsx",
+          "templates/sync/web/src/pages/Share.tsx"
+        ],
+        "reason": "標準の雛形へ重ねる差し替えファイルで、単独のTypeScriptプロジェクトではない。生成先では標準のtsconfig.jsonの対象になり、test/secure.test.mjsで組み立てた4種類の雛形の検査を行う"
+      }
+    ]
+  }
 }
