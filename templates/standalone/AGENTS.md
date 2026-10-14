@@ -7,7 +7,7 @@
 - `web/`: 画面（React、Vite）
 - `server/`: Hono。`/api` の要求を受ける。サーバーでは動かさず、`server/worker.ts` がWeb Workerの中で動かす（画面の `fetch("/api/...")` は `web/src/local-api.ts` がWorkerへ渡す）
 - `server/db.ts`: データベース（SQLite）。コードは `node:sqlite` の使い方で書く（テストはNode.jsで動く）。ブラウザ向けのビルドでは、`vite.config.ts` が `node:sqlite` を `server/sqlite-wasm.ts`（sqlite-wasm、OPFSに保存）に差し替える。`DatabaseSync` の `exec`、`prepare` の `all`・`get`・`run` だけを使う（ほかは `sqlite-wasm.ts` に足してから）
-- `server/routes/`、`web/src/pages/`: `inloop generate scaffold` が作る資源ごとのAPIと画面。新しい資源（例: タスク）は、手で書かずに `inloop generate scaffold task title:text done:bool` で作る。型は `text`・`int`・`real`・`bool`・`date`、省略できる列は `note:text:optional`。作ったあとに足りないところ（独自の検証、画面の見た目）を直す。見た目の変数は `web/src/style.css`
+- `server/routes/`、`web/src/pages/`: `inloop generate scaffold` が作る資源ごとのAPIと画面。新しい資源（例: タスク）は、手で書かずに `inloop generate scaffold task title:text done:bool` で作る。型は `text`・`int`・`real`・`bool`・`date`・`image`（端末の中で縮小した画像。データURLとして text の列に入る。`web/src/image.ts`）、省略できる列は `note:text:optional`。作ったあとに足りないところ（独自の検証、画面の見た目）を直す。見た目の変数は `web/src/style.css`
 - `server/backup.ts`: データの書き出し・読み込み（「データ」画面）。表と列は、データベースの中にあるものと照らして使う。表を足しても、書き換えなくてよい（`sync_state`は書き出さない）
 - `npm run dev` で動かし、`npm test` でサーバーのテスト（Node.js）、`npm run build` で型検査と静的ファイルのビルド。配り方は [README.md](README.md)（PWAとして端末に入れる）。ネットワークのサーバーはなく、`fetch` で `/api` 以外を呼ぶとインターネットに出るので、宛先を決めてから使う
 

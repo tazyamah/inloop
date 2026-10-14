@@ -29,7 +29,7 @@ const USAGE = `使い方: inloop <コマンド>
   mcp [--ui browser] [--repo <dir>] [--allow <dir>]  MCPサーバーを動かす（AIクライアントに登録する）
   server [start|stop|restart|status]                 画面のサーバーを管理する（引数なしは前面で動かす）
   new <dir> [--name <名前>] [--db sqlite] [--desktop | --standalone | --sync] 新しいアプリを標準の構成（React＋Hono＋SQLite）で作る。--desktop はTauriの外枠を足す。--standalone はサーバーなしで端末内（ブラウザ・PWA）で動く構成にする。--sync は、それに端末どうしの共有（承認方式、暗号化、中継つき）を足す
-  generate scaffold <名前> <列>... [--plural <名前>] [--label <表示名>]  資源（表・API・テスト・画面）を決まった形で作る。列は 名前:型（text・int・real・bool・date）、省略可は 名前:型:optional
+  generate scaffold <名前> <列>... [--plural <名前>] [--label <表示名>]  資源（表・API・テスト・画面）を決まった形で作る。列は 名前:型（text・int・real・bool・date・image）、省略可は 名前:型:optional
   init [<dir>] [--name <名前>]                       リポジトリをinloopのアプリとして登録する
   apps                                               登録したアプリの一覧
   wait <依頼ID>... [--repo <dir>] [--timeout <秒>]   回答が記録されるまで待ち、回答を1行ずつ出す

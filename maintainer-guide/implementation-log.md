@@ -507,3 +507,11 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 統合後のnpm testは137 pass・16 skip・fail 0、inloop lintは違反なし、git diff --checkは成功。ADR番号を修正したinitはR8-1、inloop.jsonの例外設定はR9でレビュー依頼した。R8の承認はR8-1へ引き継いでいない。マージはこの2件の人による承認待ち（http://inloop.inloop.localhost:4656/r/R9）。
 
 - 追加レビューの承認を確認（2026-10-14）: inloop check --range origin/mainはR8-1とR9がok、必須依頼2件がすべて承認済み、セキュアコードの検査は違反なし。PR #29は競合なしで、mainは統合時から変更なし。利用者から再度マージの指示を受けた。
+
+## 2026-10-14 画像の共有（ADR-0048、Proposed）
+
+- `inloop generate scaffold`に列の型`image`を足した。縮小したデータURLをtext列に入れ、APIは`isImage`で検証し、画面は`web/src/image.ts`の`shrinkImage`を通す。共有のアプリは`sync-tables.ts`に`max: 36000`で登録する。
+- 中継の`blobChars`を4096から56000へ上げ、参加時の行を約512KiBごとに分けて送るようにした（最後の1通だけが最新の`seq`を持つ）。テンプレートの`Backup.tsx`に、保存領域の使用量と`persist()`の要求を足した。
+- `npm run build`後の`test/scaffold.test.mjs`が通る（追加1件）。`INLOOP_APP_E2E=1`で、画像の列を含む資源を生成した通常のアプリと`--sync`のアプリが、`npm test`（中継の上限いっぱいの行と分割送信を含む）と`npm run build`（`--sync`は`build:extension`も）を通った。Chromiumで`shrinkImage`の動作を確認した。
+- 未検証: iPhone実機（WebP書き出し、写真の選択、向き）、2台での画像の同期、本物の中継、`persist()`の許可、実際の容量。既存の中継は再デプロイするまで古い上限のまま。
+
