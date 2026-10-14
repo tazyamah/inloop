@@ -38,7 +38,7 @@ inloop update                      # inloopを更新してビルドし直す（�
 
 ## 依頼と回答の保存
 
-依頼と回答は、対象のリポジトリの`.inloop/reviews.jsonl`に保存します（[ADR-0010](../maintainer-guide/decisions/0010-target-repository-per-request.md)）。対象は依頼ごとに、AIが渡す`repo`（gitの作業ツリーの絶対パス）、起動時の`--repo <dir>`、クライアントが知らせる作業フォルダ（roots、1つの場合）の順で決め、決まらなければ依頼を拒否します。`--allow <dir>`で対象を限れます。
+依頼と回答は、対象のリポジトリの`.inloop/reviews.jsonl`に保存します（[ADR-0010](../maintainer-guide/decisions/0010-target-repository-per-request.md)）。対象は依頼ごとに、AIが渡す`repo`（gitの作業ツリーの絶対パス）、起動時の`--repo <dir>`、クライアントが知らせる作業フォルダ（roots、1つの場合）の順で決め、決まらなければ依頼を拒否します。`--allow <dir>`で対象を限れます。ブラウザの経路（`--ui browser`）では、AIが渡した`repo`も`inloop init`で登録したアプリでなければ拒否します（[ADR-0048](../maintainer-guide/decisions/0048-client-config-hardening.md)）。
 
 引数`--state-dir <dir>`（または環境変数`INLOOP_STATE_DIR`）を指定すると、対象に関係なく`<dir>/reviews.jsonl`に保存します（これまでの登録との互換、[ADR-0014](../maintainer-guide/decisions/0014-target-path-not-in-record.md)）。どちらで動いているかは、起動時のログの`state=`で分かります。
 

@@ -20,9 +20,10 @@ inloop本体（`package.json`、`npm ci`で入るもの）の直接の依存:
 | `@modelcontextprotocol/ext-apps` | MIT |
 | `typescript` | Apache-2.0 |
 | `zod` | MIT |
+| `smol-toml`（Codexの設定のTOMLを検証する） | BSD-3-Clause |
 | `esbuild`、`@types/node`（開発のみ） | MIT |
 
-間接の依存を含め、`npm ci`で入るパッケージは、MIT・Apache-2.0・ISCです（2026-10-13時点、`node_modules`の各`package.json`の`license`欄で確認）。
+間接の依存を含め、`npm ci`で入るパッケージは、MIT・Apache-2.0・ISC・BSD-3-Clauseです（2026-10-13時点、`node_modules`の各`package.json`の`license`欄で確認）。
 
 `npm run build`は、画面のコード（`dist/ui/`）に`@modelcontextprotocol/ext-apps`などをesbuildでまとめて入れます。`dist/`はcommitしておらず、配布していません。配布物を作るときは、含まれる依存のライセンス文を同梱します。
 
