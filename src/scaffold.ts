@@ -16,7 +16,7 @@ export interface Resource {
 }
 
 const TYPES: readonly FieldType[] = ["text", "int", "real", "bool", "date", "image"];
-/** 画像（縮小したデータURL）の最大の文字数。共有の中継の1行の上限（ADR-0048）に収まる大きさ。 */
+/** 画像（縮小したデータURL）の最大の文字数。共有の中継の1行の上限（ADR-0049）に収まる大きさ。 */
 export const IMAGE_MAX_CHARS = 36000;
 const NAME = /^[a-z][a-z0-9_]{0,40}$/;
 /** 自動で付く列と、SQLの予約語（表名・列名に使うと引用符が要る語）。 */
@@ -114,7 +114,7 @@ function parseExpr(f: Field): string {
     : `const ${n} = ${body[f.type]};\n  if (${n} === undefined) return { error: ${jsStr(`${n} が正しくない`)} };`;
 }
 
-/** 画像の列があるときだけ、データURLの検査を生成する（縮小したWebP・JPEG・PNGだけ。ADR-0048）。 */
+/** 画像の列があるときだけ、データURLの検査を生成する（縮小したWebP・JPEG・PNGだけ。ADR-0049）。 */
 const imageHelper = (r: Resource): string =>
   r.fields.some((f) => f.type === "image")
     ? `\n/** 縮小した画像のデータURLか（WebP・JPEG・PNG、${IMAGE_MAX_CHARS}文字まで）。 */\nconst isImage = (s: string): boolean => s.length <= ${IMAGE_MAX_CHARS} && /^data:image\\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(s);\n`
@@ -334,7 +334,7 @@ export function ${P}() {
 
   const reset = () => { setForm(blank); setEditing(null); setError(""); };
 ${hasImage ? `
-  // 選んだ画像は、端末の中で縮小してから、データURLとして列に入れる（ADR-0048）。
+  // 選んだ画像は、端末の中で縮小してから、データURLとして列に入れる（ADR-0049）。
   const pickImage = async (key: keyof Form, file: File | undefined) => {
     if (!file) return;
     try {
@@ -589,8 +589,8 @@ export function syncPageSource(r: Resource): string {
     );
 }
 
-/** `web/src/image.ts`。画像を端末の中で縮小して、列に入れるデータURLにする（ADR-0048）。画像の列があるアプリに、1回だけ作る。 */
-export const imageHelperSource = `// 画像を縮小して、text の列に入れるデータURLにする。\`inloop generate scaffold\` が作った（ADR-0048）。
+/** `web/src/image.ts`。画像を端末の中で縮小して、列に入れるデータURLにする（ADR-0049）。画像の列があるアプリに、1回だけ作る。 */
+export const imageHelperSource = `// 画像を縮小して、text の列に入れるデータURLにする。\`inloop generate scaffold\` が作った（ADR-0049）。
 // 長辺320px・WebP（使えない端末はJPEG）から始め、${IMAGE_MAX_CHARS}文字に収まるまで、画質と大きさを下げる。元の画像は保存しない。
 export const IMAGE_MAX_CHARS = ${IMAGE_MAX_CHARS};
 

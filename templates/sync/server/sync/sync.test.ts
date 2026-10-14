@@ -245,7 +245,7 @@ test("中継: 部屋を作れるのは最初の1回だけ。参加者以外は�
   assert.equal(((await put("r", 5)).out[0]!.msg as { applied: boolean }).applied, false);
   assert.deepEqual((await store.handle(octx, JSON.stringify({ t: "put", rid: "r", ts: 20, blob: "x".repeat(LIMITS.blobChars + 1), epoch: 1 }))).out[0]!.msg, { t: "error", code: "bad-message", re: "put" });
   assert.deepEqual((await store.handle(octx, JSON.stringify({ t: "put", rid: "r", ts: 20, blob: "x", epoch: 2 }))).out[0]!.msg, { t: "error", code: "epoch", re: "put" });
-  // 画像の行（上限いっぱいのblob）を受け付け、参加時は大きさごとに分けて送る。最後の1通だけが全体の最新の seq を持つ（ADR-0048）。
+  // 画像の行（上限いっぱいのblob）を受け付け、参加時は大きさごとに分けて送る。最後の1通だけが全体の最新の seq を持つ（ADR-0049）。
   const big = "x".repeat(LIMITS.blobChars);
   for (let i = 0; i < 30; i++) assert.equal(((await store.handle(octx, JSON.stringify({ t: "put", rid: `big${i}`, ts: 1, blob: big, epoch: 1 }))).out[0]!.msg as { applied: boolean }).applied, true);
   const hello = (await store.handle(octx, JSON.stringify({ t: "hello", since: 0, ver: 0, epoch: 1 }))).out.map((o) => o.msg as { t: string; rows?: { seq: number }[]; seq?: number });

@@ -50,7 +50,9 @@ npm run dev                      # 画面 http://127.0.0.1:5173
 inloop generate scaffold task title:text done:bool due:date:optional   # 表・API・テスト・画面を生成
 ```
 
-`inloop new`と`inloop init`は、Claude Codeの`.mcp.json`とCodexの`.codex/config.toml`を用意します。Codexではプロジェクトを信頼してMCP設定を読み直し、レビューの対象を`repo`に渡します。設定の読み取りはCodex CLIで確認済みです。実会話での往復は未検証で、手順は[クライアント検証](docs/client-verification.md#codex)を参照してください。そのフォルダをClaude Codeで開き（初回はinloopのMCPサーバーを使うかを聞かれるので許可）、「○○を管理する機能を作って」と頼みます。AIが変更を作ると、信頼境界に触れた変更（認証、外部入力、DB書き込みなど）にはレビュー依頼が出ます。表示されるURL（`http://<アプリ名>.inloop.localhost:4656/r/R1`の形）をブラウザで開いて内容を確かめ、承認か保留を押します。`inloop check`で、必須の依頼がすべて承認済みかを確かめられます。
+`inloop new`と`inloop init`は、Claude Codeの`.mcp.json`とCodexの`.codex/config.toml`を用意します。アプリのフォルダをClaude Codeで開き（初回はinloopのMCPサーバーを使うかを聞かれるので許可）、「○○を管理する機能を作って」と頼みます。AIが変更を作ると、信頼境界に触れた変更（認証、外部入力、DB書き込みなど）にはレビュー依頼が出ます。表示されるURL（`http://<アプリ名>.inloop.localhost:4656/r/R1`の形）をブラウザで開いて内容を確かめ、承認か保留を押します。`inloop check`で、必須の依頼がすべて承認済みかを確かめられます。
+
+Codexで使う場合は、プロジェクトを信頼してMCP設定を読み直し、レビューの対象を`repo`に渡します。設定の読み取りはCodex CLIで確認済みです。実会話での往復は未検証で、手順は[クライアント検証](docs/client-verification.md#codex)を参照してください。
 
 `inloop new`の`--desktop`（Tauriのデスクトップアプリ）、`--standalone`（サーバーなし、ブラウザ・PWAで動く）、`--sync`（端末どうしの共有つき）で、ほかの構成も作れます。
 

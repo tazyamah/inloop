@@ -18,6 +18,8 @@ export interface TargetOptions {
   store?: ReviewStore;
   /** クライアントが知らせた作業フォルダ（roots）を取る。対応していなければundefinedを返す。 */
   roots?: () => Promise<string[] | undefined>;
+  /** 対象にしてよいか。指定があれば、決めた対象がこれを満たさないときは拒否する（rootsが使えないクライアントでも、登録したアプリだけに限る）。 */
+  accept?: (top: string) => boolean;
 }
 
 /** 対象を決められない、または許されない場所を指している。 */
@@ -56,9 +58,11 @@ export class Targets {
   private readonly legacy: ReviewStore | undefined;
 
   private roots: (() => Promise<string[] | undefined>) | undefined;
+  private readonly accept: ((top: string) => boolean) | undefined;
 
   constructor(options: TargetOptions = {}) {
     this.roots = options.roots;
+    this.accept = options.accept;
     this.fixed = options.repo ? gitTopLevel(resolve(options.repo)) : undefined;
     this.allow = (options.allow ?? []).map((d) => realpathSync(resolve(d)));
     if (this.fixed) this.check(this.fixed);
@@ -117,6 +121,7 @@ export class Targets {
     }
     if (roots && roots.length > 0 && !roots.some((r) => inside(top!, r))) throw new TargetError(`${top}: 作業フォルダの外`);
     this.check(top);
+    if (this.accept && !this.accept(top)) throw new TargetError(`${top}: inloop init で登録されていない`);
     return { repo: top };
   }
 

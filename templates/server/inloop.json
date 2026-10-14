@@ -83,6 +83,18 @@
           ]
         }
       ]
+    },
+    {
+      "id": "client-config",
+      "question": "AIクライアントがinloopを起動する設定（.mcp.json、.codex/config.toml）の command を、inloop以外に差し替えたり、無効にしたりしていないか",
+      "match": [
+        {
+          "files": [
+            ".mcp.json",
+            ".codex/config.toml"
+          ]
+        }
+      ]
     }
   ],
   "layers": [

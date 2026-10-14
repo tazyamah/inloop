@@ -30,7 +30,7 @@
 - 紹介スライド（`docs/slides/inloop-intro.html`、19枚、4枚目の直後に画面のイメージ、発表者モード・PDF印刷つきの単一HTML、2026-10-13）。本文は`inloop-intro.src.html`で、`node scripts/build-slides.mjs`でまとめ直す。Chromiumでの表示と発表者モードの同期まで確認。Safari・Firefox・macOSは未。
 
 - Codex対応（ADR-0047）: init・newでプロジェクトMCP設定を生成する。既存設定を保持し、対象repoを全ツール呼び出しへ渡す。実クライアントの往復は未検証。最新mainへ統合済み。ADR番号の修正後のinit（R8-1）と、既存雛形の例外を本体のlint設定へ反映した変更（R9）は、人の承認済み（2026-10-14）。npm testは137 pass・16 skip・fail 0、inloop lintは違反なし。
-- 画像の共有（ADR-0048、Proposed）: `image`列（縮小したデータURL）、中継の1行の上限56000文字、参加時の分割送信、「データ」画面の保存領域の表示を実装した。自動テスト、生成アプリのテスト・ビルド、Chromiumでの縮小まで。iPhone実機、2台での同期、本物の中継は未検証。
+- 画像の共有（ADR-0049、Proposed）: `image`列（縮小したデータURL）、中継の1行の上限56000文字、参加時の分割送信、「データ」画面の保存領域の表示を実装した。自動テスト、生成アプリのテスト・ビルド、Chromiumでの縮小まで。iPhone実機、2台での同期、本物の中継は未検証。
 
 ## 次の一手
 
@@ -41,7 +41,7 @@
 3. `--standalone`（ADR-0039）の次: Chrome拡張の入れ物（MV3）を足す。データの書き出し・読み込み。配る手順（Cloudflare Pagesへの`wrangler pages deploy`）の雛形への反映。
 4. 利用者の判断待ち（困ったときに戻る）: 再依頼で、保留のあとも畳むか。行単位の差分が要るか。
 
-Codex対応は2026-10-14の依頼で先行した（ADR-0047）。次はCodexで依頼・UI表示・人の回答取得を確認する。
+Codex対応は2026-10-14の依頼で先行した（ADR-0047、レビュー指摘の修正はADR-0048）。次はCodexで依頼・UI表示・人の回答取得を確認する。
 
 後回し（理由: 上の方針）: Codex以外の他のクライアントでの確認、他のDB（PostgreSQLは上の保管中の作業）、Windows・Linux、署名と公証。
 

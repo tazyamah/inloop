@@ -508,7 +508,14 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 
 - 追加レビューの承認を確認（2026-10-14）: inloop check --range origin/mainはR8-1とR9がok、必須依頼2件がすべて承認済み、セキュアコードの検査は違反なし。PR #29は競合なしで、mainは統合時から変更なし。利用者から再度マージの指示を受けた。
 
-## 2026-10-14 画像の共有（ADR-0048、Proposed）
+## 2026-10-14 Codex対応のレビュー指摘の修正（ADR-0048）
+
+- 指摘: 起動コマンドを決める設定が信頼境界ルールに当たらない、登録外のrepoを`get_review_result`・`answer_review`が受ける、維持した登録の無効化を知らせない、ライセンス文書と依存の食い違い、Claude Codeの`repo`指示の変更、READMEの流れ、壊れた`.mcp.json`で中途半端に止まる。
+- 対応: `client-config`ルールを本体と4雛形に足した。`inloop mcp --ui browser`で、対象を登録したアプリに限った。維持した登録の警告と`.mcp.json`の事前確認を足した。docs/licensing.md、雛形のAGENTS.md、READMEを直した。
+- 検証（Linux）: `npm test`。`inloop new --sync`のテスト1件は、この環境のclone（`.gitignore`の`.env.*`で`web/.env.production`が入らない）で、変更前のmainでも失敗する。ほかは通った。
+- 未対応: 紹介スライド（`docs/slides/`）の「Codexは未実装」の記述。再生成とPDFの作り直しが要る。Codexの実会話での確認は未検証のまま。
+
+## 2026-10-14 画像の共有（ADR-0049、Proposed）
 
 - `inloop generate scaffold`に列の型`image`を足した。縮小したデータURLをtext列に入れ、APIは`isImage`で検証し、画面は`web/src/image.ts`の`shrinkImage`を通す。共有のアプリは`sync-tables.ts`に`max: 36000`で登録する。
 - 中継の`blobChars`を4096から56000へ上げ、参加時の行を約512KiBごとに分けて送るようにした（最後の1通だけが最新の`seq`を持つ）。テンプレートの`Backup.tsx`に、保存領域の使用量と`persist()`の要求を足した。

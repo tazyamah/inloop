@@ -31,7 +31,7 @@ test("複数形と列の定義を読む", () => {
   assert.equal(defineResource("task", ["a:text"], { label: "タスク" }).label, "タスク");
 });
 
-test("画像の列は、縮小の道具・データURLの検査・画像の入力を作る（ADR-0048）", () => {
+test("画像の列は、縮小の道具・データURLの検査・画像の入力を作る（ADR-0049）", () => {
   assert.deepEqual(parseFields(["photo:image:optional"]), [{ name: "photo", type: "image", optional: true }]);
   for (const flags of [[], ["--sync"]]) {
     const { dir, run } = newApp(...flags);

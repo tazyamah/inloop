@@ -66,6 +66,15 @@ function init(args: string[]): void {
   if (args.length > 1) throw new Error(`知らない引数 ${args.slice(1).join(" ")}`);
   const target = gitTopLevel(resolve(args[0] ?? "."));
   const codex = planCodexConfig(target);
+  // 登録や書き込みの前に、既存の.mcp.jsonが読めることを確かめる（途中で止まって中途半端に残さない）。
+  const mcpJson = join(target, ".mcp.json");
+  if (existsSync(mcpJson)) {
+    try {
+      JSON.parse(readFileSync(mcpJson, "utf8"));
+    } catch {
+      throw new Error(".mcp.json のJSONの構文が不正（既存ファイルは変更していません）");
+    }
+  }
   const { name: n, repo } = new AppRegistry().register(target, name);
   const dir = join(repo, ".inloop");
   mkdirSync(dir, { recursive: true });
@@ -77,6 +86,7 @@ function init(args: string[]): void {
     process.stdout.write(".codex/config.toml に inloop を書きました（Codexで信頼したプロジェクトを開くと使えます）\n");
   } else if (codex.preserved) {
     process.stdout.write("Codexの既存のinloop登録を維持しました（自動変更なし）\n");
+    if (codex.warning) process.stderr.write(`警告: .codex/config.toml の${codex.warning}。レビューの依頼が届かない場合は設定を確認してください\n`);
   }
   process.stdout.write(`登録しました: ${n} → ${repo}\n画面: ${appOrigin(n, uiPort())}/r/<依頼ID>\n${wrote ? ".mcp.json に inloop を書きました（Claude Code がこのリポジトリで inloop を使う）\n" : ""}`);
 }
