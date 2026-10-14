@@ -501,3 +501,7 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 反映後のinloop check --range HEADはinitのfs-write 1件をmissingと判定した。実stdioのMCPクライアントからrequest_reviewを呼び、必須依頼R8を作成した（http://inloop.inloop.localhost:4656/r/R8）。承認は記録していない。既存の画面サーバーは稼働中（ポート4656）。この接続試験はCodexホストのMCP接続の証明には含めない。
 
 - マージ前の確認（2026-10-14）: R8の人による承認記録を確認した。inloop check --range HEADはR8 ok、必須依頼1件がすべて承認済み。利用者からマージの指示を受けた。
+
+- 最新main（3f46ee4）へ統合した。mainのADR-0045・0046と重複しないよう、Codex対応をADR-0047へ揃えた。既存のREADME、lint・ユースケースの規則、文書、雛形の指示を保持して競合を解消した。
+- 本体のinloop lintが保管中の雛形とloopback用のlisten共通関数に21件を出したため、生成先にある例外を対応する保管ファイルへ適用し、単独プロジェクトにならない差し替えファイルを具体的なパスで限定した。本体のlintが通る回帰テストを追加した。生成先の検査と例外は変更していない。
+- 統合後のnpm testは137 pass・16 skip・fail 0、inloop lintは違反なし、git diff --checkは成功。ADR番号を修正したinitはR8-1、inloop.jsonの例外設定はR9でレビュー依頼した。R8の承認はR8-1へ引き継いでいない。マージはこの2件の人による承認待ち（http://inloop.inloop.localhost:4656/r/R9）。

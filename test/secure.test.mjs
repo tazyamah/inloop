@@ -263,3 +263,10 @@ test("生成したscaffoldは、規則に反しない。反すれば生成が失
   assert.equal(bad.status, 1);
   assert.match(bad.stdout, /sec-eval\tserver\/bad\.ts/);
 });
+
+// 本体の検査でも、雛形の保管場所と生成先の検査を区別する。
+test("inloop本体のセキュアコード検査が通る", () => {
+  const repo = fileURLToPath(new URL("../", import.meta.url));
+  const config = JSON.parse(readFileSync(join(repo, "inloop.json"), "utf8"));
+  assert.deepEqual(lintRepo(repo, config.secure?.allow), []);
+});

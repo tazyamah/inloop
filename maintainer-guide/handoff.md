@@ -29,7 +29,7 @@
 - 公開向けの文書（README、LICENSE=MIT、docs/gallery.md、docs/licensing.md）を整えた（2026-10-13）。ライセンスの種類は暫定の既定で、利用者の確認待ち。
 - 紹介スライド（`docs/slides/inloop-intro.html`、19枚、4枚目の直後に画面のイメージ、発表者モード・PDF印刷つきの単一HTML、2026-10-13）。本文は`inloop-intro.src.html`で、`node scripts/build-slides.mjs`でまとめ直す。Chromiumでの表示と発表者モードの同期まで確認。Safari・Firefox・macOSは未。
 
-- Codex対応（ADR-0047）: init・newでプロジェクトMCP設定を生成する。既存設定を保持し、対象repoを全ツール呼び出しへ渡す。実クライアントの往復は未検証。initの書き込み変更は必須依頼R8で承認済み（2026-10-14）。
+- Codex対応（ADR-0047）: init・newでプロジェクトMCP設定を生成する。既存設定を保持し、対象repoを全ツール呼び出しへ渡す。実クライアントの往復は未検証。最新mainへ統合済み。ADR番号の修正後のinitはR8-1、既存雛形の例外を本体のlint設定へ反映した変更はR9で人の承認待ち。npm testは137 pass・16 skip・fail 0、inloop lintは違反なし。
 
 ## 次の一手
 
