@@ -214,3 +214,18 @@ test("必須の依頼は、会話からは承認できない（画面で人が�
   assert.equal(r.isError, true);
   assert.match(textOf(r), /R1: 必須の依頼は、画面で回答する/);
 });
+
+test("acceptを指定すると、AIが渡したrepoも満たすものに限り、満たさなければ.inloop/を作らない（ADR-0048）", async () => {
+  const ok = makeRepo();
+  const other = makeRepo();
+  const client = await connect({ accept: (top) => top === realpathSync(ok) });
+  assert.equal(textOf(await ask(client, ok)), "R1 pending");
+  for (const name of ["get_review_result", "answer_review"]) {
+    const args = name === "get_review_result" ? { ids: ["R1"], repo: other } : { ids: ["R1"], verdict: "ok", said: "承認", repo: other };
+    const r = await client.callTool({ name, arguments: args });
+    assert.equal(r.isError, true, name);
+    assert.match(textOf(r), /inloop init で登録されていない/);
+  }
+  assert.equal(textOf(await ask(client, other)).includes("pending"), false);
+  assert.ok(!existsSync(join(other, ".inloop")), "登録されていない作業ツリーには何も作らない");
+});

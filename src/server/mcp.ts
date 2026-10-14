@@ -65,11 +65,18 @@ export async function runMcp(argv: string[], env: NodeJS.ProcessEnv = process.en
   let browser: { port: number; registry: AppRegistry } | undefined;
   try {
     const args = parseArgs(argv, env);
-    targets = new Targets({ stateFile: args.dir ? join(args.dir, LOG_FILE_NAME) : undefined, repo: args.repo, allow: args.allow });
-    if (args.browser) {
+    const registry = args.browser ? new AppRegistry() : undefined;
+    // ブラウザの経路では、AIが渡す repo も登録したアプリに限る（ADR-0048）。
+    targets = new Targets({
+      stateFile: args.dir ? join(args.dir, LOG_FILE_NAME) : undefined,
+      repo: args.repo,
+      allow: args.allow,
+      accept: registry ? (top) => registry.nameOf(top) !== undefined : undefined,
+    });
+    if (registry) {
       // 画面はマシン全体で1つの画面のサーバーが配る（ADR-0013）。記録先を固定する互換の動きとは併用しない。
       if (targets.stateLocation) throw new Error("--ui browser は --state-dir と併用できない");
-      browser = { port: uiPort(env), registry: new AppRegistry() };
+      browser = { port: uiPort(env), registry };
       await ensureUiServer(browser.port, env);
     }
   } catch (e) {
