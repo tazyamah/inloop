@@ -6,6 +6,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { AppRegistry, defaultName, NAME_PATTERN, uiPort } from "./server/apps.js";
 import { runMcp } from "./server/mcp.js";
+import { planCodexConfig } from "./client-config.js";
 import { LOG_FILE_NAME, ReviewStore } from "./server/store.js";
 import { gitTopLevel } from "./server/target.js";
 import { answersOf } from "./server/wait.js";
@@ -59,15 +60,24 @@ function writeMcpJson(repo: string): boolean {
   return true;
 }
 
-/** リポジトリを登録し、記録の置き場所とClaude Code向けの登録を用意する（ADR-0011、ADR-0013）。 */
+/** リポジトリを登録し、記録の置き場所とクライアント向けの登録を用意する（ADR-0047）。 */
 function init(args: string[]): void {
   const name = option(args, "--name");
   if (args.length > 1) throw new Error(`知らない引数 ${args.slice(1).join(" ")}`);
-  const { name: n, repo } = new AppRegistry().register(resolve(args[0] ?? "."), name);
+  const target = gitTopLevel(resolve(args[0] ?? "."));
+  const codex = planCodexConfig(target);
+  const { name: n, repo } = new AppRegistry().register(target, name);
   const dir = join(repo, ".inloop");
   mkdirSync(dir, { recursive: true });
   if (!existsSync(join(dir, ".gitignore"))) writeFileSync(join(dir, ".gitignore"), "*\n");
   const wrote = writeMcpJson(repo);
+  if (codex.content !== undefined) {
+    mkdirSync(dirname(codex.file), { recursive: true });
+    writeFileSync(codex.file, codex.content);
+    process.stdout.write(".codex/config.toml に inloop を書きました（Codexで信頼したプロジェクトを開くと使えます）\n");
+  } else if (codex.preserved) {
+    process.stdout.write("Codexの既存のinloop登録を維持しました（自動変更なし）\n");
+  }
   process.stdout.write(`登録しました: ${n} → ${repo}\n画面: ${appOrigin(n, uiPort())}/r/<依頼ID>\n${wrote ? ".mcp.json に inloop を書きました（Claude Code がこのリポジトリで inloop を使う）\n" : ""}`);
 }
 

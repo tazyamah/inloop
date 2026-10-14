@@ -1,0 +1,3 @@
+[mcp_servers.inloop]
+command = "inloop"
+args = ["mcp", "--ui", "browser"]
