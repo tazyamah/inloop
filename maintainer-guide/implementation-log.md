@@ -505,3 +505,5 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 最新main（3f46ee4）へ統合した。mainのADR-0045・0046と重複しないよう、Codex対応をADR-0047へ揃えた。既存のREADME、lint・ユースケースの規則、文書、雛形の指示を保持して競合を解消した。
 - 本体のinloop lintが保管中の雛形とloopback用のlisten共通関数に21件を出したため、生成先にある例外を対応する保管ファイルへ適用し、単独プロジェクトにならない差し替えファイルを具体的なパスで限定した。本体のlintが通る回帰テストを追加した。生成先の検査と例外は変更していない。
 - 統合後のnpm testは137 pass・16 skip・fail 0、inloop lintは違反なし、git diff --checkは成功。ADR番号を修正したinitはR8-1、inloop.jsonの例外設定はR9でレビュー依頼した。R8の承認はR8-1へ引き継いでいない。マージはこの2件の人による承認待ち（http://inloop.inloop.localhost:4656/r/R9）。
+
+- 追加レビューの承認を確認（2026-10-14）: inloop check --range origin/mainはR8-1とR9がok、必須依頼2件がすべて承認済み、セキュアコードの検査は違反なし。PR #29は競合なしで、mainは統合時から変更なし。利用者から再度マージの指示を受けた。
