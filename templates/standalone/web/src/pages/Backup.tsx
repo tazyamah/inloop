@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+const mb = (n: number): string => `${(n / 1024 / 1024).toFixed(1)}MB`;
 
 /** データの書き出しと読み込み。端末のブラウザの中だけにあるデータを、ファイルに残し、戻せる。 */
 export function Backup() {
@@ -6,6 +8,15 @@ export function Backup() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState<{ text: string; rows: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+
+  // 保存領域の使用量と、ブラウザに消されにくくする要求（画像を残すアプリで大事になる）。
+  const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
+  const [persisted, setPersisted] = useState<boolean | null>(null);
+  useEffect(() => {
+    void navigator.storage?.estimate?.().then((e) => setUsage({ used: e.usage ?? 0, quota: e.quota ?? 0 })).catch(() => undefined);
+    void navigator.storage?.persisted?.().then(setPersisted).catch(() => undefined);
+  }, []);
+  const keep = async () => setPersisted((await navigator.storage?.persist?.().catch(() => false)) ?? false);
 
   const stamp = () => new Date().toISOString().slice(0, 10).replaceAll("-", "");
 
@@ -78,6 +89,14 @@ export function Backup() {
             <button type="button" onClick={() => { setPending(null); if (input.current) input.current.value = ""; }}>やめる</button>
           </div>
         )}
+      </section>
+      <section className="card">
+        <h3>保存領域</h3>
+        <p className="muted">
+          {usage ? `${mb(usage.used)} 使用中（上限の目安 ${mb(usage.quota)}）。` : "使用量を調べられません。"}
+          {persisted === true ? "ブラウザに消されにくい設定です。" : persisted === false ? "空きが少ないとき、ブラウザがデータを消すことがあります。" : ""}
+        </p>
+        {persisted === false && <div className="actions"><button type="button" onClick={() => void keep()}>消されにくくする</button></div>}
       </section>
       {error && <p className="error" role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}

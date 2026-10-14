@@ -31,6 +31,26 @@ test("複数形と列の定義を読む", () => {
   assert.equal(defineResource("task", ["a:text"], { label: "タスク" }).label, "タスク");
 });
 
+test("画像の列は、縮小の道具・データURLの検査・画像の入力を作る（ADR-0049）", () => {
+  assert.deepEqual(parseFields(["photo:image:optional"]), [{ name: "photo", type: "image", optional: true }]);
+  for (const flags of [[], ["--sync"]]) {
+    const { dir, run } = newApp(...flags);
+    const r = run(dir, "generate", "scaffold", "item", "name:text", "photo:image:optional");
+    assert.equal(r.status, 0, r.stderr);
+    const read = (f) => readFileSync(join(dir, f), "utf8");
+    assert.match(read("server/db.ts"), /photo TEXT,/);
+    assert.match(read("server/routes/items.ts"), /const isImage = .*data:image\\\/\(webp\|jpeg\|png\);base64/);
+    assert.match(read("web/src/pages/Items.tsx"), /import \{ shrinkImage \} from "\.\.\/image\.ts";/);
+    assert.match(read("web/src/pages/Items.tsx"), /type="file" accept="image\/\*"/);
+    assert.match(read("web/src/image.ts"), /export async function shrinkImage/);
+    if (flags.length > 0) assert.match(read("server/sync-tables.ts"), /photo: \{ type: "text", max: 36000, optional: true \}/);
+    // 画像の列がない資源では、道具もデータURLの検査も作らない（すでにある道具は壊さない）。
+    assert.equal(run(dir, "generate", "scaffold", "tag", "label:text").status, 0);
+    assert.doesNotMatch(read("server/routes/tags.ts"), /isImage/);
+    assert.doesNotMatch(read("web/src/pages/Tags.tsx"), /shrinkImage/);
+  }
+});
+
 test("Chrome拡張のIDは、公開鍵のハッシュから決まる（a〜pの32文字）", () => {
   const a = extensionKey();
   assert.match(a.id, /^[a-p]{32}$/);
@@ -127,7 +147,7 @@ test("共有のアプリで生成したAPIの表と列を、依頼票が読み�
 // 生成したアプリが、実際に型検査・テスト・ビルドを通る。依存のインストールが要るので、INLOOP_APP_E2E=1のときだけ動かす。
 test("生成したアプリの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
   const { dir, run } = newApp();
-  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int").status, 0);
+  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int", "photo:image:optional").status, 0);
   // 雛形のnpm testとnpm run buildは`inloop lint`を動かすので、inloopのbin/にパスを通す。
   const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dirname(BIN)}:${process.env.PATH}` } });
   assert.equal(sh("npm install").status, 0);
@@ -139,7 +159,7 @@ test("生成したアプリの npm test と npm run build が通る", { skip: pr
 
 test("共有のアプリで生成したものの npm test と npm run build が通る", { skip: process.env.INLOOP_APP_E2E !== "1", timeout: 600000 }, () => {
   const { dir, run } = newApp("--sync");
-  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int").status, 0);
+  assert.equal(run(dir, "generate", "scaffold", "task", "title:text", "done:bool", "due:date:optional", "estimate:real:optional", "count:int", "photo:image:optional").status, 0);
   // 雛形のnpm testとnpm run buildは`inloop lint`を動かすので、inloopのbin/にパスを通す。
   const sh = (cmd) => spawnSync("sh", ["-c", cmd], { cwd: dir, encoding: "utf8", env: { ...process.env, PATH: `${dirname(BIN)}:${process.env.PATH}` } });
   assert.equal(sh("npm install").status, 0);

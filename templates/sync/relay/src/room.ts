@@ -13,7 +13,10 @@ export interface Row { rid: string; ts: number; seq: number; blob: string }
 export interface Welcome { epoch: number; wrapped: string; from: string }
 
 /** 上限。大きな入力や大量の部屋・参加者で、保管領域を使い切られないようにする。 */
-export const LIMITS = { blobChars: 4096, rows: 5000, members: 20, requests: 20, invites: 5, inviteSeconds: 15 * 60, name: 40 } as const;
+export const LIMITS = { blobChars: 56000, rows: 5000, members: 20, requests: 20, invites: 5, inviteSeconds: 15 * 60, name: 40 } as const;
+
+/** 参加時に一度に送る行の、blobの文字数の目安（超えたら次の1通に分ける）。 */
+const CHUNK_CHARS = 512 * 1024;
 
 /** 認証済みの接続元。署名つきの接続の証明から、中継（Worker）が確かめた値。 */
 export interface Ctx { id: string; sign: string; nonce: string }
@@ -136,10 +139,22 @@ export class RoomStore {
     const epoch = this.epoch();
     const since = m.epoch === epoch ? m.since : 0;
     const rows = this.sql.all<Row>("SELECT rid, ts, seq, blob FROM rows WHERE seq > ? ORDER BY seq", since);
+    // 画像の行が多いと1通が大きくなるので、一定の大きさごとに分けて送る。最後の1通だけが、全体の最新の seq を持つ。
+    const chunks: Row[][] = [[]];
+    let size = 0;
+    for (const row of rows) {
+      if (size + row.blob.length > CHUNK_CHARS && chunks[chunks.length - 1]!.length > 0) {
+        chunks.push([]);
+        size = 0;
+      }
+      chunks[chunks.length - 1]!.push(row);
+      size += row.blob.length;
+    }
+    const max = this.maxSeq();
     return {
       out: [
         { to: "self", msg: { t: "state", chain: records.slice(m.ver), epoch, welcome: this.welcomeFor(ctx.id), requests: role === "owner" ? this.requests() : [] } },
-        { to: "self", msg: { t: "rows", epoch, rows, seq: this.maxSeq() } },
+        ...chunks.map((c, i): Out => ({ to: "self", msg: { t: "rows", epoch, rows: c, seq: i === chunks.length - 1 ? max : c[c.length - 1]!.seq } })),
       ],
     };
   }

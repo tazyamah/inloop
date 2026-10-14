@@ -68,3 +68,4 @@
 | [0046](0046-usecase-map-and-naming-lint.md) | Accepted | HTTPの入口（ユースケース）から、データ（テーブル・列）とテストへ結ぶ図を、命名規則の検査（`uc-*`）と`inloop.json`の`usecases`で作る。値の流れは作らない |
 | [0047](0047-codex-project-config.md) | Accepted | init・newでCodexのプロジェクトMCP設定も生成し、既存設定と共通の承認ルールを維持する |
 | [0048](0048-client-config-hardening.md) | Accepted | クライアント設定（`.mcp.json`、`.codex/config.toml`）の変更を必須の依頼にし、ブラウザの経路の対象を登録したアプリに限る（ADR-0010・0047を補う） |
+| [0049](0049-shared-thumbnail-images.md) | Proposed | 画像は端末の中で縮小してデータURLのtext列に入れ、中継の1行の上限を56000文字に上げて、いまの同期に載せる |

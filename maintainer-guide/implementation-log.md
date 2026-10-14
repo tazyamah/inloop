@@ -514,3 +514,12 @@ Claudeデスクトップアプリの中のClaude Codeでの確認（2026-10-11�
 - 対応: `client-config`ルールを本体と4雛形に足した。`inloop mcp --ui browser`で、対象を登録したアプリに限った。維持した登録の警告と`.mcp.json`の事前確認を足した。docs/licensing.md、雛形のAGENTS.md、READMEを直した。
 - 検証（Linux）: `npm test`。`inloop new --sync`のテスト1件は、この環境のclone（`.gitignore`の`.env.*`で`web/.env.production`が入らない）で、変更前のmainでも失敗する。ほかは通った。
 - 未対応: 紹介スライド（`docs/slides/`）の「Codexは未実装」の記述。再生成とPDFの作り直しが要る。Codexの実会話での確認は未検証のまま。
+
+## 2026-10-14 画像の共有（ADR-0049、Proposed）
+
+- `inloop generate scaffold`に列の型`image`を足した。縮小したデータURLをtext列に入れ、APIは`isImage`で検証し、画面は`web/src/image.ts`の`shrinkImage`を通す。共有のアプリは`sync-tables.ts`に`max: 36000`で登録する。
+- 中継の`blobChars`を4096から56000へ上げ、参加時の行を約512KiBごとに分けて送るようにした（最後の1通だけが最新の`seq`を持つ）。テンプレートの`Backup.tsx`に、保存領域の使用量と`persist()`の要求を足した。
+- `npm run build`後の`test/scaffold.test.mjs`が通る（追加1件）。`INLOOP_APP_E2E=1`で、画像の列を含む資源を生成した通常のアプリと`--sync`のアプリが、`npm test`（中継の上限いっぱいの行と分割送信を含む）と`npm run build`（`--sync`は`build:extension`も）を通った。Chromiumで`shrinkImage`の動作を確認した。
+- 未検証: iPhone実機（WebP書き出し、写真の選択、向き）、2台での画像の同期、本物の中継、`persist()`の許可、実際の容量。既存の中継は再デプロイするまで古い上限のまま。
+- 2026-10-14: `npm test`で落ちていた`inloop new --sync`の1件を直した。テストが、gitの管理外（`.gitignore`の`.env.*`）の`web/.env.production`が生成物にあることを求めていたため、クローンでは必ず落ちていた。このファイルは中継のURLを入れて各自が作るもの（README）なので、期待するファイルの一覧から外した。注意: 手元の`templates/sync/web/`に`.env.production`が残っていると、`inloop new --sync`の生成物にコピーされる。
+

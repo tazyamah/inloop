@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-export type FieldType = "text" | "int" | "real" | "bool" | "date";
+export type FieldType = "text" | "int" | "real" | "bool" | "date" | "image";
 export interface Field { name: string; type: FieldType; optional: boolean }
 export interface Resource {
   /** 単数の名前（snake_case）。例: blog_post */
@@ -15,7 +15,9 @@ export interface Resource {
   fields: Field[];
 }
 
-const TYPES: readonly FieldType[] = ["text", "int", "real", "bool", "date"];
+const TYPES: readonly FieldType[] = ["text", "int", "real", "bool", "date", "image"];
+/** 画像（縮小したデータURL）の最大の文字数。共有の中継の1行の上限（ADR-0049）に収まる大きさ。 */
+export const IMAGE_MAX_CHARS = 36000;
 const NAME = /^[a-z][a-z0-9_]{0,40}$/;
 /** 自動で付く列と、SQLの予約語（表名・列名に使うと引用符が要る語）。 */
 const RESERVED = new Set([
@@ -65,8 +67,8 @@ export function defineResource(name: string, specs: string[], opts: { plural?: s
   return { name, plural, label: opts.label ?? plural, fields: parseFields(specs) };
 }
 
-const sqlType: Record<FieldType, string> = { text: "TEXT", int: "INTEGER", real: "REAL", bool: "INTEGER", date: "TEXT" };
-const tsType: Record<FieldType, string> = { text: "string", int: "number", real: "number", bool: "boolean", date: "string" };
+const sqlType: Record<FieldType, string> = { text: "TEXT", int: "INTEGER", real: "REAL", bool: "INTEGER", date: "TEXT", image: "TEXT" };
+const tsType: Record<FieldType, string> = { text: "string", int: "number", real: "number", bool: "boolean", date: "string", image: "string" };
 const jsStr = (s: string): string => JSON.stringify(s);
 
 /** `CREATE TABLE`の文（`db.ts`の`db.exec`に入れる）。sync は、共有（`--sync`）のアプリ用（ADR-0041）。 */
@@ -105,11 +107,18 @@ function parseExpr(f: Field): string {
     real: `typeof ${v} === "number" && Number.isFinite(${v}) ? ${v} : undefined`,
     bool: `typeof ${v} === "boolean" ? (${v} ? 1 : 0) : undefined`,
     date: `typeof ${v} === "string" && isDate(${v}) ? ${v} : undefined`,
+    image: `typeof ${v} === "string" && isImage(${v}) ? ${v} : undefined`,
   };
   return f.optional
     ? `const ${n} = ${missing} ? null : ${body[f.type]};\n  if (${n} === undefined) return { error: ${jsStr(`${n} が正しくない`)} };`
     : `const ${n} = ${body[f.type]};\n  if (${n} === undefined) return { error: ${jsStr(`${n} が正しくない`)} };`;
 }
+
+/** 画像の列があるときだけ、データURLの検査を生成する（縮小したWebP・JPEG・PNGだけ。ADR-0049）。 */
+const imageHelper = (r: Resource): string =>
+  r.fields.some((f) => f.type === "image")
+    ? `\n/** 縮小した画像のデータURLか（WebP・JPEG・PNG、${IMAGE_MAX_CHARS}文字まで）。 */\nconst isImage = (s: string): boolean => s.length <= ${IMAGE_MAX_CHARS} && /^data:image\\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(s);\n`
+    : "";
 
 export function routeSource(r: Resource): string {
   const T = pascal(r.name);
@@ -148,7 +157,7 @@ ${toItem}
 
 /** YYYY-MM-DD の実在する日付か。 */
 const isDate = (s: string): boolean => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !Number.isNaN(Date.parse(\`\${s}T00:00:00Z\`)) && new Date(\`\${s}T00:00:00Z\`).toISOString().startsWith(s);
-
+${imageHelper(r)}
 /** 入力を検証して、SQLに渡す値（列の並び）にする。 */
 function parse(raw: unknown): { values: (string | number | null)[] } | { error: string } {
   if (typeof raw !== "object" || raw === null) return { error: "JSON のオブジェクトを送る" };
@@ -209,6 +218,7 @@ function sample(f: Field, n: number): string {
     case "real": return `${n}.5`;
     case "bool": return n % 2 === 1 ? "true" : "false";
     case "date": return jsStr(`2026-01-${String(n).padStart(2, "0")}`);
+    case "image": return jsStr(`data:image/png;base64,AAA${n}`);
   }
 }
 const bad = (f: Field): string => (f.type === "text" || f.type === "date" ? "12345" : jsStr("x"));
@@ -292,14 +302,18 @@ export function pageSource(r: Resource): string {
     if (f.type === "bool") {
       return `        <label className="field-check"><input type="checkbox" checked={form.${f.name}} onChange={(e) => setForm({ ...form, ${f.name}: e.target.checked })} /> <span>${label}</span></label>`;
     }
+    if (f.type === "image") {
+      return `        <label className="field"><span>${label}</span><input type="file" accept="image/*" onChange={(e) => void pickImage(${jsStr(f.name)}, e.target.files?.[0])} /></label>\n        {form.${f.name} !== "" && <img src={form.${f.name}} alt="" style={imgStyle} />}`;
+    }
     const type = f.type === "text" ? "text" : f.type === "date" ? "date" : "number";
     const step = f.type === "real" ? ' step="any"' : f.type === "int" ? ' step="1"' : "";
     return `        <label className="field"><span>${label}</span><input type="${type}"${step}${f.optional ? "" : " required"} value={form.${f.name}} onChange={(e) => setForm({ ...form, ${f.name}: e.target.value })} /></label>`;
   };
-  const cell = (f: Field): string => (f.type === "bool" ? `{item.${f.name} === null ? "" : item.${f.name} ? "はい" : "いいえ"}` : `{item.${f.name} ?? ""}`);
+  const hasImage = r.fields.some((f) => f.type === "image");
+  const cell = (f: Field): string => (f.type === "image" ? `{item.${f.name} ? <img src={item.${f.name}} alt="" style={imgStyle} /> : ""}` : f.type === "bool" ? `{item.${f.name} === null ? "" : item.${f.name} ? "はい" : "いいえ"}` : `{item.${f.name} ?? ""}`);
   return `// ${r.label}（${r.name}）の画面。\`inloop generate scaffold\` が作った。見た目は web/src/style.css の変数とクラスを使う。
 import { useEffect, useState } from "react";
-
+${hasImage ? 'import { shrinkImage } from "../image.ts";\n' : ""}
 interface ${T} {
 ${iface}
 }
@@ -308,7 +322,7 @@ type Form = { ${formType} };
 const blank: Form = { ${blank} };
 const toForm = (item: ${T}): Form => ({ ${fromItem} });
 const API = "/api/${r.plural}";
-
+${hasImage ? "const imgStyle = { maxWidth: 96, maxHeight: 96, borderRadius: 4 } as const;\n" : ""}
 export function ${P}() {
   const [items, setItems] = useState<${T}[]>([]);
   const [form, setForm] = useState<Form>(blank);
@@ -319,7 +333,20 @@ export function ${P}() {
   useEffect(() => { void load(); }, []);
 
   const reset = () => { setForm(blank); setEditing(null); setError(""); };
-
+${hasImage ? `
+  // 選んだ画像は、端末の中で縮小してから、データURLとして列に入れる（ADR-0049）。
+  const pickImage = async (key: keyof Form, file: File | undefined) => {
+    if (!file) return;
+    try {
+      setForm((f) => ({ ...f, [key]: "" }));
+      const url = await shrinkImage(file);
+      setForm((f) => ({ ...f, [key]: url }));
+      setError("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "画像を読めなかった");
+    }
+  };
+` : ""}
   const save = async () => {
     const r = await fetch(editing === null ? API : \`\${API}/\${editing}\`, {
       method: editing === null ? "POST" : "PUT",
@@ -385,8 +412,8 @@ ${r.fields.map(input).join("\n")}
 /** `server/sync-tables.ts`に足す1行。 */
 export function syncTableEntry(r: Resource): string {
   const col = (f: Field): string => {
-    const type = f.type === "date" ? "text" : f.type;
-    const max = f.type === "text" ? ", max: 1000" : f.type === "date" ? ", max: 10" : "";
+    const type = f.type === "date" || f.type === "image" ? "text" : f.type;
+    const max = f.type === "text" ? ", max: 1000" : f.type === "date" ? ", max: 10" : f.type === "image" ? `, max: ${IMAGE_MAX_CHARS}` : "";
     return `${f.name}: { type: ${jsStr(type)}${max}${f.optional ? ", optional: true" : ""} }`;
   };
   return `{ name: ${jsStr(r.plural)}, columns: { ${r.fields.map(col).join(", ")} } },`;
@@ -431,7 +458,7 @@ ${toItem}
 
 /** YYYY-MM-DD の実在する日付か。 */
 const isDate = (s: string): boolean => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !Number.isNaN(Date.parse(\`\${s}T00:00:00Z\`)) && new Date(\`\${s}T00:00:00Z\`).toISOString().startsWith(s);
-
+${imageHelper(r)}
 /** 入力を検証して、SQLに渡す値（列の並び）にする。 */
 function parse(raw: unknown): { values: (string | number | null)[] } | { error: string } {
   if (typeof raw !== "object" || raw === null) return { error: "JSON のオブジェクトを送る" };
@@ -562,6 +589,42 @@ export function syncPageSource(r: Resource): string {
     );
 }
 
+/** `web/src/image.ts`。画像を端末の中で縮小して、列に入れるデータURLにする（ADR-0049）。画像の列があるアプリに、1回だけ作る。 */
+export const imageHelperSource = `// 画像を縮小して、text の列に入れるデータURLにする。\`inloop generate scaffold\` が作った（ADR-0049）。
+// 長辺320px・WebP（使えない端末はJPEG）から始め、${IMAGE_MAX_CHARS}文字に収まるまで、画質と大きさを下げる。元の画像は保存しない。
+export const IMAGE_MAX_CHARS = ${IMAGE_MAX_CHARS};
+
+export async function shrinkImage(file: File, maxChars: number = IMAGE_MAX_CHARS): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("画像のファイルを選んでください");
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {
+    throw new Error("この画像は読めませんでした");
+  }
+  try {
+    for (let edge = 320; edge >= 80; edge = Math.floor(edge * 0.75)) {
+      const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("画像を扱えませんでした");
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      for (const quality of [0.8, 0.6, 0.4]) {
+        // iOSのSafariは、WebPで書き出せないとPNGを返す。そのときはJPEGにする。
+        let url = canvas.toDataURL("image/webp", quality);
+        if (!url.startsWith("data:image/webp")) url = canvas.toDataURL("image/jpeg", quality);
+        if (url.length <= maxChars) return url;
+      }
+    }
+  } finally {
+    bitmap.close();
+  }
+  throw new Error("画像を小さくできませんでした");
+}
+`;
+
 /** 生成の結果。`write`が実際に書く。 */
 export interface Plan { create: { path: string; content: string }[]; edit: { path: string; content: string }[] }
 
@@ -633,14 +696,14 @@ export function plan(repo: string, r: Resource): Plan {
       edit.push({ path: "inloop.json", content: `${JSON.stringify(json, null, 2)}\n` });
     }
   }
-  return {
-    create: [
+  const create = [
       { path: files.route, content: sync ? syncRouteSource(r) : routeSource(r) },
       { path: files.test, content: sync ? syncTestSource(r) : testSource(r) },
       { path: files.page, content: sync ? syncPageSource(r) : pageSource(r) },
-    ],
-    edit,
-  };
+  ];
+  // 画像の列があるとき、縮小の道具（web/src/image.ts）を、まだなければ作る。
+  if (r.fields.some((f) => f.type === "image") && !existsSync(join(repo, "web/src/image.ts"))) create.push({ path: "web/src/image.ts", content: imageHelperSource });
+  return { create, edit };
 }
 
 export function write(repo: string, p: Plan): void {
